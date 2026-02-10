@@ -141,13 +141,17 @@ class Mode1CaptureScreen(QWidget):
     def on_camera_changed(self, index):
         """Handle camera selection change."""
         try:
-            # Stop existing QR scanner
+            # Stop timer first to prevent frame updates during switch
+            self.timer.stop()
+            
+            # Stop existing QR scanner before closing camera
             if self.qr_scanner:
+                print("Stopping QR scanner...")
                 self.qr_scanner.stop()
                 self.qr_scanner = None
+                print("QR scanner stopped")
             
             if self.current_camera:
-                self.timer.stop()
                 self.current_camera.close()
                 self.current_camera = None
             
@@ -161,6 +165,7 @@ class Mode1CaptureScreen(QWidget):
                     
                     # Start QR scanner if available
                     if QR_SCANNER_AVAILABLE:
+                        print("Starting QR scanner...")
                         self.qr_scanner = QRScannerThread(self.current_camera)
                         self.qr_scanner.qr_detected.connect(self.on_qr_detected)
                         self.qr_scanner.start()
@@ -261,26 +266,33 @@ class Mode1CaptureScreen(QWidget):
     
     def closeEvent(self, event):
         """Clean up when closing."""
+        print("Closing Mode 1 window...")
         try:
             # Stop timer first
             self.timer.stop()
+            print("Timer stopped")
             
             # Stop recording if active
             if self.is_recording and self.video_writer:
                 self.video_writer.release()
                 self.video_writer = None
+                print("Recording stopped")
             
             # Stop QR scanner aggressively
             if self.qr_scanner:
+                print("Stopping QR scanner...")
                 self.qr_scanner.stop()
                 self.qr_scanner = None
+                print("QR scanner stopped")
             
             # Close camera last
             if self.current_camera:
                 self.current_camera.close()
                 self.current_camera = None
+                print("Camera closed")
                 
         except Exception as e:
             print(f"Cleanup error: {e}")
         
+        print("Cleanup complete, accepting close event")
         event.accept()
