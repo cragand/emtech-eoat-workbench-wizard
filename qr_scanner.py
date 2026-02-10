@@ -43,4 +43,8 @@ class QRScannerThread(QThread):
     def stop(self):
         """Stop the scanner thread."""
         self.running = False
-        self.wait()
+        self.camera = None  # Release camera reference
+        self.wait(2000)  # Wait max 2 seconds
+        if self.isRunning():
+            self.terminate()  # Force terminate if still running
+            self.wait()

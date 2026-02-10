@@ -262,14 +262,25 @@ class Mode1CaptureScreen(QWidget):
     def closeEvent(self, event):
         """Clean up when closing."""
         try:
+            # Stop timer first
             self.timer.stop()
-            if self.qr_scanner:
-                self.qr_scanner.stop()
-                self.qr_scanner.wait(1000)  # Wait up to 1 second for thread to finish
+            
+            # Stop recording if active
             if self.is_recording and self.video_writer:
                 self.video_writer.release()
+                self.video_writer = None
+            
+            # Stop QR scanner aggressively
+            if self.qr_scanner:
+                self.qr_scanner.stop()
+                self.qr_scanner = None
+            
+            # Close camera last
             if self.current_camera:
                 self.current_camera.close()
+                self.current_camera = None
+                
         except Exception as e:
             print(f"Cleanup error: {e}")
+        
         event.accept()
