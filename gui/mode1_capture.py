@@ -37,6 +37,8 @@ class Mode1CaptureScreen(QWidget):
                                        "output", "captured_images", output_serial)
         os.makedirs(self.output_dir, exist_ok=True)
         
+        print(f"Output directory: {self.output_dir}")  # Show where files are saved
+        
         self.init_ui()
         self.discover_cameras()
     
@@ -259,11 +261,15 @@ class Mode1CaptureScreen(QWidget):
     
     def closeEvent(self, event):
         """Clean up when closing."""
-        self.timer.stop()
-        if self.qr_scanner:
-            self.qr_scanner.stop()
-        if self.is_recording and self.video_writer:
-            self.video_writer.release()
-        if self.current_camera:
-            self.current_camera.close()
+        try:
+            self.timer.stop()
+            if self.qr_scanner:
+                self.qr_scanner.stop()
+                self.qr_scanner.wait(1000)  # Wait up to 1 second for thread to finish
+            if self.is_recording and self.video_writer:
+                self.video_writer.release()
+            if self.current_camera:
+                self.current_camera.close()
+        except Exception as e:
+            print(f"Cleanup error: {e}")
         event.accept()
