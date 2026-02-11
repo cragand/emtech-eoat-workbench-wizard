@@ -9,17 +9,23 @@ class CameraManager:
     
     @staticmethod
     def discover_cameras() -> List[CameraInterface]:
-        """Discover all available cameras."""
+        """Discover all available cameras.
+        
+        Optimized for fast discovery - only checks first 3 indices
+        and stops immediately when a camera fails to open.
+        """
         cameras = []
         
-        # Discover OpenCV cameras (webcam, borescope)
-        for i in range(5):  # Check first 5 indices
+        # Only check first 3 indices - most systems have 1-2 cameras max
+        for i in range(3):
             cam = OpenCVCamera(i)
             if cam.open():
                 cameras.append(cam)
             else:
                 cam.close()
-                break  # Stop when no more cameras found
+                # Stop immediately when we hit a non-existent camera
+                # This prevents checking indices that will timeout
+                break
         
         return cameras
     

@@ -130,6 +130,7 @@ class Mode1CaptureScreen(QWidget):
     
     def discover_cameras(self):
         """Discover available cameras."""
+        self.status_label.setText("Discovering cameras...")
         try:
             cameras = CameraManager.discover_cameras()
             
@@ -141,6 +142,8 @@ class Mode1CaptureScreen(QWidget):
             
             if not cameras:
                 self.status_label.setText("No cameras found")
+            else:
+                self.status_label.setText(f"Found {len(cameras)} camera(s)")
         except Exception as e:
             self.status_label.setText(f"Camera discovery error: {str(e)}")
             self.available_cameras = []
