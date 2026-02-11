@@ -9,7 +9,7 @@ class MainWindow(QMainWindow):
     
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Camera QC Application")
+        self.setWindowTitle("Emtech EoAT Cam Viewer")
         self.setMinimumSize(1024, 768)
         
         # Stacked widget for switching between screens

@@ -136,6 +136,10 @@ class Mode1CaptureScreen(QWidget):
         try:
             cameras = CameraManager.discover_cameras()
             
+            # Close all cameras after discovery - they'll be reopened when selected
+            for cam in cameras:
+                cam.close()
+            
             self.camera_combo.clear()
             self.available_cameras = cameras
             

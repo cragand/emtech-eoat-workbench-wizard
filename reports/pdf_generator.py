@@ -68,8 +68,17 @@ class PDFReportGenerator:
         
         story = []
         
-        # Title
-        title = Paragraph("Camera QC Report", self.styles['CustomTitle'])
+        # Title - determine report type based on mode_name
+        if "Mode 1" in mode_name or "General" in mode_name or "Capture" in mode_name:
+            report_title = "Emtech EOAT Report - Inspection"
+        elif "Mode 2" in mode_name or "QC" in mode_name:
+            report_title = "Emtech EOAT Report - QC"
+        elif "Mode 3" in mode_name or "Maintenance" in mode_name:
+            report_title = "Emtech EOAT Report - Maintenance/Repair"
+        else:
+            report_title = "Emtech EOAT Report - Inspection"
+        
+        title = Paragraph(report_title, self.styles['CustomTitle'])
         story.append(title)
         story.append(Spacer(1, 0.3*inch))
         
