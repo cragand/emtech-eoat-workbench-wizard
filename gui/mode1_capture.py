@@ -1,12 +1,13 @@
 """Mode 1: General image capture interface."""
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QPushButton, QComboBox, QFileDialog)
+                             QPushButton, QComboBox, QFileDialog, QMessageBox)
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QImage, QPixmap, QFont
 import cv2
 import os
 from datetime import datetime
 from camera import CameraManager
+from reports import create_simple_report
 
 # Optional QR scanner support
 try:
@@ -30,6 +31,7 @@ class Mode1CaptureScreen(QWidget):
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_frame)
         self.qr_scanner = None
+        self.captured_images = []  # Track captured images for report generation
         
         # Use "unknown" if no serial number provided
         output_serial = serial_number if serial_number else "unknown"
@@ -106,6 +108,11 @@ class Mode1CaptureScreen(QWidget):
         self.record_button.clicked.connect(self.toggle_recording)
         self.record_button.setEnabled(False)
         button_layout.addWidget(self.record_button)
+        
+        self.report_button = QPushButton("Generate Report")
+        self.report_button.setMinimumHeight(40)
+        self.report_button.clicked.connect(self.generate_report)
+        button_layout.addWidget(self.report_button)
         
         self.back_button = QPushButton("Back to Menu")
         self.back_button.setMinimumHeight(40)
@@ -234,7 +241,34 @@ class Mode1CaptureScreen(QWidget):
             filepath = os.path.join(self.output_dir, filename)
             
             cv2.imwrite(filepath, frame)
-            self.status_label.setText(f"Image saved: {filename}")
+            self.captured_images.append(filepath)  # Track for report generation
+            self.status_label.setText(f"Image saved: {filename} (Total: {len(self.captured_images)})")
+    
+    def generate_report(self):
+        """Generate PDF report from captured images."""
+        if not self.captured_images:
+            QMessageBox.information(self, "No Images", 
+                                   "No images have been captured yet. Capture some images first.")
+            return
+        
+        try:
+            report_path = create_simple_report(
+                self.serial_number,
+                self.description,
+                self.captured_images
+            )
+            
+            QMessageBox.information(self, "Report Generated", 
+                                   f"PDF report generated successfully!\n\n"
+                                   f"Location: {report_path}\n"
+                                   f"Images included: {len(self.captured_images)}")
+            
+            self.status_label.setText(f"Report generated: {os.path.basename(report_path)}")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Report Error", 
+                               f"Failed to generate report:\n{str(e)}")
+            self.status_label.setText(f"Report generation failed: {str(e)}")
     
     def toggle_recording(self):
         """Start or stop video recording."""

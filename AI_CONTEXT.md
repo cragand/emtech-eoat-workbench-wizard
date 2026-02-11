@@ -11,10 +11,10 @@ This is a Python-based quality control and maintenance application designed for 
 - Track work by serial number (optional) with QR code scanning support
 
 ## Technology Stack
-- **GUI Framework**: PyQt6
+- **GUI Framework**: PyQt5 (Python 3.7 compatible)
 - **Camera**: OpenCV (webcam and USB borescope only - NO Basler/pypylon)
-- **QR Scanning**: pyzbar (passive background scanning)
-- **Reporting**: reportlab (PDF generation)
+- **QR Scanning**: pyzbar (passive background scanning, optional)
+- **Reporting**: reportlab 3.6.x (PDF generation)
 - **Image Processing**: Pillow, OpenCV
 
 ## Application Architecture
@@ -44,7 +44,12 @@ This is a Python-based quality control and maintenance application designed for 
 - Appends scanned data to serial number field (or sets it if empty)
 - Works across all modes without user intervention
 
-#### Workflows (`workflows/`)
+#### Reports (`reports/`)
+- **pdf_generator.py** - PDF report generation with reportlab
+- **PDFReportGenerator** class - Full-featured report generation
+- **create_simple_report()** - Convenience function for quick reports
+- Supports session info, images, checklists, and workflow data
+- Professional layout with tables, styling, and automatic pagination
 - JSON-based workflow definitions
 - `qc_workflows/` - Quality control process definitions
 - `maintenance_workflows/` - Maintenance procedure definitions
@@ -72,17 +77,18 @@ output/
 - Mode selection screen with optional serial number
 - Mode 1: General image capture with live preview
 - Camera discovery and management (OpenCV only)
-- Passive QR code scanning across all modes
+- Passive QR code scanning across all modes (optional, graceful degradation)
 - Basic file organization by serial number
 - Multi-camera support (auto-discovery)
+- PDF report generation with images and session info
+- Report generation integrated into Mode 1
 
 ### ⏳ Not Yet Implemented
 - Mode 2: QC workflow execution
 - Mode 3: Maintenance workflow execution
-- PDF report generation
 - Workflow JSON parsing and execution
 - Reference image display
-- Checklist tracking
+- Checklist tracking (UI integration)
 
 ## Important Design Decisions
 
