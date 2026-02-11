@@ -48,30 +48,45 @@ class Mode1CaptureScreen(QWidget):
     
     def init_ui(self):
         """Initialize the user interface."""
-        layout = QVBoxLayout()
+        # Set background color
+        self.setStyleSheet("background-color: white;")
         
-        # Header
-        header_layout = QHBoxLayout()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Header with green background
+        header_widget = QWidget()
+        header_widget.setStyleSheet("""
+            background-color: #77C25E;
+            border-radius: 5px;
+            padding: 10px;
+        """)
+        header_layout = QHBoxLayout(header_widget)
+        
         title = QLabel("Mode 1: General Image Capture")
         title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        title.setStyleSheet("color: white; background: transparent;")
         header_layout.addWidget(title)
         header_layout.addStretch()
         
         info_label = QLabel(f"Serial: {self.serial_number if self.serial_number else 'Not Set'}")
         info_label.setFont(QFont("Arial", 10))
+        info_label.setStyleSheet("color: white; background: transparent;")
         header_layout.addWidget(info_label)
-        layout.addLayout(header_layout)
+        
+        layout.addWidget(header_widget)
         
         # QR Scanner status
         qr_layout = QHBoxLayout()
         qr_label = QLabel("QR Scanner:")
         qr_label.setFont(QFont("Arial", 10))
+        qr_label.setStyleSheet("color: black;")
         self.qr_status_label = QLabel("Inactive")
         self.qr_status_label.setFont(QFont("Arial", 10))
         self.qr_status_label.setStyleSheet("color: gray;")
         self.qr_data_label = QLabel("")
         self.qr_data_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        self.qr_data_label.setStyleSheet("color: green;")
+        self.qr_data_label.setStyleSheet("color: #77C25E;")
         qr_layout.addWidget(qr_label)
         qr_layout.addWidget(self.qr_status_label)
         qr_layout.addWidget(self.qr_data_label)
@@ -99,25 +114,66 @@ class Mode1CaptureScreen(QWidget):
         # Control buttons
         button_layout = QHBoxLayout()
         
+        # Button stylesheet
+        button_style = """
+            QPushButton {
+                background-color: #77C25E;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #5FA84A;
+            }
+            QPushButton:pressed {
+                background-color: #4D8A3C;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #666666;
+            }
+        """
+        
+        back_button_style = """
+            QPushButton {
+                background-color: #333333;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #555555;
+            }
+            QPushButton:pressed {
+                background-color: #222222;
+            }
+        """
+        
         self.capture_button = QPushButton("Capture Image")
         self.capture_button.setMinimumHeight(40)
+        self.capture_button.setStyleSheet(button_style)
         self.capture_button.clicked.connect(self.capture_image)
         self.capture_button.setEnabled(False)
         button_layout.addWidget(self.capture_button)
         
         self.record_button = QPushButton("Start Recording")
         self.record_button.setMinimumHeight(40)
+        self.record_button.setStyleSheet(button_style)
         self.record_button.clicked.connect(self.toggle_recording)
         self.record_button.setEnabled(False)
         button_layout.addWidget(self.record_button)
         
         self.report_button = QPushButton("Generate Report")
         self.report_button.setMinimumHeight(40)
+        self.report_button.setStyleSheet(button_style)
         self.report_button.clicked.connect(self.generate_report)
         button_layout.addWidget(self.report_button)
         
         self.back_button = QPushButton("Back to Menu")
         self.back_button.setMinimumHeight(40)
+        self.back_button.setStyleSheet(back_button_style)
         self.back_button.clicked.connect(self.on_back_clicked)
         button_layout.addWidget(self.back_button)
         
@@ -126,6 +182,7 @@ class Mode1CaptureScreen(QWidget):
         # Status label
         self.status_label = QLabel("Ready")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_label.setStyleSheet("color: black; font-size: 12px; padding: 5px;")
         layout.addWidget(self.status_label)
         
         self.setLayout(layout)
@@ -186,7 +243,7 @@ class Mode1CaptureScreen(QWidget):
                         self.qr_scanner.qr_detected.connect(self.on_qr_detected)
                         self.qr_scanner.start()
                         self.qr_status_label.setText("Active")
-                        self.qr_status_label.setStyleSheet("color: green;")
+                        self.qr_status_label.setStyleSheet("color: #77C25E;")
                     else:
                         self.qr_status_label.setText("Unavailable")
                         self.qr_status_label.setStyleSheet("color: gray;")
