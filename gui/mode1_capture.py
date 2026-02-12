@@ -5,6 +5,7 @@ from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QImage, QPixmap, QFont
 import cv2
 import os
+import json
 from datetime import datetime
 from camera import CameraManager
 from reports import create_simple_report
@@ -34,6 +35,7 @@ class Mode1CaptureScreen(QWidget):
         self.timer.timeout.connect(self.update_frame)
         self.qr_scanner = None
         self.captured_images = []  # List of dicts: {path, camera, notes}
+        self.report_generated = False  # Track if report has been generated
         
         # Use "unknown" if no serial number provided
         output_serial = serial_number if serial_number else "unknown"
@@ -334,17 +336,39 @@ class Mode1CaptureScreen(QWidget):
             camera_name = self.current_camera.name if self.current_camera else "Unknown"
             
             # Store image with metadata
-            self.captured_images.append({
+            image_data = {
                 'path': filepath,
                 'camera': camera_name,
                 'notes': notes,
-                'timestamp': timestamp
-            })
+                'timestamp': timestamp,
+                'type': 'image'
+            }
+            self.captured_images.append(image_data)
+            
+            # Save metadata to JSON file alongside image
+            self._save_metadata_file(filepath, image_data)
             
             # Clear notes field for next image
             self.notes_input.clear()
             
             self.status_label.setText(f"Image saved: {filename} (Total: {len(self.captured_images)})")
+    
+    def _save_metadata_file(self, media_path, metadata):
+        """Save metadata JSON file alongside media file."""
+        json_path = os.path.splitext(media_path)[0] + '_metadata.json'
+        try:
+            with open(json_path, 'w') as f:
+                json.dump({
+                    'filename': os.path.basename(media_path),
+                    'camera': metadata.get('camera', 'Unknown'),
+                    'notes': metadata.get('notes', ''),
+                    'timestamp': metadata.get('timestamp', ''),
+                    'type': metadata.get('type', 'image'),
+                    'serial_number': self.serial_number,
+                    'description': self.description
+                }, f, indent=2)
+        except Exception as e:
+            print(f"Failed to save metadata: {e}")
     
     def generate_report(self):
         """Generate PDF report from captured images."""
@@ -363,6 +387,9 @@ class Mode1CaptureScreen(QWidget):
                 self.description,
                 self.captured_images
             )
+            
+            # Mark report as generated
+            self.report_generated = True
             
             # Update status
             self.status_label.setText(f"✓ Report saved: {os.path.basename(report_path)}")
@@ -411,6 +438,10 @@ class Mode1CaptureScreen(QWidget):
             fourcc = cv2.VideoWriter_fourcc(*'XVID')
             self.video_writer = cv2.VideoWriter(filepath, fourcc, 20.0, (width, height))
             
+            # Store video start info
+            self.current_video_path = filepath
+            self.current_video_timestamp = timestamp
+            
             self.is_recording = True
             self.record_button.setText("Stop Recording")
             self.capture_button.setEnabled(False)
@@ -422,12 +453,52 @@ class Mode1CaptureScreen(QWidget):
                 self.video_writer.release()
                 self.video_writer = None
             
+            # Get notes and camera info for video
+            notes = self.notes_input.text().strip()
+            camera_name = self.current_camera.name if self.current_camera else "Unknown"
+            
+            # Store video with metadata
+            video_data = {
+                'path': self.current_video_path,
+                'camera': camera_name,
+                'notes': notes,
+                'timestamp': self.current_video_timestamp,
+                'type': 'video'
+            }
+            self.captured_images.append(video_data)
+            
+            # Save metadata to JSON file alongside video
+            self._save_metadata_file(self.current_video_path, video_data)
+            
+            # Clear notes field
+            self.notes_input.clear()
+            
             self.record_button.setText("Start Recording")
             self.capture_button.setEnabled(True)
-            self.status_label.setText("Recording stopped")
+            self.status_label.setText(f"Recording stopped (Total: {len(self.captured_images)})")
     
     def on_back_clicked(self):
         """Handle back button click."""
+        # Check if user has unsaved work
+        if self.captured_images and not self.report_generated:
+            reply = QMessageBox.question(
+                self,
+                "Generate Report?",
+                f"You have {len(self.captured_images)} captured item(s) without a report.\n\n"
+                "Would you like to generate a report before leaving?",
+                QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
+                QMessageBox.Yes
+            )
+            
+            if reply == QMessageBox.Yes:
+                self.generate_report()
+                # Only proceed if report was successfully generated
+                if not self.report_generated:
+                    return
+            elif reply == QMessageBox.Cancel:
+                return
+            # If No, continue to cleanup
+        
         self.cleanup_resources()
         self.back_requested.emit()
     
@@ -454,5 +525,27 @@ class Mode1CaptureScreen(QWidget):
     
     def closeEvent(self, event):
         """Clean up when closing."""
+        # Check if user has unsaved work
+        if self.captured_images and not self.report_generated:
+            reply = QMessageBox.question(
+                self,
+                "Generate Report?",
+                f"You have {len(self.captured_images)} captured item(s) without a report.\n\n"
+                "Would you like to generate a report before closing?",
+                QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
+                QMessageBox.Yes
+            )
+            
+            if reply == QMessageBox.Yes:
+                self.generate_report()
+                # Only proceed if report was successfully generated
+                if not self.report_generated:
+                    event.ignore()
+                    return
+            elif reply == QMessageBox.Cancel:
+                event.ignore()
+                return
+            # If No, continue to cleanup
+        
         self.cleanup_resources()
         event.accept()
