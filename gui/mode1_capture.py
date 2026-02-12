@@ -1,6 +1,6 @@
 """Mode 1: General image capture interface."""
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QPushButton, QComboBox, QFileDialog, QMessageBox)
+                             QPushButton, QComboBox, QFileDialog, QMessageBox, QLineEdit)
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QImage, QPixmap, QFont
 import cv2
