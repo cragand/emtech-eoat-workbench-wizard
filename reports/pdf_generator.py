@@ -145,33 +145,56 @@ class PDFReportGenerator:
                     img_path = img_data['path']
                     camera = img_data.get('camera', 'Unknown')
                     notes = img_data.get('notes', '')
+                    media_type = img_data.get('type', 'image')
                 else:
                     # Legacy format - just a path string
                     img_path = img_data
                     camera = 'Unknown'
                     notes = ''
+                    media_type = 'image'
                 
                 if os.path.exists(img_path):
-                    # Add image caption with camera source
-                    caption_text = f"<b>Image {idx}</b>: {os.path.basename(img_path)}<br/>"
-                    caption_text += f"<i>Camera: {camera}</i>"
-                    if notes:
-                        caption_text += f"<br/><b>Notes:</b> {notes}"
+                    # Check if this is a video file
+                    is_video = media_type == 'video' or img_path.lower().endswith(('.avi', '.mp4', '.mov', '.mkv'))
                     
-                    caption = Paragraph(caption_text, self.styles['Normal'])
-                    story.append(caption)
-                    story.append(Spacer(1, 0.1*inch))
-                    
-                    # Add image (scaled to fit page width)
-                    img = Image(img_path, width=6*inch, height=4.5*inch, kind='proportional')
-                    story.append(img)
-                    story.append(Spacer(1, 0.3*inch))
-                    
-                    # Page break after every 2 images to avoid crowding
-                    if idx % 2 == 0 and idx < len(images):
-                        story.append(PageBreak())
+                    if is_video:
+                        # For videos, just add a note that video was recorded
+                        caption_text = f"<b>Video {idx}</b>: {os.path.basename(img_path)}<br/>"
+                        caption_text += f"<i>Camera: {camera}</i><br/>"
+                        caption_text += "<i>(Video file - not embedded in report)</i>"
+                        if notes:
+                            caption_text += f"<br/><b>Notes:</b> {notes}"
+                        
+                        caption = Paragraph(caption_text, self.styles['Normal'])
+                        story.append(caption)
+                        story.append(Spacer(1, 0.3*inch))
+                    else:
+                        # For images, embed them in the report
+                        caption_text = f"<b>Image {idx}</b>: {os.path.basename(img_path)}<br/>"
+                        caption_text += f"<i>Camera: {camera}</i>"
+                        if notes:
+                            caption_text += f"<br/><b>Notes:</b> {notes}"
+                        
+                        caption = Paragraph(caption_text, self.styles['Normal'])
+                        story.append(caption)
+                        story.append(Spacer(1, 0.1*inch))
+                        
+                        try:
+                            # Add image (scaled to fit page width)
+                            img = Image(img_path, width=6*inch, height=4.5*inch, kind='proportional')
+                            story.append(img)
+                        except Exception as e:
+                            # If image can't be loaded, show error message
+                            error_msg = Paragraph(f"<i>Error loading image: {str(e)}</i>", self.styles['Normal'])
+                            story.append(error_msg)
+                        
+                        story.append(Spacer(1, 0.3*inch))
+                        
+                        # Page break after every 2 images to avoid crowding
+                        if idx % 2 == 0 and idx < len(images):
+                            story.append(PageBreak())
         else:
-            story.append(Paragraph("No images captured", self.styles['Normal']))
+            story.append(Paragraph("No images captured", self.styles['Normal'])))
         
         # Build PDF
         doc.build(story)
