@@ -9,6 +9,7 @@ import json
 import numpy as np
 from datetime import datetime
 from camera import CameraManager
+from reports import PDFReportGenerator
 from gui.annotatable_preview import AnnotatablePreview
 
 # Optional QR scanner support
@@ -505,7 +506,6 @@ class WorkflowExecutionScreen(QWidget):
         if not self.validate_step():
             return
         
-        # TODO: Generate workflow report
         reply = QMessageBox.question(self, "Finish Workflow", 
                                     f"Workflow complete!\n\n"
                                     f"Total images captured: {len(self.captured_images)}\n\n"
@@ -513,11 +513,49 @@ class WorkflowExecutionScreen(QWidget):
                                     QMessageBox.Yes | QMessageBox.No)
         
         if reply == QMessageBox.Yes:
-            # TODO: Generate report with workflow context
-            QMessageBox.information(self, "Report", "Report generation not yet implemented.")
+            self.generate_workflow_report()
         
         self.cleanup_resources()
         self.back_requested.emit()
+    
+    def generate_workflow_report(self):
+        """Generate PDF report for completed workflow."""
+        try:
+            # Determine mode name for report
+            workflow_name = self.workflow.get('name', 'Workflow')
+            
+            # Create checklist from steps
+            checklist_data = []
+            for i, step in enumerate(self.workflow['steps']):
+                step_title = step.get('title', f'Step {i+1}')
+                # Count images for this step
+                step_imgs = [img for img in self.captured_images if img.get('step') == i+1]
+                passed = len(step_imgs) > 0  # Step passed if at least one image captured
+                checklist_data.append({
+                    'name': step_title,
+                    'passed': passed
+                })
+            
+            # Generate report
+            generator = PDFReportGenerator()
+            report_path = generator.generate_report(
+                serial_number=self.serial_number,
+                description=self.description,
+                images=self.captured_images,
+                mode_name=workflow_name,
+                workflow_name=workflow_name,
+                checklist_data=checklist_data
+            )
+            
+            QMessageBox.information(self, "Report Generated", 
+                                   f"Workflow report generated successfully!\n\n"
+                                   f"Location: {report_path}\n\n"
+                                   f"Images: {len(self.captured_images)}\n"
+                                   f"Steps completed: {len(checklist_data)}")
+        
+        except Exception as e:
+            QMessageBox.critical(self, "Report Error", 
+                               f"Failed to generate report:\n{str(e)}")
     
     def cleanup_resources(self):
         """Clean up camera resources."""
