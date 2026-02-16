@@ -423,11 +423,11 @@ class Mode1CaptureScreen(QWidget):
             cv2.circle(frame, (end_x, end_y), 20, (0, 0, 255), 3)
             
             # Label text
-            font = cv2.FONT_HERSHEY_BOLD
-            text_size = cv2.getTextSize(label, font, 0.8, 2)[0]
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            text_size = cv2.getTextSize(label, font, 0.8, 3)[0]
             text_x = end_x - text_size[0] // 2
             text_y = end_y + text_size[1] // 2
-            cv2.putText(frame, label, (text_x, text_y), font, 0.8, (0, 0, 255), 2)
+            cv2.putText(frame, label, (text_x, text_y), font, 0.8, (0, 0, 255), 3)
         
         return frame
     
