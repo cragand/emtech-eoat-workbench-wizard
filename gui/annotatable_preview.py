@@ -3,6 +3,7 @@ from PyQt5.QtWidgets import QLabel
 from PyQt5.QtCore import Qt, QPoint, pyqtSignal
 from PyQt5.QtGui import QPainter, QColor, QPen, QFont, QPixmap, QPainterPath
 import string
+import math
 
 
 class AnnotatablePreview(QLabel):
@@ -12,10 +13,11 @@ class AnnotatablePreview(QLabel):
     
     def __init__(self):
         super().__init__()
-        self.markers = []  # List of {pos: QPoint, label: str}
+        self.markers = []  # List of {pos: QPoint, label: str, angle: float}
         self.dragging_marker = None
         self.drag_offset = QPoint()
         self.current_frame = None
+        self.hover_marker = None
         self.setMouseTracking(True)
         self.setCursor(Qt.CrossCursor)
     
@@ -27,25 +29,35 @@ class AnnotatablePreview(QLabel):
             # After Z, use AA, AB, etc.
             label = string.ascii_uppercase[(len(self.markers) // 26) - 1] + label
         
-        self.markers.append({'pos': pos, 'label': label})
+        self.markers.append({'pos': pos, 'label': label, 'angle': 45})  # Default 45° (down-right)
         self.markers_changed.emit()
         self.update()
     
     def clear_markers(self):
         """Remove all markers."""
         self.markers = []
+        self.hover_marker = None
         self.markers_changed.emit()
         self.update()
     
     def get_markers_data(self):
         """Get marker data for saving with image."""
-        return [{'x': m['pos'].x(), 'y': m['pos'].y(), 'label': m['label']} 
+        return [{'x': m['pos'].x(), 'y': m['pos'].y(), 'label': m['label'], 'angle': m['angle']} 
                 for m in self.markers]
     
     def set_frame(self, pixmap):
         """Set the current camera frame."""
         self.current_frame = pixmap
         self.update()
+    
+    def wheelEvent(self, event):
+        """Handle mouse wheel - rotate marker."""
+        if self.hover_marker:
+            # Rotate by 15 degrees per wheel step
+            delta = event.angleDelta().y() / 120  # Standard wheel step
+            self.hover_marker['angle'] = (self.hover_marker['angle'] + delta * 15) % 360
+            self.markers_changed.emit()
+            self.update()
     
     def mousePressEvent(self, event):
         """Handle mouse press - start dragging or add marker."""
@@ -65,6 +77,7 @@ class AnnotatablePreview(QLabel):
             for i, marker in enumerate(self.markers):
                 if self._is_near_marker(event.pos(), marker['pos']):
                     self.markers.pop(i)
+                    self.hover_marker = None
                     self.markers_changed.emit()
                     self.update()
                     break
@@ -77,9 +90,15 @@ class AnnotatablePreview(QLabel):
             self.markers_changed.emit()
             self.update()
         else:
+            # Update hover marker for rotation
+            self.hover_marker = None
+            for marker in self.markers:
+                if self._is_near_marker(event.pos(), marker['pos']):
+                    self.hover_marker = marker
+                    break
+            
             # Change cursor if hovering over marker
-            hovering = any(self._is_near_marker(event.pos(), m['pos']) for m in self.markers)
-            self.setCursor(Qt.OpenHandCursor if hovering else Qt.CrossCursor)
+            self.setCursor(Qt.OpenHandCursor if self.hover_marker else Qt.CrossCursor)
     
     def mouseReleaseEvent(self, event):
         """Handle mouse release - stop dragging."""
@@ -108,40 +127,52 @@ class AnnotatablePreview(QLabel):
         
         # Draw markers
         for marker in self.markers:
-            self._draw_marker(painter, marker['pos'], marker['label'])
+            self._draw_marker(painter, marker['pos'], marker['label'], marker['angle'])
         
         painter.end()
     
-    def _draw_marker(self, painter, pos, label):
-        """Draw a single marker (arrow with label)."""
-        # Arrow parameters
-        arrow_length = 40
-        arrow_width = 15
+    def _draw_marker(self, painter, pos, label, angle):
+        """Draw a single marker (rotatable arrow with label)."""
+        # Arrow parameters (smaller)
+        arrow_length = 30
         
-        # Draw arrow pointing down-right
-        arrow_path = QPainterPath()
-        arrow_path.moveTo(pos.x(), pos.y())
-        arrow_path.lineTo(pos.x() + arrow_length, pos.y() + arrow_length)
+        # Calculate arrow endpoint based on angle
+        angle_rad = math.radians(angle)
+        end_x = pos.x() + arrow_length * math.cos(angle_rad)
+        end_y = pos.y() + arrow_length * math.sin(angle_rad)
         
-        # Arrowhead
-        arrow_path.lineTo(pos.x() + arrow_length - 10, pos.y() + arrow_length)
-        arrow_path.lineTo(pos.x() + arrow_length, pos.y() + arrow_length + 10)
-        arrow_path.lineTo(pos.x() + arrow_length, pos.y() + arrow_length)
-        
-        # Draw arrow with red color
-        pen = QPen(QColor(255, 0, 0), 3)
+        # Draw arrow line
+        pen = QPen(QColor(255, 0, 0), 2)
         painter.setPen(pen)
+        painter.drawLine(pos.x(), pos.y(), int(end_x), int(end_y))
+        
+        # Draw arrowhead
+        arrow_size = 8
+        angle1 = angle_rad + math.radians(150)
+        angle2 = angle_rad - math.radians(150)
+        
+        arrow_p1_x = end_x + arrow_size * math.cos(angle1)
+        arrow_p1_y = end_y + arrow_size * math.sin(angle1)
+        arrow_p2_x = end_x + arrow_size * math.cos(angle2)
+        arrow_p2_y = end_y + arrow_size * math.sin(angle2)
+        
+        painter.setBrush(QColor(255, 0, 0))
+        arrow_path = QPainterPath()
+        arrow_path.moveTo(end_x, end_y)
+        arrow_path.lineTo(arrow_p1_x, arrow_p1_y)
+        arrow_path.lineTo(arrow_p2_x, arrow_p2_y)
+        arrow_path.closeSubpath()
         painter.drawPath(arrow_path)
         
         # Draw label circle at arrow tip
-        label_pos = QPoint(pos.x() + arrow_length, pos.y() + arrow_length)
+        label_pos = QPoint(int(end_x), int(end_y))
         
         # White circle background
         painter.setBrush(QColor(255, 255, 255))
         painter.setPen(QPen(QColor(255, 0, 0), 2))
-        painter.drawEllipse(label_pos, 15, 15)
+        painter.drawEllipse(label_pos, 12, 12)
         
         # Draw label text
         painter.setPen(QColor(255, 0, 0))
-        painter.setFont(QFont("Arial", 12, QFont.Bold))
-        painter.drawText(label_pos.x() - 6, label_pos.y() + 6, label)
+        painter.setFont(QFont("Arial", 10, QFont.Bold))
+        painter.drawText(label_pos.x() - 5, label_pos.y() + 5, label)

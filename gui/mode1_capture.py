@@ -136,7 +136,7 @@ class Mode1CaptureScreen(QWidget):
         """)
         self.clear_markers_button.clicked.connect(self.preview_label.clear_markers)
         
-        annotation_help = QLabel("Left-click: Add marker | Drag: Move marker | Right-click: Remove")
+        annotation_help = QLabel("Left-click: Add | Drag: Move | Scroll: Rotate | Right-click: Remove")
         annotation_help.setStyleSheet("color: #666666; font-size: 10px;")
         
         annotation_layout.addWidget(annotation_label)
@@ -409,25 +409,27 @@ class Mode1CaptureScreen(QWidget):
             x = int(marker['x'] * scale_x)
             y = int(marker['y'] * scale_y)
             label = marker['label']
+            angle = marker.get('angle', 45)  # Default to 45° if not specified
             
-            # Draw arrow
-            arrow_length = 60
-            end_x = x + arrow_length
-            end_y = y + arrow_length
+            # Draw arrow with rotation (smaller size)
+            arrow_length = 45
+            angle_rad = np.radians(angle)
+            end_x = int(x + arrow_length * np.cos(angle_rad))
+            end_y = int(y + arrow_length * np.sin(angle_rad))
             
             # Arrow line
-            cv2.arrowedLine(frame, (x, y), (end_x, end_y), (0, 0, 255), 4, tipLength=0.3)
+            cv2.arrowedLine(frame, (x, y), (end_x, end_y), (0, 0, 255), 3, tipLength=0.3)
             
             # Label circle at arrow tip
-            cv2.circle(frame, (end_x, end_y), 20, (255, 255, 255), -1)
-            cv2.circle(frame, (end_x, end_y), 20, (0, 0, 255), 3)
+            cv2.circle(frame, (end_x, end_y), 18, (255, 255, 255), -1)
+            cv2.circle(frame, (end_x, end_y), 18, (0, 0, 255), 2)
             
             # Label text
             font = cv2.FONT_HERSHEY_SIMPLEX
-            text_size = cv2.getTextSize(label, font, 0.8, 3)[0]
+            text_size = cv2.getTextSize(label, font, 0.7, 3)[0]
             text_x = end_x - text_size[0] // 2
             text_y = end_y + text_size[1] // 2
-            cv2.putText(frame, label, (text_x, text_y), font, 0.8, (0, 0, 255), 3)
+            cv2.putText(frame, label, (text_x, text_y), font, 0.7, (0, 0, 255), 3)
         
         return frame
     
