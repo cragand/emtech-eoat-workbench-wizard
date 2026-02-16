@@ -6,9 +6,11 @@ from PyQt5.QtGui import QImage, QPixmap, QFont
 import cv2
 import os
 import json
+import numpy as np
 from datetime import datetime
 from camera import CameraManager
 from reports import create_simple_report
+from gui.annotatable_preview import AnnotatablePreview
 
 # Optional QR scanner support
 try:
@@ -105,13 +107,43 @@ class Mode1CaptureScreen(QWidget):
         camera_layout.addStretch()
         layout.addLayout(camera_layout)
         
-        # Camera preview
-        self.preview_label = QLabel()
+        # Annotatable camera preview
+        self.preview_label = AnnotatablePreview()
         self.preview_label.setMinimumSize(800, 600)
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setStyleSheet("border: 2px solid black; background-color: #2b2b2b;")
         self.preview_label.setText("No camera selected")
         layout.addWidget(self.preview_label)
+        
+        # Annotation controls
+        annotation_layout = QHBoxLayout()
+        annotation_label = QLabel("Annotations:")
+        annotation_label.setStyleSheet("color: black; font-weight: bold;")
+        
+        self.clear_markers_button = QPushButton("Clear Markers")
+        self.clear_markers_button.setStyleSheet("""
+            QPushButton {
+                background-color: #FF6B6B;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 5px 15px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #FF5252;
+            }
+        """)
+        self.clear_markers_button.clicked.connect(self.preview_label.clear_markers)
+        
+        annotation_help = QLabel("Left-click: Add marker | Drag: Move marker | Right-click: Remove")
+        annotation_help.setStyleSheet("color: #666666; font-size: 10px;")
+        
+        annotation_layout.addWidget(annotation_label)
+        annotation_layout.addWidget(self.clear_markers_button)
+        annotation_layout.addWidget(annotation_help)
+        annotation_layout.addStretch()
+        layout.addLayout(annotation_layout)
         
         # Image notes input (optional)
         notes_layout = QHBoxLayout()
@@ -315,15 +347,22 @@ class Mode1CaptureScreen(QWidget):
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation
             )
-            self.preview_label.setPixmap(scaled_pixmap)
+            self.preview_label.set_frame(scaled_pixmap)
     
     def capture_image(self):
-        """Capture and save a single image."""
+        """Capture and save a single image with annotations."""
         if not self.current_camera:
             return
         
         frame = self.current_camera.capture_frame()
         if frame is not None:
+            # Get markers before saving
+            markers = self.preview_label.get_markers_data()
+            
+            # Draw markers on the frame if any exist
+            if markers:
+                frame = self._draw_markers_on_frame(frame, markers)
+            
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             serial_prefix = self.serial_number if self.serial_number else "unknown"
             filename = f"{serial_prefix}_{timestamp}.jpg"
@@ -335,23 +374,62 @@ class Mode1CaptureScreen(QWidget):
             notes = self.notes_input.text().strip()
             camera_name = self.current_camera.name if self.current_camera else "Unknown"
             
-            # Store image with metadata
+            # Store image with metadata including markers
             image_data = {
                 'path': filepath,
                 'camera': camera_name,
                 'notes': notes,
                 'timestamp': timestamp,
-                'type': 'image'
+                'type': 'image',
+                'markers': markers
             }
             self.captured_images.append(image_data)
             
             # Save metadata to JSON file alongside image
             self._save_metadata_file(filepath, image_data)
             
-            # Clear notes field for next image
+            # Clear notes and markers for next image
             self.notes_input.clear()
+            self.preview_label.clear_markers()
             
             self.status_label.setText(f"Image saved: {filename} (Total: {len(self.captured_images)})")
+    
+    def _draw_markers_on_frame(self, frame, markers):
+        """Draw annotation markers on the frame."""
+        # Scale markers from preview size to actual frame size
+        preview_size = self.preview_label.size()
+        frame_h, frame_w = frame.shape[:2]
+        
+        # Calculate scaling factors
+        scale_x = frame_w / preview_size.width()
+        scale_y = frame_h / preview_size.height()
+        
+        for marker in markers:
+            # Scale marker position
+            x = int(marker['x'] * scale_x)
+            y = int(marker['y'] * scale_y)
+            label = marker['label']
+            
+            # Draw arrow
+            arrow_length = 60
+            end_x = x + arrow_length
+            end_y = y + arrow_length
+            
+            # Arrow line
+            cv2.arrowedLine(frame, (x, y), (end_x, end_y), (0, 0, 255), 4, tipLength=0.3)
+            
+            # Label circle at arrow tip
+            cv2.circle(frame, (end_x, end_y), 20, (255, 255, 255), -1)
+            cv2.circle(frame, (end_x, end_y), 20, (0, 0, 255), 3)
+            
+            # Label text
+            font = cv2.FONT_HERSHEY_BOLD
+            text_size = cv2.getTextSize(label, font, 0.8, 2)[0]
+            text_x = end_x - text_size[0] // 2
+            text_y = end_y + text_size[1] // 2
+            cv2.putText(frame, label, (text_x, text_y), font, 0.8, (0, 0, 255), 2)
+        
+        return frame
     
     def _save_metadata_file(self, media_path, metadata):
         """Save metadata JSON file alongside media file."""
@@ -364,6 +442,7 @@ class Mode1CaptureScreen(QWidget):
                     'notes': metadata.get('notes', ''),
                     'timestamp': metadata.get('timestamp', ''),
                     'type': metadata.get('type', 'image'),
+                    'markers': metadata.get('markers', []),
                     'serial_number': self.serial_number,
                     'description': self.description
                 }, f, indent=2)
