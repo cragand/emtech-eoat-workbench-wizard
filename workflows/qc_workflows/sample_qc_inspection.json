@@ -1,0 +1,27 @@
+{
+  "name": "Sample QC Inspection",
+  "description": "Basic quality control inspection workflow",
+  "steps": [
+    {
+      "title": "Visual Inspection",
+      "instructions": "Perform a visual inspection of the component. Look for any visible defects, scratches, or damage.",
+      "reference_image": "",
+      "require_photo": true,
+      "require_annotations": false
+    },
+    {
+      "title": "Dimensional Check",
+      "instructions": "Verify all dimensions are within tolerance. Use calipers to measure critical dimensions.",
+      "reference_image": "",
+      "require_photo": true,
+      "require_annotations": true
+    },
+    {
+      "title": "Final Documentation",
+      "instructions": "Take final photos documenting the overall condition of the component.",
+      "reference_image": "",
+      "require_photo": true,
+      "require_annotations": false
+    }
+  ]
+}

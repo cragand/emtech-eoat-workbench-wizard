@@ -1,0 +1,41 @@
+{
+  "name": "Sample Maintenance Procedure",
+  "description": "Basic maintenance and repair workflow",
+  "steps": [
+    {
+      "title": "Initial Assessment",
+      "instructions": "Document the current state before maintenance. Take photos of any issues or wear.",
+      "reference_image": "",
+      "require_photo": true,
+      "require_annotations": true
+    },
+    {
+      "title": "Disassembly",
+      "instructions": "Carefully disassemble the component. Document each step with photos.",
+      "reference_image": "",
+      "require_photo": true,
+      "require_annotations": false
+    },
+    {
+      "title": "Cleaning and Inspection",
+      "instructions": "Clean all parts and inspect for wear or damage. Mark any areas of concern.",
+      "reference_image": "",
+      "require_photo": true,
+      "require_annotations": true
+    },
+    {
+      "title": "Reassembly",
+      "instructions": "Reassemble the component. Verify all parts are correctly installed.",
+      "reference_image": "",
+      "require_photo": true,
+      "require_annotations": false
+    },
+    {
+      "title": "Final Verification",
+      "instructions": "Test functionality and document the completed maintenance.",
+      "reference_image": "",
+      "require_photo": true,
+      "require_annotations": false
+    }
+  ]
+}
