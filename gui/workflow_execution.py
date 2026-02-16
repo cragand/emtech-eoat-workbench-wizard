@@ -388,9 +388,6 @@ class WorkflowExecutionScreen(QWidget):
         is_last_step = self.current_step == len(steps) - 1
         self.next_button.setVisible(not is_last_step)
         self.finish_button.setVisible(is_last_step)
-        
-        # Clear step images
-        self.step_images = []
     
     def capture_image(self):
         """Capture image for current step."""
@@ -472,6 +469,7 @@ class WorkflowExecutionScreen(QWidget):
         """Go to previous step."""
         if self.current_step > 0:
             self.current_step -= 1
+            self.step_images = []  # Clear images for new step
             self.show_current_step()
     
     def next_step(self):
@@ -481,6 +479,7 @@ class WorkflowExecutionScreen(QWidget):
         
         if self.current_step < len(self.workflow['steps']) - 1:
             self.current_step += 1
+            self.step_images = []  # Clear images for new step
             self.show_current_step()
     
     def validate_step(self):
