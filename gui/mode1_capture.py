@@ -411,25 +411,25 @@ class Mode1CaptureScreen(QWidget):
             label = marker['label']
             angle = marker.get('angle', 45)  # Default to 45° if not specified
             
-            # Draw arrow with rotation (smaller size)
-            arrow_length = 45
+            # Draw arrow with rotation (match preview size: 30px)
+            arrow_length = 30
             angle_rad = np.radians(angle)
             end_x = int(x + arrow_length * np.cos(angle_rad))
             end_y = int(y + arrow_length * np.sin(angle_rad))
             
-            # Arrow line
-            cv2.arrowedLine(frame, (x, y), (end_x, end_y), (0, 0, 255), 3, tipLength=0.3)
+            # Arrow line (thinner to match preview)
+            cv2.arrowedLine(frame, (x, y), (end_x, end_y), (0, 0, 255), 2, tipLength=0.3)
             
-            # Label circle at arrow tip
-            cv2.circle(frame, (end_x, end_y), 18, (255, 255, 255), -1)
-            cv2.circle(frame, (end_x, end_y), 18, (0, 0, 255), 2)
+            # Label circle at arrow tip (match preview: 12px radius)
+            cv2.circle(frame, (end_x, end_y), 12, (255, 255, 255), -1)
+            cv2.circle(frame, (end_x, end_y), 12, (0, 0, 255), 2)
             
-            # Label text
+            # Label text (smaller to match preview)
             font = cv2.FONT_HERSHEY_SIMPLEX
-            text_size = cv2.getTextSize(label, font, 0.7, 3)[0]
+            text_size = cv2.getTextSize(label, font, 0.5, 2)[0]
             text_x = end_x - text_size[0] // 2
             text_y = end_y + text_size[1] // 2
-            cv2.putText(frame, label, (text_x, text_y), font, 0.7, (0, 0, 255), 3)
+            cv2.putText(frame, label, (text_x, text_y), font, 0.5, (0, 0, 255), 2)
         
         return frame
     
