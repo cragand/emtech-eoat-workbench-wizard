@@ -4,6 +4,8 @@ import os
 from PyQt5.QtWidgets import QApplication, QMainWindow, QStackedWidget, QMessageBox
 from gui import ModeSelectionScreen, Mode1CaptureScreen
 from gui.workflow_selection import WorkflowSelectionScreen
+from gui.workflow_execution import WorkflowExecutionScreen
+from gui.workflow_selection import WorkflowSelectionScreen
 
 
 class MainWindow(QMainWindow):
@@ -71,9 +73,21 @@ class MainWindow(QMainWindow):
     
     def on_workflow_selected(self, workflow_path):
         """Handle workflow selection - start workflow execution."""
-        # TODO: Create workflow execution screen
-        QMessageBox.information(self, "Workflow Selected", 
-                               f"Workflow execution not yet implemented.\n\nSelected: {workflow_path}")
+        # Remove workflow selection screen
+        if self.current_mode_widget:
+            self.stack.removeWidget(self.current_mode_widget)
+            self.current_mode_widget.deleteLater()
+        
+        # Create workflow execution screen
+        self.current_mode_widget = WorkflowExecutionScreen(
+            workflow_path, 
+            self.current_serial, 
+            self.current_description
+        )
+        self.current_mode_widget.back_requested.connect(self.return_to_mode_selection)
+        
+        self.stack.addWidget(self.current_mode_widget)
+        self.stack.setCurrentWidget(self.current_mode_widget)
     
     def on_edit_workflows(self):
         """Handle edit workflows request."""
