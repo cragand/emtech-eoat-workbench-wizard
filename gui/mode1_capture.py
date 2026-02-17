@@ -9,7 +9,7 @@ import json
 import numpy as np
 from datetime import datetime
 from camera import CameraManager
-from reports import create_simple_report
+from reports import generate_reports
 from gui.annotatable_preview import AnnotatablePreview
 
 # Optional QR scanner support
@@ -459,11 +459,11 @@ class Mode1CaptureScreen(QWidget):
             return
         
         # Show generating status
-        self.status_label.setText("Generating PDF report...")
+        self.status_label.setText("Generating reports...")
         self.report_button.setEnabled(False)
         
         try:
-            report_path = create_simple_report(
+            pdf_path, docx_path = generate_reports(
                 self.serial_number,
                 self.description,
                 self.captured_images
@@ -473,15 +473,15 @@ class Mode1CaptureScreen(QWidget):
             self.report_generated = True
             
             # Update status
-            self.status_label.setText(f"✓ Report saved: {os.path.basename(report_path)}")
+            self.status_label.setText(f"✓ Reports saved: {os.path.basename(pdf_path)}")
             self.status_label.setStyleSheet("color: green; font-weight: bold;")
             
             # Show success dialog
             msg = QMessageBox(self)
             msg.setIcon(QMessageBox.Information)
-            msg.setWindowTitle("Report Generated")
-            msg.setText("PDF report generated successfully!")
-            msg.setInformativeText(f"Location: {report_path}\n\nImages included: {len(self.captured_images)}")
+            msg.setWindowTitle("Reports Generated")
+            msg.setText("PDF and DOCX reports generated successfully!")
+            msg.setInformativeText(f"PDF: {pdf_path}\n\nDOCX: {docx_path}\n\nImages included: {len(self.captured_images)}")
             msg.setStandardButtons(QMessageBox.Ok)
             msg.exec_()
             

@@ -9,7 +9,7 @@ import json
 import numpy as np
 from datetime import datetime
 from camera import CameraManager
-from reports import PDFReportGenerator
+from reports import generate_reports
 from gui.annotatable_preview import AnnotatablePreview
 
 # Optional QR scanner support
@@ -536,9 +536,8 @@ class WorkflowExecutionScreen(QWidget):
                     'passed': passed
                 })
             
-            # Generate report
-            generator = PDFReportGenerator()
-            report_path = generator.generate_report(
+            # Generate both PDF and DOCX reports
+            pdf_path, docx_path = generate_reports(
                 serial_number=self.serial_number,
                 description=self.description,
                 images=self.captured_images,
@@ -547,9 +546,10 @@ class WorkflowExecutionScreen(QWidget):
                 checklist_data=checklist_data
             )
             
-            QMessageBox.information(self, "Report Generated", 
-                                   f"Workflow report generated successfully!\n\n"
-                                   f"Location: {report_path}\n\n"
+            QMessageBox.information(self, "Reports Generated", 
+                                   f"PDF and DOCX reports generated successfully!\n\n"
+                                   f"PDF: {pdf_path}\n\n"
+                                   f"DOCX: {docx_path}\n\n"
                                    f"Images: {len(self.captured_images)}\n"
                                    f"Steps completed: {len(checklist_data)}")
         
