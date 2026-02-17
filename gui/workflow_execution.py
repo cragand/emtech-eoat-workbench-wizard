@@ -71,17 +71,41 @@ class WorkflowExecutionScreen(QWidget):
             background-color: #77C25E;
             border-radius: 5px;
         """)
-        header_layout = QVBoxLayout(header_widget)
+        header_layout = QHBoxLayout(header_widget)
+        
+        # Left side: Title and step info
+        title_layout = QVBoxLayout()
         
         title = QLabel(self.workflow.get('name', 'Workflow'))
         title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         title.setStyleSheet("color: white; background: transparent;")
-        header_layout.addWidget(title)
+        title_layout.addWidget(title)
         
         self.step_label = QLabel()
         self.step_label.setFont(QFont("Arial", 12))
         self.step_label.setStyleSheet("color: white; background: transparent;")
-        header_layout.addWidget(self.step_label)
+        title_layout.addWidget(self.step_label)
+        
+        header_layout.addLayout(title_layout)
+        header_layout.addStretch()
+        
+        # Right side: Back button
+        self.back_button = QPushButton("← Back to Menu")
+        self.back_button.setStyleSheet("""
+            QPushButton {
+                background-color: #333333;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 8px 15px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #555555;
+            }
+        """)
+        self.back_button.clicked.connect(self.on_back_clicked)
+        header_layout.addWidget(self.back_button)
         
         main_layout.addWidget(header_widget)
         
@@ -467,6 +491,25 @@ class WorkflowExecutionScreen(QWidget):
                 return False
         
         return True
+    
+    def on_back_clicked(self):
+        """Handle back to menu button click."""
+        # Check if user has unsaved work
+        if self.captured_images:
+            reply = QMessageBox.question(
+                self,
+                "Return to Menu?",
+                f"You have {len(self.captured_images)} captured image(s) in this workflow.\n\n"
+                "Are you sure you want to return to the menu without finishing?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            
+            if reply == QMessageBox.No:
+                return
+        
+        self.cleanup_resources()
+        self.back_requested.emit()
     
     def finish_workflow(self):
         """Complete the workflow."""
