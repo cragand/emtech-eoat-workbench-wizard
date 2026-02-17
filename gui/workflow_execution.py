@@ -62,8 +62,6 @@ class WorkflowExecutionScreen(QWidget):
     
     def init_ui(self):
         """Initialize the user interface."""
-        self.setStyleSheet("background-color: white;")
-        
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(20, 20, 20, 20)
         
@@ -95,29 +93,21 @@ class WorkflowExecutionScreen(QWidget):
         left_layout = QVBoxLayout(left_widget)
         
         inst_label = QLabel("Instructions:")
-        inst_label.setStyleSheet("color: black; font-weight: bold; font-size: 14px;")
+        inst_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         left_layout.addWidget(inst_label)
         
         self.instructions_text = QTextEdit()
         self.instructions_text.setReadOnly(True)
-        self.instructions_text.setStyleSheet("""
-            QTextEdit {
-                border: 2px solid #77C25E;
-                border-radius: 3px;
-                padding: 10px;
-                font-size: 13px;
-            }
-        """)
         left_layout.addWidget(self.instructions_text)
         
         ref_label = QLabel("Reference Image:")
-        ref_label.setStyleSheet("color: black; font-weight: bold; font-size: 14px;")
+        ref_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         left_layout.addWidget(ref_label)
         
         self.reference_image = QLabel()
         self.reference_image.setMinimumSize(300, 200)
         self.reference_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.reference_image.setStyleSheet("border: 2px solid #CCCCCC; background-color: #F5F5F5;")
+        self.reference_image.setStyleSheet("border: 2px solid #CCCCCC;")
         self.reference_image.setText("No reference image")
         left_layout.addWidget(self.reference_image)
         
@@ -130,7 +120,7 @@ class WorkflowExecutionScreen(QWidget):
         # Camera selection
         camera_layout = QHBoxLayout()
         camera_label = QLabel("Camera:")
-        camera_label.setStyleSheet("color: black; font-weight: bold;")
+        camera_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         self.camera_combo = QComboBox()
         self.camera_combo.currentIndexChanged.connect(self.on_camera_changed)
         camera_layout.addWidget(camera_label)
@@ -141,7 +131,7 @@ class WorkflowExecutionScreen(QWidget):
         # Camera preview
         self.preview_label = AnnotatablePreview()
         self.preview_label.setMinimumSize(400, 300)
-        self.preview_label.setStyleSheet("border: 2px solid black; background-color: #2b2b2b;")
+        self.preview_label.setStyleSheet("border: 2px solid #77C25E; background-color: #2b2b2b;")
         self.preview_label.setText("No camera selected")
         right_layout.addWidget(self.preview_label)
         
@@ -164,7 +154,7 @@ class WorkflowExecutionScreen(QWidget):
         annotation_layout.addWidget(self.clear_markers_button)
         
         annotation_help = QLabel("Click: Add | Drag: Move | Scroll: Rotate | Right-click: Remove")
-        annotation_help.setStyleSheet("color: #666666; font-size: 10px;")
+        annotation_help.setStyleSheet("color: #888888; font-size: 10px;")
         annotation_layout.addWidget(annotation_help)
         annotation_layout.addStretch()
         right_layout.addLayout(annotation_layout)
@@ -172,16 +162,9 @@ class WorkflowExecutionScreen(QWidget):
         # Notes input
         notes_layout = QHBoxLayout()
         notes_label = QLabel("Notes:")
-        notes_label.setStyleSheet("color: black; font-weight: bold;")
+        notes_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         self.notes_input = QLineEdit()
         self.notes_input.setPlaceholderText("Add notes for this step...")
-        self.notes_input.setStyleSheet("""
-            QLineEdit {
-                padding: 8px;
-                border: 2px solid #77C25E;
-                border-radius: 3px;
-            }
-        """)
         notes_layout.addWidget(notes_label)
         notes_layout.addWidget(self.notes_input)
         right_layout.addLayout(notes_layout)
@@ -189,20 +172,6 @@ class WorkflowExecutionScreen(QWidget):
         # Capture button
         self.capture_button = QPushButton("Capture Image")
         self.capture_button.setMinimumHeight(40)
-        self.capture_button.setStyleSheet("""
-            QPushButton {
-                background-color: #77C25E;
-                color: white;
-                border: none;
-                border-radius: 3px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #5FA84A;
-            }
-            QPushButton:disabled {
-                background-color: #CCCCCC;
-                color: #666666;
             }
         """)
         self.capture_button.clicked.connect(self.capture_image)
@@ -210,7 +179,7 @@ class WorkflowExecutionScreen(QWidget):
         right_layout.addWidget(self.capture_button)
         
         self.step_status = QLabel()
-        self.step_status.setStyleSheet("color: #666666; font-size: 11px;")
+        self.step_status.setStyleSheet("color: #888888; font-size: 11px;")
         right_layout.addWidget(self.step_status)
         
         splitter.addWidget(right_widget)
