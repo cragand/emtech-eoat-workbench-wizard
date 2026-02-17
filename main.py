@@ -1,11 +1,13 @@
 """Main application entry point."""
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QMainWindow, QStackedWidget, QMessageBox
+from PyQt5.QtWidgets import QApplication, QMainWindow, QStackedWidget, QMessageBox, QPushButton, QHBoxLayout, QWidget
+from PyQt5.QtCore import Qt
 from gui import ModeSelectionScreen, Mode1CaptureScreen
 from gui.workflow_selection import WorkflowSelectionScreen
 from gui.workflow_execution import WorkflowExecutionScreen
 from gui.workflow_editor import WorkflowEditorScreen
+from theme_manager import theme_manager
 
 
 class MainWindow(QMainWindow):
@@ -19,13 +21,33 @@ class MainWindow(QMainWindow):
         # Store serial number and description for workflow modes
         self.current_serial = None
         self.current_description = None
-        super().__init__()
-        self.setWindowTitle("Emtech EoAT Cam Viewer")
-        self.setMinimumSize(1024, 768)
+        
+        # Create central widget with layout for stack and theme button
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        
+        from PyQt5.QtWidgets import QVBoxLayout
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        
+        # Theme toggle button at top
+        theme_bar = QWidget()
+        theme_bar.setMaximumHeight(40)
+        theme_layout = QHBoxLayout(theme_bar)
+        theme_layout.setContentsMargins(10, 5, 10, 5)
+        theme_layout.addStretch()
+        
+        self.theme_button = QPushButton("🌙 Dark Mode")
+        self.theme_button.setMaximumWidth(120)
+        self.theme_button.clicked.connect(self.toggle_theme)
+        theme_layout.addWidget(self.theme_button)
+        
+        main_layout.addWidget(theme_bar)
         
         # Stacked widget for switching between screens
         self.stack = QStackedWidget()
-        self.setCentralWidget(self.stack)
+        main_layout.addWidget(self.stack)
         
         # Mode selection screen
         self.mode_selection = ModeSelectionScreen()
@@ -89,6 +111,17 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.current_mode_widget)
         self.stack.setCurrentWidget(self.current_mode_widget)
     
+    def toggle_theme(self):
+        """Toggle between light and dark mode."""
+        stylesheet = theme_manager.toggle_theme()
+        QApplication.instance().setStyleSheet(stylesheet)
+        
+        # Update button text
+        if theme_manager.dark_mode:
+            self.theme_button.setText("☀️ Light Mode")
+        else:
+            self.theme_button.setText("🌙 Dark Mode")
+    
     def on_edit_workflows(self):
         """Handle edit workflows request."""
         # Get the workflow directory from current mode widget
@@ -122,6 +155,10 @@ class MainWindow(QMainWindow):
 def main():
     """Application entry point."""
     app = QApplication(sys.argv)
+    
+    # Apply initial theme (light mode)
+    app.setStyleSheet(theme_manager.get_stylesheet())
+    
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())
