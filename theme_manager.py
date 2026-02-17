@@ -29,17 +29,17 @@ class ThemeManager:
         """Light mode stylesheet."""
         return f"""
             QWidget {{
-                background-color: white !important;
-                color: black !important;
+                background-color: white;
+                color: black;
             }}
             
             QLabel {{
-                color: black !important;
+                color: black;
             }}
             
             QPushButton {{
-                background-color: {self.EMTECH_GREEN} !important;
-                color: white !important;
+                background-color: {self.EMTECH_GREEN};
+                color: white;
                 border: none;
                 border-radius: 3px;
                 padding: 8px;
@@ -47,21 +47,21 @@ class ThemeManager:
             }}
             
             QPushButton:hover {{
-                background-color: {self.EMTECH_GREEN_HOVER} !important;
+                background-color: {self.EMTECH_GREEN_HOVER};
             }}
             
             QPushButton:pressed {{
-                background-color: {self.EMTECH_GREEN_PRESSED} !important;
+                background-color: {self.EMTECH_GREEN_PRESSED};
             }}
             
             QPushButton:disabled {{
-                background-color: #CCCCCC !important;
-                color: #666666 !important;
+                background-color: #CCCCCC;
+                color: #666666;
             }}
             
             QLineEdit, QTextEdit {{
-                background-color: white !important;
-                color: black !important;
+                background-color: white;
+                color: black;
                 border: 2px solid {self.EMTECH_GREEN};
                 border-radius: 3px;
                 padding: 8px;
@@ -72,8 +72,8 @@ class ThemeManager:
             }}
             
             QComboBox {{
-                background-color: white !important;
-                color: black !important;
+                background-color: white;
+                color: black;
                 border: 2px solid {self.EMTECH_GREEN};
                 border-radius: 3px;
                 padding: 5px;
@@ -88,41 +88,45 @@ class ThemeManager:
             }}
             
             QComboBox QAbstractItemView {{
-                background-color: white !important;
-                color: black !important;
-                selection-background-color: {self.EMTECH_GREEN} !important;
-                selection-color: white !important;
+                background-color: white;
+                color: black;
+                selection-background-color: {self.EMTECH_GREEN};
+                selection-color: white;
             }}
             
             QRadioButton {{
-                color: black !important;
+                color: black;
             }}
             
             QRadioButton::indicator:checked {{
-                background-color: {self.EMTECH_GREEN} !important;
+                background-color: {self.EMTECH_GREEN};
                 border: 2px solid {self.EMTECH_GREEN};
             }}
             
             QListWidget {{
-                background-color: white !important;
-                color: black !important;
+                background-color: white;
+                color: black;
                 border: 2px solid {self.EMTECH_GREEN};
             }}
             
+            QListWidget::item {{
+                color: black;
+            }}
+            
             QListWidget::item:selected {{
-                background-color: {self.EMTECH_GREEN} !important;
-                color: white !important;
+                background-color: {self.EMTECH_GREEN};
+                color: white;
             }}
             
             QTableWidget {{
-                background-color: white !important;
-                color: black !important;
+                background-color: white;
+                color: black;
                 gridline-color: #CCCCCC;
             }}
             
             QHeaderView::section {{
-                background-color: {self.EMTECH_GREEN} !important;
-                color: white !important;
+                background-color: {self.EMTECH_GREEN};
+                color: white;
                 padding: 5px;
                 border: none;
             }}
@@ -132,17 +136,17 @@ class ThemeManager:
         """Dark mode stylesheet."""
         return f"""
             QWidget {{
-                background-color: #1E1E1E !important;
-                color: #E0E0E0 !important;
+                background-color: #1E1E1E;
+                color: #E0E0E0;
             }}
             
             QLabel {{
-                color: #E0E0E0 !important;
+                color: #E0E0E0;
             }}
             
             QPushButton {{
-                background-color: {self.EMTECH_GREEN} !important;
-                color: white !important;
+                background-color: {self.EMTECH_GREEN};
+                color: white;
                 border: none;
                 border-radius: 3px;
                 padding: 8px;
@@ -150,21 +154,21 @@ class ThemeManager:
             }}
             
             QPushButton:hover {{
-                background-color: {self.EMTECH_GREEN_HOVER} !important;
+                background-color: {self.EMTECH_GREEN_HOVER};
             }}
             
             QPushButton:pressed {{
-                background-color: {self.EMTECH_GREEN_PRESSED} !important;
+                background-color: {self.EMTECH_GREEN_PRESSED};
             }}
             
             QPushButton:disabled {{
-                background-color: #3A3A3A !important;
-                color: #666666 !important;
+                background-color: #3A3A3A;
+                color: #888888;
             }}
             
             QLineEdit, QTextEdit {{
-                background-color: #2D2D2D !important;
-                color: #E0E0E0 !important;
+                background-color: #2D2D2D;
+                color: #E0E0E0;
                 border: 2px solid {self.EMTECH_GREEN};
                 border-radius: 3px;
                 padding: 8px;
@@ -175,8 +179,8 @@ class ThemeManager:
             }}
             
             QComboBox {{
-                background-color: #2D2D2D !important;
-                color: #E0E0E0 !important;
+                background-color: #2D2D2D;
+                color: #E0E0E0;
                 border: 2px solid {self.EMTECH_GREEN};
                 border-radius: 3px;
                 padding: 5px;
@@ -191,48 +195,60 @@ class ThemeManager:
             }}
             
             QComboBox QAbstractItemView {{
-                background-color: #2D2D2D !important;
-                color: #E0E0E0 !important;
-                selection-background-color: {self.EMTECH_GREEN} !important;
-                selection-color: white !important;
+                background-color: #2D2D2D;
+                color: #E0E0E0;
+                selection-background-color: {self.EMTECH_GREEN};
+                selection-color: white;
             }}
             
             QRadioButton {{
-                color: #E0E0E0 !important;
+                color: #E0E0E0;
             }}
             
             QRadioButton::indicator:checked {{
-                background-color: {self.EMTECH_GREEN} !important;
+                background-color: {self.EMTECH_GREEN};
                 border: 2px solid {self.EMTECH_GREEN};
             }}
             
             QListWidget {{
-                background-color: #2D2D2D !important;
-                color: #E0E0E0 !important;
+                background-color: #2D2D2D;
+                color: #E0E0E0;
                 border: 2px solid {self.EMTECH_GREEN};
             }}
             
+            QListWidget::item {{
+                color: #E0E0E0;
+            }}
+            
             QListWidget::item:selected {{
-                background-color: {self.EMTECH_GREEN} !important;
-                color: white !important;
+                background-color: {self.EMTECH_GREEN};
+                color: white;
             }}
             
             QTableWidget {{
-                background-color: #2D2D2D !important;
-                color: #E0E0E0 !important;
+                background-color: #2D2D2D;
+                color: #E0E0E0;
                 gridline-color: #3A3A3A;
             }}
             
+            QTableWidget::item {{
+                color: #E0E0E0;
+            }}
+            
             QHeaderView::section {{
-                background-color: {self.EMTECH_GREEN} !important;
-                color: white !important;
+                background-color: {self.EMTECH_GREEN};
+                color: white;
                 padding: 5px;
                 border: none;
             }}
             
             QMessageBox {{
-                background-color: #1E1E1E !important;
-                color: #E0E0E0 !important;
+                background-color: #1E1E1E;
+                color: #E0E0E0;
+            }}
+            
+            QMessageBox QLabel {{
+                color: #E0E0E0;
             }}
             
             QMessageBox QPushButton {{
