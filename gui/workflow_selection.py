@@ -22,13 +22,6 @@ class PasswordDialog(QDialog):
         
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.Password)
-        self.password_input.setStyleSheet("""
-            QLineEdit {
-                padding: 8px;
-                border: 2px solid #77C25E;
-                border-radius: 3px;
-            }
-        """)
         layout.addWidget(self.password_input)
         
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -37,7 +30,6 @@ class PasswordDialog(QDialog):
         layout.addWidget(buttons)
         
         self.setLayout(layout)
-    
     def get_password(self):
         return self.password_input.text()
 
@@ -60,8 +52,6 @@ class WorkflowSelectionScreen(QWidget):
     
     def init_ui(self):
         """Initialize the user interface."""
-        self.setStyleSheet("background-color: white;")
-        
         layout = QVBoxLayout()
         layout.setContentsMargins(40, 40, 40, 40)
         layout.setSpacing(20)
@@ -81,23 +71,11 @@ class WorkflowSelectionScreen(QWidget):
         
         # Instructions
         instructions = QLabel("Select a workflow to begin:")
-        instructions.setStyleSheet("color: black; font-size: 14px; font-weight: bold;")
+        instructions.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         layout.addWidget(instructions)
         
         # Workflow list
         self.workflow_list = QListWidget()
-        self.workflow_list.setStyleSheet("""
-            QListWidget {
-                border: 2px solid #77C25E;
-                border-radius: 3px;
-                padding: 5px;
-                font-size: 13px;
-            }
-            QListWidget::item {
-                padding: 10px;
-                border-bottom: 1px solid #E0E0E0;
-            }
-            QListWidget::item:selected {
                 background-color: #77C25E;
                 color: white;
             }
@@ -114,37 +92,20 @@ class WorkflowSelectionScreen(QWidget):
         
         self.start_button = QPushButton("Start Workflow")
         self.start_button.setMinimumHeight(50)
-        self.start_button.setStyleSheet("""
-            QPushButton {
-                background-color: #77C25E;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #5FA84A;
-            }
-            QPushButton:disabled {
-                background-color: #CCCCCC;
-                color: #666666;
-            }
-        """)
+        self.start_button.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         self.start_button.clicked.connect(self.on_start_clicked)
         self.start_button.setEnabled(False)
         button_layout.addWidget(self.start_button)
         
         self.edit_button = QPushButton("Edit Workflows")
         self.edit_button.setMinimumHeight(50)
+        self.edit_button.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         self.edit_button.setStyleSheet("""
             QPushButton {
                 background-color: #FFA726;
                 color: white;
                 border: none;
                 border-radius: 5px;
-                font-size: 14px;
-                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #FB8C00;
@@ -155,14 +116,13 @@ class WorkflowSelectionScreen(QWidget):
         
         self.back_button = QPushButton("Back to Menu")
         self.back_button.setMinimumHeight(50)
+        self.back_button.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         self.back_button.setStyleSheet("""
             QPushButton {
                 background-color: #333333;
                 color: white;
                 border: none;
                 border-radius: 5px;
-                font-size: 14px;
-                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #555555;

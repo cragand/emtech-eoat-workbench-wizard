@@ -126,8 +126,6 @@ class WorkflowEditorScreen(QWidget):
     
     def init_ui(self):
         """Initialize the user interface."""
-        self.setStyleSheet("background-color: white;")
-        
         layout = QVBoxLayout()
         layout.setContentsMargins(20, 20, 20, 20)
         
