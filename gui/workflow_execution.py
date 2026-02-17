@@ -172,8 +172,6 @@ class WorkflowExecutionScreen(QWidget):
         # Capture button
         self.capture_button = QPushButton("Capture Image")
         self.capture_button.setMinimumHeight(40)
-            }
-        """)
         self.capture_button.clicked.connect(self.capture_image)
         self.capture_button.setEnabled(False)
         right_layout.addWidget(self.capture_button)
