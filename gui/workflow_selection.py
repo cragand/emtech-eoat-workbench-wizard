@@ -76,13 +76,6 @@ class WorkflowSelectionScreen(QWidget):
         
         # Workflow list
         self.workflow_list = QListWidget()
-                background-color: #77C25E;
-                color: white;
-            }
-            QListWidget::item:hover {
-                background-color: #E8F5E9;
-            }
-        """)
         self.workflow_list.itemDoubleClicked.connect(self.on_workflow_double_clicked)
         self.workflow_list.itemSelectionChanged.connect(self.on_selection_changed)
         layout.addWidget(self.workflow_list)
