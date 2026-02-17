@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QStackedWidget, QMessageB
 from gui import ModeSelectionScreen, Mode1CaptureScreen
 from gui.workflow_selection import WorkflowSelectionScreen
 from gui.workflow_execution import WorkflowExecutionScreen
-from gui.workflow_selection import WorkflowSelectionScreen
+from gui.workflow_editor import WorkflowEditorScreen
 
 
 class MainWindow(QMainWindow):
@@ -91,9 +91,21 @@ class MainWindow(QMainWindow):
     
     def on_edit_workflows(self):
         """Handle edit workflows request."""
-        # TODO: Create workflow editor screen
-        QMessageBox.information(self, "Workflow Editor", 
-                               "Workflow editor not yet implemented.")
+        # Get the workflow directory from current mode widget
+        if isinstance(self.current_mode_widget, WorkflowSelectionScreen):
+            workflow_dir = self.current_mode_widget.workflow_dir
+            mode_number = self.current_mode_widget.mode_number
+            
+            # Remove workflow selection screen
+            self.stack.removeWidget(self.current_mode_widget)
+            self.current_mode_widget.deleteLater()
+            
+            # Create workflow editor screen
+            self.current_mode_widget = WorkflowEditorScreen(mode_number, workflow_dir)
+            self.current_mode_widget.back_requested.connect(self.return_to_mode_selection)
+            
+            self.stack.addWidget(self.current_mode_widget)
+            self.stack.setCurrentWidget(self.current_mode_widget)
     
     def return_to_mode_selection(self):
         """Return to mode selection screen."""
