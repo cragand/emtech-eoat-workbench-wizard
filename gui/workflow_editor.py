@@ -499,16 +499,50 @@ class WorkflowEditorScreen(QWidget):
             QMessageBox.warning(self, "No Steps", "Add at least one step to the workflow.")
             return
         
-        # Save to file
-        filename = f"{name.replace(' ', '_').lower()}.json"
-        filepath = os.path.join(self.workflow_dir, filename)
+        # Determine save path
+        new_filename = f"{name.replace(' ', '_').lower()}.json"
+        new_filepath = os.path.join(self.workflow_dir, new_filename)
         
+        # Check if we're editing an existing workflow
+        if self.current_workflow_path and os.path.exists(self.current_workflow_path):
+            # Editing existing workflow
+            old_filename = os.path.basename(self.current_workflow_path)
+            
+            if new_filename != old_filename:
+                # Name changed - ask user what to do
+                reply = QMessageBox.question(
+                    self,
+                    "Workflow Name Changed",
+                    f"The workflow name has changed.\n\n"
+                    f"Old: {old_filename}\n"
+                    f"New: {new_filename}\n\n"
+                    f"Do you want to:\n"
+                    f"• Yes: Rename the workflow (delete old file)\n"
+                    f"• No: Save as new workflow (keep both)",
+                    QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
+                    QMessageBox.Yes
+                )
+                
+                if reply == QMessageBox.Cancel:
+                    return
+                elif reply == QMessageBox.Yes:
+                    # Rename - delete old file
+                    try:
+                        os.remove(self.current_workflow_path)
+                    except Exception as e:
+                        QMessageBox.warning(self, "Warning", f"Could not delete old file: {e}")
+                # If No, just save as new file (keep both)
+            else:
+                # Same name - just update the file
+                new_filepath = self.current_workflow_path
+        
+        # Save to file
         try:
-            with open(filepath, 'w') as f:
+            with open(new_filepath, 'w') as f:
                 json.dump(self.current_workflow, f, indent=2)
             
-            self.current_workflow_path = filepath
-            QMessageBox.information(self, "Success", f"Workflow saved: {filename}")
+            self.current_workflow_path = new_filepath
+            QMessageBox.information(self, "Success", f"Workflow saved: {new_filename}")
             self.load_workflows()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save workflow: {e}")
