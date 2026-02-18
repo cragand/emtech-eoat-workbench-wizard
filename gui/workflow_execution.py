@@ -370,7 +370,13 @@ class WorkflowExecutionScreen(QWidget):
         if photo_required:
             status_parts.append(f"Photos: {len(self.step_images)}/1 required")
         if annotations_required:
-            status_parts.append("Annotations required")
+            # Check if any captured image has markers
+            has_markers = any(img.get('markers') and len(img.get('markers', [])) > 0 
+                            for img in self.step_images)
+            if has_markers:
+                status_parts.append("Annotations: ✓ Added")
+            else:
+                status_parts.append("Annotations: ⚠ Required (click preview to add markers)")
         
         self.step_status.setText(" | ".join(status_parts) if status_parts else "Optional documentation")
         
@@ -484,10 +490,13 @@ class WorkflowExecutionScreen(QWidget):
             return False
         
         if step.get('require_annotations', False):
-            has_annotations = any(img.get('markers') for img in self.step_images)
+            # Check if any image has markers (non-empty list)
+            has_annotations = any(img.get('markers') and len(img.get('markers', [])) > 0 
+                                 for img in self.step_images)
             if not has_annotations:
                 QMessageBox.warning(self, "Annotations Required", 
-                                   "This step requires annotations on captured images.")
+                                   "This step requires annotations (markers) on captured images.\n\n"
+                                   "Click on the camera preview to add markers (A, B, C...) before capturing.")
                 return False
         
         return True
