@@ -62,9 +62,6 @@ class Mode1CaptureScreen(QWidget):
     
     def init_ui(self):
         """Initialize the user interface."""
-        # Set background color
-        self.setStyleSheet("background-color: white;")
-        
         layout = QVBoxLayout()
         layout.setContentsMargins(20, 20, 20, 20)
         
@@ -94,7 +91,6 @@ class Mode1CaptureScreen(QWidget):
         qr_layout = QHBoxLayout()
         qr_label = QLabel("QR Scanner:")
         qr_label.setFont(QFont("Arial", 10))
-        qr_label.setStyleSheet("color: black;")
         self.qr_status_label = QLabel("Inactive")
         self.qr_status_label.setFont(QFont("Arial", 10))
         self.qr_status_label.setStyleSheet("color: gray;")
@@ -130,7 +126,7 @@ class Mode1CaptureScreen(QWidget):
         # Annotation controls
         annotation_layout = QHBoxLayout()
         annotation_label = QLabel("Annotations:")
-        annotation_label.setStyleSheet("color: black; font-weight: bold;")
+        annotation_label.setStyleSheet("font-weight: bold;")
         
         self.clear_markers_button = QPushButton("Clear Markers")
         self.clear_markers_button.setStyleSheet("""
@@ -160,20 +156,9 @@ class Mode1CaptureScreen(QWidget):
         # Image notes input (optional)
         notes_layout = QHBoxLayout()
         notes_label = QLabel("Image Notes (optional):")
-        notes_label.setStyleSheet("color: black; font-weight: bold;")
+        notes_label.setStyleSheet("font-weight: bold;")
         self.notes_input = QLineEdit()
         self.notes_input.setPlaceholderText("Add notes for the next captured image...")
-        self.notes_input.setStyleSheet("""
-            QLineEdit {
-                padding: 8px;
-                border: 2px solid #77C25E;
-                border-radius: 3px;
-                background-color: white;
-            }
-            QLineEdit:focus {
-                border: 2px solid #5FA84A;
-            }
-        """)
         notes_layout.addWidget(notes_label)
         notes_layout.addWidget(self.notes_input)
         layout.addLayout(notes_layout)
@@ -249,7 +234,7 @@ class Mode1CaptureScreen(QWidget):
         # Status label
         self.status_label = QLabel("Ready")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status_label.setStyleSheet("color: black; font-size: 12px; padding: 5px;")
+        self.status_label.setStyleSheet("font-size: 12px; padding: 5px;")
         layout.addWidget(self.status_label)
         
         self.setLayout(layout)
