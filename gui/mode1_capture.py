@@ -39,8 +39,8 @@ class Mode1CaptureScreen(QWidget):
         self.captured_images = []  # List of dicts: {path, camera, notes}
         self.report_generated = False  # Track if report has been generated
         
-        # Use "unknown" if no serial number provided
-        output_serial = serial_number if serial_number else "unknown"
+        # Use "unknown" if no serial number provided - sanitize for filesystem
+        output_serial = self._sanitize_filename(serial_number) if serial_number else "unknown"
         self.output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
                                        "output", "captured_images", output_serial)
         os.makedirs(self.output_dir, exist_ok=True)
@@ -49,6 +49,16 @@ class Mode1CaptureScreen(QWidget):
         
         self.init_ui()
         self.discover_cameras()
+    
+    def _sanitize_filename(self, filename):
+        """Remove invalid characters from filename."""
+        # Windows invalid characters: < > : " / \ | ? *
+        invalid_chars = '<>:"/\\|?*'
+        for char in invalid_chars:
+            filename = filename.replace(char, '_')
+        # Also remove leading/trailing spaces and dots
+        filename = filename.strip('. ')
+        return filename if filename else "unknown"
     
     def init_ui(self):
         """Initialize the user interface."""

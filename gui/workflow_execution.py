@@ -40,8 +40,8 @@ class WorkflowExecutionScreen(QWidget):
         self.captured_images = []  # All images from workflow
         self.step_images = []  # Images for current step
         
-        # Setup output directory
-        output_serial = serial_number if serial_number else "unknown"
+        # Setup output directory - sanitize serial number for filesystem
+        output_serial = self._sanitize_filename(serial_number) if serial_number else "unknown"
         self.output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
                                        "output", "captured_images", output_serial)
         os.makedirs(self.output_dir, exist_ok=True)
@@ -50,6 +50,16 @@ class WorkflowExecutionScreen(QWidget):
         self.init_ui()
         self.discover_cameras()
         self.show_current_step()
+    
+    def _sanitize_filename(self, filename):
+        """Remove invalid characters from filename."""
+        # Windows invalid characters: < > : " / \ | ? *
+        invalid_chars = '<>:"/\\|?*'
+        for char in invalid_chars:
+            filename = filename.replace(char, '_')
+        # Also remove leading/trailing spaces and dots
+        filename = filename.strip('. ')
+        return filename if filename else "unknown"
     
     def load_workflow(self):
         """Load workflow from JSON file."""
