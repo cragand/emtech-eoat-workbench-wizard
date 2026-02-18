@@ -122,8 +122,22 @@ class AnnotatablePreview(QLabel):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         
-        # Draw the camera frame
-        painter.drawPixmap(self.rect(), self.current_frame)
+        # Draw the camera frame centered and maintaining aspect ratio
+        pixmap_rect = self.current_frame.rect()
+        widget_rect = self.rect()
+        
+        # Calculate scaled rect that maintains aspect ratio
+        scaled_pixmap = self.current_frame.scaled(
+            widget_rect.size(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+        
+        # Center the pixmap
+        x = (widget_rect.width() - scaled_pixmap.width()) // 2
+        y = (widget_rect.height() - scaled_pixmap.height()) // 2
+        
+        painter.drawPixmap(x, y, scaled_pixmap)
         
         # Draw markers
         for marker in self.markers:

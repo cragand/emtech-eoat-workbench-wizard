@@ -1,6 +1,6 @@
 """Mode 1: General image capture interface."""
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QPushButton, QComboBox, QFileDialog, QMessageBox, QLineEdit)
+                             QPushButton, QComboBox, QFileDialog, QMessageBox, QLineEdit, QSizePolicy)
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QImage, QPixmap, QFont
 import cv2
@@ -119,10 +119,12 @@ class Mode1CaptureScreen(QWidget):
         
         # Annotatable camera preview
         self.preview_label = AnnotatablePreview()
-        self.preview_label.setMinimumSize(800, 600)
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setStyleSheet("border: 2px solid black; background-color: #2b2b2b;")
         self.preview_label.setText("No camera selected")
+        self.preview_label.setSizePolicy(
+            QSizePolicy.Expanding, QSizePolicy.Expanding
+        )
         layout.addWidget(self.preview_label)
         
         # Annotation controls
