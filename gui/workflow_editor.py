@@ -58,6 +58,17 @@ class StepEditorDialog(QDialog):
         ref_layout.addWidget(self.ref_image_button)
         layout.addLayout(ref_layout)
         
+        # Reference image portability note
+        ref_note = QLabel(
+            "💡 For portability across machines:\n"
+            "1. Place images in resources/qc_reference_images/ or resources/maintenance_reference_images/\n"
+            "2. Use relative paths (e.g., resources/qc_reference_images/image.jpg)\n"
+            "3. Commit reference images to git: git add resources/"
+        )
+        ref_note.setStyleSheet("color: #666666; font-size: 9pt; padding: 5px; background-color: #f0f0f0; border-radius: 3px;")
+        ref_note.setWordWrap(True)
+        layout.addWidget(ref_note)
+        
         # Requirements
         req_group = QGroupBox("Requirements")
         req_layout = QVBoxLayout()
