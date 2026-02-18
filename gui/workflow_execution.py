@@ -1,6 +1,6 @@
 """Workflow execution screen for guided QC and maintenance procedures."""
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QPushButton, QTextEdit, QMessageBox, QLineEdit, QSplitter, QComboBox)
+                             QPushButton, QTextEdit, QMessageBox, QLineEdit, QSplitter, QComboBox, QDialog)
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QImage, QPixmap, QFont
 import cv2
@@ -131,8 +131,10 @@ class WorkflowExecutionScreen(QWidget):
         self.reference_image = QLabel()
         self.reference_image.setMinimumSize(300, 200)
         self.reference_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.reference_image.setStyleSheet("border: 2px solid #CCCCCC;")
+        self.reference_image.setStyleSheet("border: 2px solid #CCCCCC; cursor: pointer;")
         self.reference_image.setText("No reference image")
+        self.reference_image.mousePressEvent = self.show_reference_fullsize
+        self.reference_image_path = None  # Store current reference image path
         left_layout.addWidget(self.reference_image)
         
         splitter.addWidget(left_widget)
@@ -353,14 +355,18 @@ class WorkflowExecutionScreen(QWidget):
         # Update reference image
         ref_image_path = step.get('reference_image', '')
         if ref_image_path and os.path.exists(ref_image_path):
+            self.reference_image_path = ref_image_path  # Store for fullsize view
             pixmap = QPixmap(ref_image_path)
             scaled = pixmap.scaled(self.reference_image.size(), 
                                   Qt.AspectRatioMode.KeepAspectRatio,
                                   Qt.TransformationMode.SmoothTransformation)
             self.reference_image.setPixmap(scaled)
+            self.reference_image.setToolTip("Click to view full size")
         else:
+            self.reference_image_path = None
             self.reference_image.clear()
             self.reference_image.setText("No reference image")
+            self.reference_image.setToolTip("")
         
         # Update step status
         photo_required = step.get('require_photo', False)
@@ -575,6 +581,42 @@ class WorkflowExecutionScreen(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Report Error", 
                                f"Failed to generate report:\n{str(e)}")
+    
+    def show_reference_fullsize(self, event):
+        """Show reference image in full size popup."""
+        if not self.reference_image_path:
+            return
+        
+        # Create dialog
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Reference Image - Full Size")
+        dialog.setModal(True)
+        
+        layout = QVBoxLayout(dialog)
+        
+        # Load and display full size image
+        image_label = QLabel()
+        pixmap = QPixmap(self.reference_image_path)
+        
+        # Scale to fit screen if too large (90% of screen size)
+        screen = self.screen().geometry()
+        max_width = int(screen.width() * 0.9)
+        max_height = int(screen.height() * 0.9)
+        
+        if pixmap.width() > max_width or pixmap.height() > max_height:
+            pixmap = pixmap.scaled(max_width, max_height,
+                                  Qt.AspectRatioMode.KeepAspectRatio,
+                                  Qt.TransformationMode.SmoothTransformation)
+        
+        image_label.setPixmap(pixmap)
+        layout.addWidget(image_label)
+        
+        # Close button
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(dialog.close)
+        layout.addWidget(close_button)
+        
+        dialog.exec_()
     
     def cleanup_resources(self):
         """Clean up camera resources."""
