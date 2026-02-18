@@ -114,9 +114,9 @@ class AnnotatablePreview(QLabel):
     
     def paintEvent(self, event):
         """Paint the camera frame and markers."""
-        super().paintEvent(event)
-        
         if not self.current_frame:
+            # Only call super if no frame (to show "No camera selected" text)
+            super().paintEvent(event)
             return
         
         painter = QPainter(self)

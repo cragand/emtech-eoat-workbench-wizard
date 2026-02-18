@@ -1,6 +1,6 @@
 """Workflow execution screen for guided QC and maintenance procedures."""
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QPushButton, QTextEdit, QMessageBox, QLineEdit, QSplitter, QComboBox, QDialog)
+                             QPushButton, QTextEdit, QMessageBox, QLineEdit, QSplitter, QComboBox, QDialog, QSizePolicy)
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QImage, QPixmap, QFont
 import cv2
@@ -73,26 +73,30 @@ class WorkflowExecutionScreen(QWidget):
     def init_ui(self):
         """Initialize the user interface."""
         main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(10)
         
-        # Header
+        # Compact Header
         header_widget = QWidget()
         header_widget.setStyleSheet("""
             background-color: #77C25E;
-            border-radius: 5px;
+            border-radius: 3px;
         """)
+        header_widget.setMaximumHeight(60)  # Limit header height
         header_layout = QHBoxLayout(header_widget)
+        header_layout.setContentsMargins(10, 5, 10, 5)
         
         # Left side: Title and step info
         title_layout = QVBoxLayout()
+        title_layout.setSpacing(2)
         
         title = QLabel(self.workflow.get('name', 'Workflow'))
-        title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         title.setStyleSheet("color: white; background: transparent;")
         title_layout.addWidget(title)
         
         self.step_label = QLabel()
-        self.step_label.setFont(QFont("Arial", 12))
+        self.step_label.setFont(QFont("Arial", 10))
         self.step_label.setStyleSheet("color: white; background: transparent;")
         title_layout.addWidget(self.step_label)
         
@@ -164,12 +168,13 @@ class WorkflowExecutionScreen(QWidget):
         camera_layout.addStretch()
         right_layout.addLayout(camera_layout)
         
-        # Camera preview
+        # Camera preview - larger and expandable
         self.preview_label = AnnotatablePreview()
-        self.preview_label.setMinimumSize(400, 300)
         self.preview_label.setStyleSheet("border: 2px solid #77C25E; background-color: #2b2b2b;")
-        self.preview_label.setText("No camera selected")
-        right_layout.addWidget(self.preview_label)
+        self.preview_label.setSizePolicy(
+            QSizePolicy.Expanding, QSizePolicy.Expanding
+        )
+        right_layout.addWidget(self.preview_label, 1)  # Stretch factor 1 to take available space
         
         # Annotation controls
         annotation_layout = QHBoxLayout()
