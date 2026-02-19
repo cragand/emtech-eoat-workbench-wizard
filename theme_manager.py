@@ -130,6 +130,11 @@ class ThemeManager:
                 padding: 5px;
                 border: none;
             }}
+            
+            QDialog {{
+                background-color: white;
+                color: black;
+            }}
         """
     
     def _get_dark_stylesheet(self):
@@ -240,6 +245,11 @@ class ThemeManager:
                 color: white;
                 padding: 5px;
                 border: none;
+            }}
+            
+            QDialog {{
+                background-color: #1E1E1E;
+                color: #E0E0E0;
             }}
             
             QMessageBox {{

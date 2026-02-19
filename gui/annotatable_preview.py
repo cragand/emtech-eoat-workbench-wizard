@@ -15,6 +15,9 @@ class MarkerNoteDialog(QDialog):
         self.setModal(True)
         self.setMinimumWidth(400)
         
+        # Dialog inherits parent's stylesheet automatically, but ensure it's applied
+        # No need to set explicit colors - will use application theme
+        
         layout = QVBoxLayout()
         
         label = QLabel(f"Notes for Marker {marker_label}:")
