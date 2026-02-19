@@ -58,14 +58,23 @@ class AnnotatablePreview(QLabel):
         self.setCursor(Qt.CrossCursor)
     
     def add_marker(self, pos):
-        """Add a new marker at the given position."""
+        """Add a new marker at the given position and prompt for note."""
         # Generate label (A, B, C, ...)
         label = string.ascii_uppercase[len(self.markers) % 26]
         if len(self.markers) >= 26:
             # After Z, use AA, AB, etc.
             label = string.ascii_uppercase[(len(self.markers) // 26) - 1] + label
         
-        self.markers.append({'pos': pos, 'label': label, 'angle': 45, 'note': ''})  # Default 45° (down-right)
+        # Create marker with empty note
+        new_marker = {'pos': pos, 'label': label, 'angle': 45, 'note': ''}
+        self.markers.append(new_marker)
+        
+        # Immediately open note dialog for the new marker
+        dialog = MarkerNoteDialog(label, '', self)
+        if dialog.exec_() == QDialog.Accepted:
+            new_marker['note'] = dialog.get_note()
+        # If dialog is cancelled/closed, marker stays with empty note
+        
         self.markers_changed.emit()
         self.update()
     
