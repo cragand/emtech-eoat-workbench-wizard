@@ -1,9 +1,42 @@
 """Annotatable camera preview widget with draggable markers."""
-from PyQt5.QtWidgets import QLabel
+from PyQt5.QtWidgets import QLabel, QDialog, QVBoxLayout, QTextEdit, QPushButton, QDialogButtonBox
 from PyQt5.QtCore import Qt, QPoint, pyqtSignal
 from PyQt5.QtGui import QPainter, QColor, QPen, QFont, QPixmap, QPainterPath
 import string
 import math
+
+
+class MarkerNoteDialog(QDialog):
+    """Dialog for editing marker notes."""
+    
+    def __init__(self, marker_label, current_note="", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"Marker {marker_label} - Notes")
+        self.setModal(True)
+        self.setMinimumWidth(400)
+        
+        layout = QVBoxLayout()
+        
+        label = QLabel(f"Notes for Marker {marker_label}:")
+        label.setStyleSheet("font-weight: bold;")
+        layout.addWidget(label)
+        
+        self.note_input = QTextEdit()
+        self.note_input.setPlaceholderText("Enter notes for this marker...")
+        self.note_input.setText(current_note)
+        self.note_input.setMaximumHeight(150)
+        layout.addWidget(self.note_input)
+        
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        
+        self.setLayout(layout)
+    
+    def get_note(self):
+        """Get the entered note."""
+        return self.note_input.toPlainText().strip()
 
 
 class AnnotatablePreview(QLabel):
@@ -13,7 +46,7 @@ class AnnotatablePreview(QLabel):
     
     def __init__(self):
         super().__init__()
-        self.markers = []  # List of {pos: QPoint, label: str, angle: float}
+        self.markers = []  # List of {pos: QPoint, label: str, angle: float, note: str}
         self.dragging_marker = None
         self.drag_offset = QPoint()
         self.current_frame = None
@@ -29,7 +62,7 @@ class AnnotatablePreview(QLabel):
             # After Z, use AA, AB, etc.
             label = string.ascii_uppercase[(len(self.markers) // 26) - 1] + label
         
-        self.markers.append({'pos': pos, 'label': label, 'angle': 45})  # Default 45° (down-right)
+        self.markers.append({'pos': pos, 'label': label, 'angle': 45, 'note': ''})  # Default 45° (down-right)
         self.markers_changed.emit()
         self.update()
     
@@ -42,7 +75,7 @@ class AnnotatablePreview(QLabel):
     
     def get_markers_data(self):
         """Get marker data for saving with image."""
-        return [{'x': m['pos'].x(), 'y': m['pos'].y(), 'label': m['label'], 'angle': m['angle']} 
+        return [{'x': m['pos'].x(), 'y': m['pos'].y(), 'label': m['label'], 'angle': m['angle'], 'note': m.get('note', '')} 
                 for m in self.markers]
     
     def set_frame(self, pixmap):
@@ -58,6 +91,19 @@ class AnnotatablePreview(QLabel):
             self.hover_marker['angle'] = (self.hover_marker['angle'] + delta * 15) % 360
             self.markers_changed.emit()
             self.update()
+    
+    def mouseDoubleClickEvent(self, event):
+        """Handle double-click - edit marker note."""
+        if event.button() == Qt.LeftButton:
+            for marker in self.markers:
+                if self._is_near_marker(event.pos(), marker['pos']):
+                    # Open note dialog
+                    dialog = MarkerNoteDialog(marker['label'], marker.get('note', ''), self)
+                    if dialog.exec_() == QDialog.Accepted:
+                        marker['note'] = dialog.get_note()
+                        self.markers_changed.emit()
+                        self.update()
+                    return
     
     def mousePressEvent(self, event):
         """Handle mouse press - start dragging or add marker."""
@@ -141,12 +187,17 @@ class AnnotatablePreview(QLabel):
         
         # Draw markers
         for marker in self.markers:
-            self._draw_marker(painter, marker['pos'], marker['label'], marker['angle'])
+            self._draw_marker(painter, marker)
         
         painter.end()
     
-    def _draw_marker(self, painter, pos, label, angle):
+    def _draw_marker(self, painter, marker):
         """Draw a single marker (rotatable arrow with label)."""
+        pos = marker['pos']
+        label = marker['label']
+        angle = marker['angle']
+        has_note = bool(marker.get('note', '').strip())
+        
         # Arrow parameters (smaller)
         arrow_length = 30
         
@@ -190,3 +241,9 @@ class AnnotatablePreview(QLabel):
         painter.setPen(QColor(255, 0, 0))
         painter.setFont(QFont("Arial", 10, QFont.Bold))
         painter.drawText(label_pos.x() - 5, label_pos.y() + 5, label)
+        
+        # Draw note indicator (small blue dot) if marker has notes
+        if has_note:
+            painter.setBrush(QColor(0, 120, 255))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(label_pos.x() + 8, label_pos.y() - 10, 6, 6)
