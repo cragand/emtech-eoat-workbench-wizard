@@ -139,6 +139,7 @@ class DOCXReportGenerator:
                     notes = img_data.get('notes', '')
                     media_type = img_data.get('type', 'image')
                     step_info = img_data.get('step_info', '')
+                    markers = img_data.get('markers', [])
                 else:
                     # Legacy format - just a path string
                     img_path = img_data
@@ -146,6 +147,7 @@ class DOCXReportGenerator:
                     notes = ''
                     media_type = 'image'
                     step_info = ''
+                    markers = []
                 
                 if os.path.exists(img_path):
                     # Check if this is a video file
@@ -169,6 +171,15 @@ class DOCXReportGenerator:
                             p.add_run('Notes: ').bold = True
                             p.add_run(notes)
                         
+                        # Add marker notes if present
+                        marker_notes = [m for m in markers if m.get('note', '').strip()]
+                        if marker_notes:
+                            p = doc.add_paragraph()
+                            p.add_run('Annotations:').bold = True
+                            for m in marker_notes:
+                                p = doc.add_paragraph(style='List Bullet')
+                                p.add_run(f"{m['label']}: {m['note']}")
+                        
                         if step_info:
                             p = doc.add_paragraph()
                             p.add_run('Step: ').italic = True
@@ -189,6 +200,15 @@ class DOCXReportGenerator:
                             p = doc.add_paragraph()
                             p.add_run('Notes: ').bold = True
                             p.add_run(notes)
+                        
+                        # Add marker notes if present
+                        marker_notes = [m for m in markers if m.get('note', '').strip()]
+                        if marker_notes:
+                            p = doc.add_paragraph()
+                            p.add_run('Annotations:').bold = True
+                            for m in marker_notes:
+                                p = doc.add_paragraph(style='List Bullet')
+                                p.add_run(f"{m['label']}: {m['note']}")
                         
                         if step_info:
                             p = doc.add_paragraph()
