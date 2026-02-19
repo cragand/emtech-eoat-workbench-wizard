@@ -157,9 +157,6 @@ class PDFReportGenerator:
                     notes = img_data.get('notes', '')
                     media_type = img_data.get('type', 'image')
                     markers = img_data.get('markers', [])
-                    print(f"DEBUG: Image {idx} has {len(markers)} markers")
-                    for m in markers:
-                        print(f"  Marker {m.get('label')}: note='{m.get('note', '')}'")
                 else:
                     # Legacy format - just a path string
                     img_path = img_data
