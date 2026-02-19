@@ -1,6 +1,6 @@
 """Mode selection screen - initial application screen."""
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QLineEdit, QPushButton, QTextEdit, QButtonGroup, QRadioButton)
+                             QLineEdit, QPushButton, QTextEdit, QButtonGroup, QRadioButton, QMessageBox)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont, QPalette, QColor
 
@@ -112,7 +112,13 @@ class ModeSelectionScreen(QWidget):
         description = self.description_input.toPlainText().strip()
         selected_mode = self.mode_group.checkedId()
         
-        # Serial number is now optional
+        # Serial number is required
+        if not serial:
+            QMessageBox.warning(self, "Serial Number Required", 
+                               "Please enter a serial number before starting.")
+            self.serial_input.setStyleSheet("border: 2px solid red;")
+            return
+        
         self.serial_input.setStyleSheet("")
         
         if selected_mode == -1:
