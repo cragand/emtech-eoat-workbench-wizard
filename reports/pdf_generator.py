@@ -156,12 +156,17 @@ class PDFReportGenerator:
                     camera = img_data.get('camera', 'Unknown')
                     notes = img_data.get('notes', '')
                     media_type = img_data.get('type', 'image')
+                    markers = img_data.get('markers', [])
+                    print(f"DEBUG: Image {idx} has {len(markers)} markers")
+                    for m in markers:
+                        print(f"  Marker {m.get('label')}: note='{m.get('note', '')}'")
                 else:
                     # Legacy format - just a path string
                     img_path = img_data
                     camera = 'Unknown'
                     notes = ''
                     media_type = 'image'
+                    markers = []
                 
                 if os.path.exists(img_path):
                     # Check if this is a video file
@@ -175,6 +180,13 @@ class PDFReportGenerator:
                         if notes:
                             caption_text += f"<br/><b>Notes:</b> {notes}"
                         
+                        # Add marker notes if present
+                        marker_notes = [m for m in markers if m.get('note', '').strip()]
+                        if marker_notes:
+                            caption_text += "<br/><b>Annotations:</b>"
+                            for m in marker_notes:
+                                caption_text += f"<br/>  • {m['label']}: {m['note']}"
+                        
                         caption = Paragraph(caption_text, self.styles['Normal'])
                         story.append(caption)
                         story.append(Spacer(1, 0.3*inch))
@@ -184,6 +196,13 @@ class PDFReportGenerator:
                         caption_text += f"<i>Camera: {camera}</i>"
                         if notes:
                             caption_text += f"<br/><b>Notes:</b> {notes}"
+                        
+                        # Add marker notes if present
+                        marker_notes = [m for m in markers if m.get('note', '').strip()]
+                        if marker_notes:
+                            caption_text += "<br/><b>Annotations:</b>"
+                            for m in marker_notes:
+                                caption_text += f"<br/>  • {m['label']}: {m['note']}"
                         
                         caption = Paragraph(caption_text, self.styles['Normal'])
                         story.append(caption)
