@@ -15,8 +15,11 @@ class MarkerNoteDialog(QDialog):
         self.setModal(True)
         self.setMinimumWidth(400)
         
-        # Dialog inherits parent's stylesheet automatically, but ensure it's applied
-        # No need to set explicit colors - will use application theme
+        # Explicitly apply application stylesheet to ensure theme is respected
+        from PyQt5.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app:
+            self.setStyleSheet(app.styleSheet())
         
         layout = QVBoxLayout()
         
@@ -36,6 +39,12 @@ class MarkerNoteDialog(QDialog):
         layout.addWidget(buttons)
         
         self.setLayout(layout)
+        
+        # Position dialog to the right of parent window to not obstruct camera view
+        if parent:
+            parent_geo = parent.window().geometry()
+            # Position to the right of the parent window
+            self.move(parent_geo.right() - self.width() - 20, parent_geo.top() + 100)
     
     def get_note(self):
         """Get the entered note."""
