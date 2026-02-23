@@ -1,8 +1,8 @@
 """Workflow execution screen for guided QC and maintenance procedures."""
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QPushButton, QTextEdit, QMessageBox, QLineEdit, QSplitter, QComboBox, QDialog, QSizePolicy)
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import QImage, QPixmap, QFont
+                             QPushButton, QTextEdit, QMessageBox, QLineEdit, QSplitter, QComboBox, QDialog, QSizePolicy, QCheckBox)
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QPoint
+from PyQt5.QtGui import QImage, QPixmap, QFont, QPainter, QColor, QPen
 import cv2
 import os
 import json
@@ -19,6 +19,127 @@ try:
 except ImportError:
     QR_SCANNER_AVAILABLE = False
     QRScannerThread = None
+
+
+class InteractiveReferenceImage(QLabel):
+    """Reference image with interactive checkboxes."""
+    
+    checkboxes_changed = pyqtSignal(int, int)  # checked_count, total_count
+    
+    def __init__(self):
+        super().__init__()
+        self.image_pixmap = None
+        self.checkboxes = []  # List of {'x': %, 'y': %, 'checked': bool}
+        self.setAlignment(Qt.AlignCenter)
+        self.setMouseTracking(True)
+    
+    def set_image_and_checkboxes(self, image_path, checkbox_data):
+        """Load image and set up checkboxes."""
+        if not image_path or not os.path.exists(image_path):
+            self.clear()
+            self.setText("No reference image")
+            return
+        
+        self.image_pixmap = QPixmap(image_path)
+        self.checkboxes = [{'x': cb['x'], 'y': cb['y'], 'checked': False} 
+                          for cb in (checkbox_data or [])]
+        self.update()
+        self.emit_status()
+    
+    def mousePressEvent(self, event):
+        """Toggle checkbox on click."""
+        if not self.image_pixmap or not self.checkboxes:
+            return
+        
+        # Find which checkbox was clicked
+        click_pos = event.pos()
+        for cb in self.checkboxes:
+            cb_pos = self._get_checkbox_position(cb)
+            if cb_pos and (cb_pos.x() - click_pos.x())**2 + (cb_pos.y() - click_pos.y())**2 < 400:
+                cb['checked'] = not cb['checked']
+                self.update()
+                self.emit_status()
+                break
+    
+    def _get_checkbox_position(self, checkbox):
+        """Convert percentage position to widget pixels."""
+        if not self.image_pixmap:
+            return None
+        
+        # Calculate scaled image position
+        widget_rect = self.rect()
+        scaled_pixmap = self.image_pixmap.scaled(
+            widget_rect.size(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+        
+        x_offset = (widget_rect.width() - scaled_pixmap.width()) // 2
+        y_offset = (widget_rect.height() - scaled_pixmap.height()) // 2
+        
+        x = x_offset + int(checkbox['x'] * scaled_pixmap.width())
+        y = y_offset + int(checkbox['y'] * scaled_pixmap.height())
+        
+        return QPoint(x, y)
+    
+    def paintEvent(self, event):
+        """Draw image and checkboxes."""
+        super().paintEvent(event)
+        
+        if not self.image_pixmap:
+            return
+        
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        # Draw scaled image
+        widget_rect = self.rect()
+        scaled_pixmap = self.image_pixmap.scaled(
+            widget_rect.size(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+        
+        x_offset = (widget_rect.width() - scaled_pixmap.width()) // 2
+        y_offset = (widget_rect.height() - scaled_pixmap.height()) // 2
+        
+        painter.drawPixmap(x_offset, y_offset, scaled_pixmap)
+        
+        # Draw checkboxes
+        for cb in self.checkboxes:
+            pos = self._get_checkbox_position(cb)
+            if pos:
+                # Draw checkbox square
+                if cb['checked']:
+                    painter.setPen(QPen(QColor(119, 194, 94), 3))
+                    painter.setBrush(QColor(119, 194, 94, 150))
+                else:
+                    painter.setPen(QPen(QColor(119, 194, 94), 2))
+                    painter.setBrush(QColor(255, 255, 255, 200))
+                
+                painter.drawRect(pos.x() - 12, pos.y() - 12, 24, 24)
+                
+                # Draw checkmark if checked
+                if cb['checked']:
+                    painter.setPen(QPen(QColor(255, 255, 255), 3))
+                    painter.drawLine(pos.x() - 6, pos.y(), pos.x() - 2, pos.y() + 6)
+                    painter.drawLine(pos.x() - 2, pos.y() + 6, pos.x() + 8, pos.y() - 6)
+        
+        painter.end()
+    
+    def emit_status(self):
+        """Emit checkbox status."""
+        checked = sum(1 for cb in self.checkboxes if cb['checked'])
+        total = len(self.checkboxes)
+        self.checkboxes_changed.emit(checked, total)
+    
+    def get_checked_count(self):
+        """Get number of checked boxes."""
+        return sum(1 for cb in self.checkboxes if cb['checked'])
+    
+    def get_total_count(self):
+        """Get total number of checkboxes."""
+        return len(self.checkboxes)
 
 
 class WorkflowExecutionScreen(QWidget):
@@ -142,12 +263,10 @@ class WorkflowExecutionScreen(QWidget):
         ref_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         left_layout.addWidget(ref_label)
         
-        self.reference_image = QLabel()
+        self.reference_image = InteractiveReferenceImage()
         self.reference_image.setMinimumSize(300, 200)
-        self.reference_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.reference_image.setStyleSheet("border: 2px solid #CCCCCC; cursor: pointer;")
-        self.reference_image.setText("No reference image")
-        self.reference_image.mousePressEvent = self.show_reference_fullsize
+        self.reference_image.setStyleSheet("border: 2px solid #CCCCCC;")
+        self.reference_image.checkboxes_changed.connect(self.on_checkboxes_changed)
         self.reference_image_path = None  # Store current reference image path
         left_layout.addWidget(self.reference_image)
         
@@ -369,19 +488,14 @@ class WorkflowExecutionScreen(QWidget):
         
         # Update reference image
         ref_image_path = step.get('reference_image', '')
+        checkbox_data = step.get('inspection_checkboxes', [])
+        
         if ref_image_path and os.path.exists(ref_image_path):
-            self.reference_image_path = ref_image_path  # Store for fullsize view
-            pixmap = QPixmap(ref_image_path)
-            scaled = pixmap.scaled(self.reference_image.size(), 
-                                  Qt.AspectRatioMode.KeepAspectRatio,
-                                  Qt.TransformationMode.SmoothTransformation)
-            self.reference_image.setPixmap(scaled)
-            self.reference_image.setToolTip("Click to view full size")
+            self.reference_image_path = ref_image_path
+            self.reference_image.set_image_and_checkboxes(ref_image_path, checkbox_data)
         else:
             self.reference_image_path = None
-            self.reference_image.clear()
-            self.reference_image.setText("No reference image")
-            self.reference_image.setToolTip("")
+            self.reference_image.set_image_and_checkboxes(None, [])
         
         # Update step status
         photo_required = step.get('require_photo', False)
@@ -399,6 +513,15 @@ class WorkflowExecutionScreen(QWidget):
             else:
                 status_parts.append("Annotations: ⚠ Required (click preview to add markers)")
         
+        # Show checkbox status if present
+        if checkbox_data:
+            checked = self.reference_image.get_checked_count()
+            total = self.reference_image.get_total_count()
+            if checked == total:
+                status_parts.append(f"Inspection: ✓ {checked}/{total} checked")
+            else:
+                status_parts.append(f"Inspection: ⚠ {checked}/{total} checked")
+        
         self.step_status.setText(" | ".join(status_parts) if status_parts else "Optional documentation")
         
         # Update navigation buttons
@@ -407,6 +530,10 @@ class WorkflowExecutionScreen(QWidget):
         is_last_step = self.current_step == len(steps) - 1
         self.next_button.setVisible(not is_last_step)
         self.finish_button.setVisible(is_last_step)
+    
+    def on_checkboxes_changed(self, checked, total):
+        """Handle checkbox status change."""
+        self.show_current_step()  # Refresh status display
     
     def capture_image(self):
         """Capture image for current step."""
