@@ -721,22 +721,89 @@ class WorkflowExecutionScreen(QWidget):
         self.cleanup_resources()
         self.back_requested.emit()
     
+    def _generate_checkbox_image(self, ref_image_path, checkboxes, step_index):
+        """Generate an image showing the reference with checkbox completion status.
+        
+        Args:
+            ref_image_path: Path to reference image
+            checkboxes: List of checkbox data with x, y percentages
+            step_index: Step number for filename
+            
+        Returns:
+            Path to generated checkbox image
+        """
+        if not os.path.exists(ref_image_path):
+            return None
+        
+        try:
+            # Load reference image
+            img = cv2.imread(ref_image_path)
+            if img is None:
+                return None
+            
+            h, w = img.shape[:2]
+            
+            # Draw checkboxes on image
+            for cb in checkboxes:
+                x = int(cb['x'] * w)
+                y = int(cb['y'] * h)
+                
+                # Draw checkbox square (green)
+                color = (94, 194, 119)  # BGR format of #77C25E
+                cv2.rectangle(img, (x-12, y-12), (x+12, y+12), color, 2)
+                
+                # Fill with semi-transparent green
+                overlay = img.copy()
+                cv2.rectangle(overlay, (x-12, y-12), (x+12, y+12), color, -1)
+                cv2.addWeighted(overlay, 0.3, img, 0.7, 0, img)
+                
+                # Draw checkmark (white)
+                cv2.line(img, (x-6, y), (x-2, y+6), (255, 255, 255), 2)
+                cv2.line(img, (x-2, y+6), (x+8, y-6), (255, 255, 255), 2)
+            
+            # Save to output directory
+            serial_prefix = self.serial_number if self.serial_number else "unknown"
+            filename = f"{serial_prefix}_step{step_index+1}_checkboxes.jpg"
+            output_path = os.path.join(self.output_dir, filename)
+            cv2.imwrite(output_path, img)
+            
+            return output_path
+            
+        except Exception as e:
+            print(f"Error generating checkbox image: {e}")
+            return None
+    
     def generate_workflow_report(self):
         """Generate PDF report for completed workflow."""
         try:
             # Determine mode name for report
             workflow_name = self.workflow.get('name', 'Workflow')
             
-            # Create checklist from steps
+            # Create checklist from steps with descriptions and checkbox images
             checklist_data = []
             for i, step in enumerate(self.workflow['steps']):
                 step_title = step.get('title', f'Step {i+1}')
+                step_description = step.get('instructions', '')
+                
                 # Count images for this step
                 step_imgs = [img for img in self.captured_images if img.get('step') == i+1]
                 passed = len(step_imgs) > 0  # Step passed if at least one image captured
+                
+                # Check if step has inspection checkboxes
+                checkbox_image = None
+                if step.get('inspection_checkboxes') and step.get('reference_image'):
+                    # Generate checkbox completion image
+                    checkbox_image = self._generate_checkbox_image(
+                        step.get('reference_image'),
+                        step.get('inspection_checkboxes'),
+                        i
+                    )
+                
                 checklist_data.append({
                     'name': step_title,
-                    'passed': passed
+                    'description': step_description,
+                    'passed': passed,
+                    'checkbox_image': checkbox_image
                 })
             
             # Generate both PDF and DOCX reports
