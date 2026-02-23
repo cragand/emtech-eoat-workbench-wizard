@@ -40,7 +40,7 @@ class ModeSelectionScreen(QWidget):
         serial_label.setMinimumWidth(150)
         serial_label.setStyleSheet("font-weight: bold;")
         self.serial_input = QLineEdit()
-        self.serial_input.setPlaceholderText("Enter unit serial number (optional)")
+        self.serial_input.setPlaceholderText("Serial number (or title)")
         serial_layout.addWidget(serial_label)
         serial_layout.addWidget(self.serial_input)
         layout.addLayout(serial_layout)
