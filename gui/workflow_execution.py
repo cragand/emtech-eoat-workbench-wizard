@@ -523,6 +523,42 @@ class WorkflowExecutionScreen(QWidget):
                 status_parts.append(f"Inspection: ⚠ {checked}/{total} checked")
         
         self.step_status.setText(" | ".join(status_parts) if status_parts else "Optional documentation")
+    
+    def update_step_status(self):
+        """Update just the status display without reloading step."""
+        if not self.workflow or 'steps' not in self.workflow:
+            return
+        
+        steps = self.workflow['steps']
+        if self.current_step >= len(steps):
+            return
+        
+        step = steps[self.current_step]
+        checkbox_data = step.get('inspection_checkboxes', [])
+        
+        photo_required = step.get('require_photo', False)
+        annotations_required = step.get('require_annotations', False)
+        
+        status_parts = []
+        if photo_required:
+            status_parts.append(f"Photos: {len(self.step_images)}/1 required")
+        if annotations_required:
+            has_markers = any(img.get('markers') and len(img.get('markers', [])) > 0 
+                            for img in self.step_images)
+            if has_markers:
+                status_parts.append("Annotations: ✓ Added")
+            else:
+                status_parts.append("Annotations: ⚠ Required (click preview to add markers)")
+        
+        if checkbox_data:
+            checked = self.reference_image.get_checked_count()
+            total = self.reference_image.get_total_count()
+            if checked == total:
+                status_parts.append(f"Inspection: ✓ {checked}/{total} checked")
+            else:
+                status_parts.append(f"Inspection: ⚠ {checked}/{total} checked")
+        
+        self.step_status.setText(" | ".join(status_parts) if status_parts else "Optional documentation")
         
         # Update navigation buttons
         self.prev_button.setEnabled(self.current_step > 0)
@@ -533,7 +569,7 @@ class WorkflowExecutionScreen(QWidget):
     
     def on_checkboxes_changed(self, checked, total):
         """Handle checkbox status change."""
-        self.show_current_step()  # Refresh status display
+        self.update_step_status()  # Refresh status display only (avoid recursion)
     
     def capture_image(self):
         """Capture image for current step."""
