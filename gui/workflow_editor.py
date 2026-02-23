@@ -3,10 +3,136 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QListWidget, QMessageBox, QLineEdit, 
                              QTextEdit, QCheckBox, QFileDialog, QDialog, QDialogButtonBox,
                              QScrollArea, QGroupBox)
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QFont
+from PyQt5.QtCore import Qt, pyqtSignal, QPoint
+from PyQt5.QtGui import QFont, QPixmap, QPainter, QColor, QPen
 import os
 import json
+
+
+class CheckboxPlacementWidget(QLabel):
+    """Widget for placing checkboxes on reference image."""
+    
+    def __init__(self, image_path):
+        super().__init__()
+        self.image_path = image_path
+        self.checkboxes = []  # List of QPoint positions
+        self.load_image()
+        self.setMouseTracking(True)
+        self.setCursor(Qt.CrossCursor)
+    
+    def load_image(self):
+        """Load and display the reference image."""
+        pixmap = QPixmap(self.image_path)
+        if not pixmap.isNull():
+            # Scale to reasonable size for editing
+            scaled = pixmap.scaled(800, 600, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.setPixmap(scaled)
+            self.setFixedSize(scaled.size())
+    
+    def mousePressEvent(self, event):
+        """Add checkbox on left click, remove on right click."""
+        if event.button() == Qt.LeftButton:
+            # Add checkbox
+            self.checkboxes.append(event.pos())
+            self.update()
+        elif event.button() == Qt.RightButton:
+            # Remove nearest checkbox
+            if self.checkboxes:
+                pos = event.pos()
+                nearest = min(self.checkboxes, 
+                            key=lambda p: (p.x() - pos.x())**2 + (p.y() - pos.y())**2)
+                if (nearest.x() - pos.x())**2 + (nearest.y() - pos.y())**2 < 400:  # Within 20px
+                    self.checkboxes.remove(nearest)
+                    self.update()
+    
+    def paintEvent(self, event):
+        """Draw image and checkboxes."""
+        super().paintEvent(event)
+        
+        if not self.checkboxes:
+            return
+        
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        # Draw checkboxes
+        for pos in self.checkboxes:
+            # Draw checkbox square
+            painter.setPen(QPen(QColor(119, 194, 94), 2))  # Emtech green
+            painter.setBrush(QColor(255, 255, 255, 200))
+            painter.drawRect(pos.x() - 10, pos.y() - 10, 20, 20)
+        
+        painter.end()
+    
+    def get_checkboxes_data(self):
+        """Get checkbox positions as percentages of image size."""
+        if not self.pixmap():
+            return []
+        
+        width = self.pixmap().width()
+        height = self.pixmap().height()
+        
+        return [{'x': pos.x() / width, 'y': pos.y() / height} 
+                for pos in self.checkboxes]
+    
+    def set_checkboxes_data(self, data):
+        """Set checkbox positions from percentage data."""
+        if not self.pixmap() or not data:
+            return
+        
+        width = self.pixmap().width()
+        height = self.pixmap().height()
+        
+        self.checkboxes = [QPoint(int(cb['x'] * width), int(cb['y'] * height)) 
+                          for cb in data]
+        self.update()
+
+
+class CheckboxPlacementDialog(QDialog):
+    """Dialog for placing checkboxes on reference image."""
+    
+    def __init__(self, image_path, existing_checkboxes=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Place Inspection Checkboxes")
+        self.image_path = image_path
+        self.existing_checkboxes = existing_checkboxes or []
+        self.init_ui()
+    
+    def init_ui(self):
+        """Initialize UI."""
+        layout = QVBoxLayout()
+        
+        # Instructions
+        instructions = QLabel(
+            "Click on the image to place inspection checkboxes.\n"
+            "Right-click near a checkbox to remove it.\n"
+            "Users will check these off during workflow execution."
+        )
+        instructions.setStyleSheet("padding: 10px; background-color: #f0f0f0; border-radius: 3px;")
+        layout.addWidget(instructions)
+        
+        # Scrollable image area
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        
+        self.checkbox_widget = CheckboxPlacementWidget(self.image_path)
+        self.checkbox_widget.set_checkboxes_data(self.existing_checkboxes)
+        scroll.setWidget(self.checkbox_widget)
+        layout.addWidget(scroll)
+        
+        # Buttons
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        
+        self.setLayout(layout)
+        self.resize(900, 700)
+    
+    def get_checkboxes(self):
+        """Get the placed checkboxes."""
+        return self.checkbox_widget.get_checkboxes_data()
+
 
 
 class StepEditorDialog(QDialog):
@@ -69,6 +195,14 @@ class StepEditorDialog(QDialog):
         ref_note.setWordWrap(True)
         layout.addWidget(ref_note)
         
+        # Checkbox placement button
+        self.place_checkboxes_button = QPushButton("📍 Place Inspection Checkboxes")
+        self.place_checkboxes_button.setToolTip("Add checkboxes on reference image for inspection points")
+        self.place_checkboxes_button.clicked.connect(self.place_checkboxes)
+        self.place_checkboxes_button.setEnabled(False)
+        self.ref_image_input.textChanged.connect(self.update_checkbox_button)
+        layout.addWidget(self.place_checkboxes_button)
+        
         # Requirements
         req_group = QGroupBox("Requirements")
         req_layout = QVBoxLayout()
@@ -92,6 +226,26 @@ class StepEditorDialog(QDialog):
         
         self.setLayout(layout)
     
+    def update_checkbox_button(self):
+        """Enable/disable checkbox placement button based on image path."""
+        path = self.ref_image_input.text().strip()
+        self.place_checkboxes_button.setEnabled(bool(path and os.path.exists(path)))
+    
+    def place_checkboxes(self):
+        """Open dialog to place checkboxes on reference image."""
+        image_path = self.ref_image_input.text().strip()
+        if not image_path or not os.path.exists(image_path):
+            QMessageBox.warning(self, "No Image", "Please select a valid reference image first.")
+            return
+        
+        existing = self.step_data.get('inspection_checkboxes', [])
+        dialog = CheckboxPlacementDialog(image_path, existing, self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.step_data['inspection_checkboxes'] = dialog.get_checkboxes()
+            count = len(self.step_data['inspection_checkboxes'])
+            QMessageBox.information(self, "Checkboxes Placed", 
+                                   f"{count} inspection checkpoint(s) placed.")
+    
     def browse_reference_image(self):
         """Browse for reference image."""
         file_path, _ = QFileDialog.getOpenFileName(
@@ -111,13 +265,19 @@ class StepEditorDialog(QDialog):
     
     def get_step_data(self):
         """Get step data from form."""
-        return {
+        data = {
             'title': self.title_input.text().strip(),
             'instructions': self.instructions_input.toPlainText().strip(),
             'reference_image': self.ref_image_input.text().strip(),
             'require_photo': self.require_photo_check.isChecked(),
             'require_annotations': self.require_annotations_check.isChecked()
         }
+        
+        # Include inspection checkboxes if they were placed
+        if 'inspection_checkboxes' in self.step_data:
+            data['inspection_checkboxes'] = self.step_data['inspection_checkboxes']
+        
+        return data
 
 
 class WorkflowEditorScreen(QWidget):
