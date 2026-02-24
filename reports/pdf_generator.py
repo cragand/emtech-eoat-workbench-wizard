@@ -124,25 +124,46 @@ class PDFReportGenerator:
         if checklist_data:
             story.append(Paragraph("Checklist Results", self.styles['SectionHeader']))
             
-            checklist_table_data = [["Item", "Status"]]
             for item in checklist_data:
+                # Step name and status
                 status = "✓ Pass" if item.get('passed', False) else "✗ Fail"
-                checklist_table_data.append([item['name'], status])
+                status_color = colors.HexColor('#4CAF50') if item.get('passed', False) else colors.HexColor('#F44336')
+                
+                step_table_data = [[item['name'], status]]
+                step_table = Table(step_table_data, colWidths=[4*inch, 2*inch])
+                step_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4a4a4a')),
+                    ('TEXTCOLOR', (0, 0), (0, 0), colors.whitesmoke),
+                    ('TEXTCOLOR', (1, 0), (1, 0), status_color),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                    ('TOPPADDING', (0, 0), (-1, -1), 8),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ]))
+                story.append(step_table)
+                
+                # Add description if present
+                if item.get('description'):
+                    desc_para = Paragraph(f"<i>{item['description'][:200]}...</i>" if len(item['description']) > 200 else f"<i>{item['description']}</i>", 
+                                        self.styles['Normal'])
+                    story.append(Spacer(1, 0.05*inch))
+                    story.append(desc_para)
+                
+                # Add checkbox image if present
+                if item.get('checkbox_image') and os.path.exists(item['checkbox_image']):
+                    story.append(Spacer(1, 0.1*inch))
+                    try:
+                        checkbox_img = Image(item['checkbox_image'], width=4*inch, height=3*inch, kind='proportional')
+                        story.append(checkbox_img)
+                    except Exception as e:
+                        error_msg = Paragraph(f"<i>Error loading checkbox image: {str(e)}</i>", self.styles['Normal'])
+                        story.append(error_msg)
+                
+                story.append(Spacer(1, 0.2*inch))
             
-            checklist_table = Table(checklist_table_data, colWidths=[4*inch, 2*inch])
-            checklist_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4a4a4a')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 10),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-                ('TOPPADDING', (0, 0), (-1, -1), 8),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f9f9f9')])
-            ]))
-            story.append(checklist_table)
-            story.append(Spacer(1, 0.3*inch))
+            story.append(Spacer(1, 0.2*inch))
         
         # Captured Images
         if images:

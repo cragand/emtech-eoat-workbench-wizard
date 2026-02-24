@@ -104,26 +104,35 @@ class DOCXReportGenerator:
         if checklist_data:
             doc.add_heading('Checklist Results', level=2)
             
-            checklist_table = doc.add_table(rows=len(checklist_data) + 1, cols=2)
-            checklist_table.style = 'Light Grid Accent 1'
-            
-            # Header row
-            checklist_table.rows[0].cells[0].text = 'Item'
-            checklist_table.rows[0].cells[1].text = 'Status'
-            for cell in checklist_table.rows[0].cells:
-                cell.paragraphs[0].runs[0].font.bold = True
-            
-            # Data rows
-            for idx, item in enumerate(checklist_data, 1):
-                checklist_table.rows[idx].cells[0].text = item['name']
+            for item in checklist_data:
+                # Step name
+                p = doc.add_paragraph()
+                p.add_run(item['name']).bold = True
+                
+                # Status
                 status = "✓ Pass" if item.get('passed', False) else "✗ Fail"
-                status_cell = checklist_table.rows[idx].cells[1]
-                status_cell.text = status
-                # Color code the status
+                status_run = p.add_run(f" - {status}")
+                status_run.bold = True
                 if item.get('passed', False):
-                    status_cell.paragraphs[0].runs[0].font.color.rgb = RGBColor(0, 128, 0)  # Green
+                    status_run.font.color.rgb = RGBColor(76, 175, 80)  # Green
                 else:
-                    status_cell.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 0, 0)  # Red
+                    status_run.font.color.rgb = RGBColor(244, 67, 54)  # Red
+                
+                # Description
+                if item.get('description'):
+                    desc_text = item['description'][:200] + "..." if len(item['description']) > 200 else item['description']
+                    p = doc.add_paragraph()
+                    p.add_run(desc_text).italic = True
+                
+                # Checkbox image
+                if item.get('checkbox_image') and os.path.exists(item['checkbox_image']):
+                    try:
+                        doc.add_picture(item['checkbox_image'], width=Inches(4))
+                    except Exception as e:
+                        p = doc.add_paragraph()
+                        p.add_run(f'Error loading checkbox image: {str(e)}').italic = True
+                
+                doc.add_paragraph()  # Spacing between steps
             
             doc.add_paragraph()
         

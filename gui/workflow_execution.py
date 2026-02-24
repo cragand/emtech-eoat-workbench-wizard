@@ -160,6 +160,8 @@ class WorkflowExecutionScreen(QWidget):
         self.qr_scanner = None
         self.captured_images = []  # All images from workflow
         self.step_images = []  # Images for current step
+        self.step_results = {}  # Track pass/fail for each step: {step_index: bool}
+        self.step_checkbox_states = {}  # Track checkbox states: {step_index: [{'x', 'y', 'checked'}]}
         
         # Setup output directory - sanitize serial number for filesystem
         output_serial = self._sanitize_filename(serial_number) if serial_number else "unknown"
@@ -364,6 +366,55 @@ class WorkflowExecutionScreen(QWidget):
         self.capture_button.setEnabled(False)
         right_layout.addWidget(self.capture_button)
         
+        # Pass/Fail buttons
+        pass_fail_layout = QHBoxLayout()
+        pass_fail_label = QLabel("Mark Step Result:")
+        pass_fail_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        pass_fail_layout.addWidget(pass_fail_label)
+        
+        self.pass_button = QPushButton("✓ Pass")
+        self.pass_button.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 8px 15px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #45A049;
+            }
+            QPushButton:pressed {
+                background-color: #2E7D32;
+            }
+        """)
+        self.pass_button.clicked.connect(lambda: self.mark_step_result(True))
+        pass_fail_layout.addWidget(self.pass_button)
+        
+        self.fail_button = QPushButton("✗ Fail")
+        self.fail_button.setStyleSheet("""
+            QPushButton {
+                background-color: #F44336;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 8px 15px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #D32F2F;
+            }
+            QPushButton:pressed {
+                background-color: #B71C1C;
+            }
+        """)
+        self.fail_button.clicked.connect(lambda: self.mark_step_result(False))
+        pass_fail_layout.addWidget(self.fail_button)
+        
+        pass_fail_layout.addStretch()
+        right_layout.addLayout(pass_fail_layout)
+        
         self.step_status = QLabel()
         self.step_status.setStyleSheet("color: #888888; font-size: 11px;")
         right_layout.addWidget(self.step_status)
@@ -552,6 +603,11 @@ class WorkflowExecutionScreen(QWidget):
             else:
                 status_parts.append(f"Inspection: ⚠ {checked}/{total} checked")
         
+        # Show step result if marked
+        if self.current_step in self.step_results:
+            result = "✓ PASS" if self.step_results[self.current_step] else "✗ FAIL"
+            status_parts.append(f"Result: {result}")
+        
         self.step_status.setText(" | ".join(status_parts) if status_parts else "Optional documentation")
     
     def update_step_status(self):
@@ -587,6 +643,11 @@ class WorkflowExecutionScreen(QWidget):
                 status_parts.append(f"Inspection: ✓ {checked}/{total} checked")
             else:
                 status_parts.append(f"Inspection: ⚠ {checked}/{total} checked")
+        
+        # Show step result if marked
+        if self.current_step in self.step_results:
+            result = "✓ PASS" if self.step_results[self.current_step] else "✗ FAIL"
+            status_parts.append(f"Result: {result}")
         
         self.step_status.setText(" | ".join(status_parts) if status_parts else "Optional documentation")
         
@@ -677,6 +738,15 @@ class WorkflowExecutionScreen(QWidget):
         
         return frame
     
+    def mark_step_result(self, passed):
+        """Mark current step as pass or fail."""
+        self.step_results[self.current_step] = passed
+        self.update_step_status()
+        
+        result_text = "PASS" if passed else "FAIL"
+        QMessageBox.information(self, "Step Marked", 
+                               f"Step {self.current_step + 1} marked as {result_text}")
+    
     def previous_step(self):
         """Go to previous step."""
         if self.current_step > 0:
@@ -688,6 +758,21 @@ class WorkflowExecutionScreen(QWidget):
         """Go to next step."""
         if not self.validate_step():
             return
+        
+        # Store checkbox state for current step (including which ones were checked)
+        step = self.workflow['steps'][self.current_step]
+        if step.get('inspection_checkboxes'):
+            # Store the actual checkbox objects with their checked states
+            self.step_checkbox_states[self.current_step] = [
+                {'x': cb['x'], 'y': cb['y'], 'checked': cb['checked']} 
+                for cb in self.reference_image.checkboxes
+            ]
+            
+            # Auto-mark as pass if all checkboxes checked (and not already marked)
+            checked = self.reference_image.get_checked_count()
+            total = self.reference_image.get_total_count()
+            if checked == total and self.current_step not in self.step_results:
+                self.step_results[self.current_step] = True
         
         if self.current_step < len(self.workflow['steps']) - 1:
             self.current_step += 1
@@ -756,7 +841,7 @@ class WorkflowExecutionScreen(QWidget):
         
         Args:
             ref_image_path: Path to reference image
-            checkboxes: List of checkbox data with x, y percentages
+            checkboxes: List of checkbox data with x, y percentages and checked status
             step_index: Step number for filename
             
         Returns:
@@ -777,19 +862,28 @@ class WorkflowExecutionScreen(QWidget):
             for cb in checkboxes:
                 x = int(cb['x'] * w)
                 y = int(cb['y'] * h)
+                is_checked = cb.get('checked', False)
                 
-                # Draw checkbox square (green)
-                color = (94, 194, 119)  # BGR format of #77C25E
+                # Color based on checked state
+                if is_checked:
+                    color = (94, 194, 119)  # BGR format of #77C25E (green)
+                    fill_alpha = 0.6
+                else:
+                    color = (200, 200, 200)  # Gray for unchecked
+                    fill_alpha = 0.3
+                
+                # Draw checkbox square
                 cv2.rectangle(img, (x-12, y-12), (x+12, y+12), color, 2)
                 
-                # Fill with semi-transparent green
+                # Fill with semi-transparent color
                 overlay = img.copy()
                 cv2.rectangle(overlay, (x-12, y-12), (x+12, y+12), color, -1)
-                cv2.addWeighted(overlay, 0.3, img, 0.7, 0, img)
+                cv2.addWeighted(overlay, fill_alpha, img, 1-fill_alpha, 0, img)
                 
-                # Draw checkmark (white)
-                cv2.line(img, (x-6, y), (x-2, y+6), (255, 255, 255), 2)
-                cv2.line(img, (x-2, y+6), (x+8, y-6), (255, 255, 255), 2)
+                # Draw checkmark if checked
+                if is_checked:
+                    cv2.line(img, (x-6, y), (x-2, y+6), (255, 255, 255), 2)
+                    cv2.line(img, (x-2, y+6), (x+8, y-6), (255, 255, 255), 2)
             
             # Save to output directory
             serial_prefix = self.serial_number if self.serial_number else "unknown"
@@ -806,6 +900,20 @@ class WorkflowExecutionScreen(QWidget):
     def generate_workflow_report(self):
         """Generate PDF report for completed workflow."""
         try:
+            # Store final step's checkbox state
+            step = self.workflow['steps'][self.current_step]
+            if step.get('inspection_checkboxes'):
+                self.step_checkbox_states[self.current_step] = [
+                    {'x': cb['x'], 'y': cb['y'], 'checked': cb['checked']} 
+                    for cb in self.reference_image.checkboxes
+                ]
+                
+                # Auto-mark as pass if all checkboxes checked (and not already marked)
+                checked = self.reference_image.get_checked_count()
+                total = self.reference_image.get_total_count()
+                if checked == total and self.current_step not in self.step_results:
+                    self.step_results[self.current_step] = True
+            
             # Determine mode name for report
             workflow_name = self.workflow.get('name', 'Workflow')
             
@@ -815,19 +923,40 @@ class WorkflowExecutionScreen(QWidget):
                 step_title = step.get('title', f'Step {i+1}')
                 step_description = step.get('instructions', '')
                 
-                # Count images for this step
-                step_imgs = [img for img in self.captured_images if img.get('step') == i+1]
-                passed = len(step_imgs) > 0  # Step passed if at least one image captured
+                # Determine pass/fail status
+                if i in self.step_results:
+                    # User explicitly marked pass/fail
+                    passed = self.step_results[i]
+                elif i in self.step_checkbox_states:
+                    # Has checkboxes - check if all were checked
+                    checkbox_states = self.step_checkbox_states[i]
+                    if isinstance(checkbox_states, list):
+                        checked_count = sum(1 for cb in checkbox_states if cb.get('checked', False))
+                        passed = checked_count == len(checkbox_states)
+                    else:
+                        passed = False
+                else:
+                    # No checkboxes and no explicit marking - pass if images captured
+                    step_imgs = [img for img in self.captured_images if img.get('step') == i+1]
+                    passed = len(step_imgs) > 0
                 
-                # Check if step has inspection checkboxes
+                # Generate checkbox completion image if checkboxes exist
                 checkbox_image = None
-                if step.get('inspection_checkboxes') and step.get('reference_image'):
-                    # Generate checkbox completion image
-                    checkbox_image = self._generate_checkbox_image(
-                        step.get('reference_image'),
-                        step.get('inspection_checkboxes'),
-                        i
-                    )
+                if step.get('reference_image') and os.path.exists(step.get('reference_image', '')):
+                    # Use stored checkbox states if available, otherwise use template
+                    if i in self.step_checkbox_states:
+                        checkbox_states = self.step_checkbox_states[i]
+                    else:
+                        # No stored state - use unchecked template
+                        checkbox_states = [{'x': cb['x'], 'y': cb['y'], 'checked': False} 
+                                         for cb in step.get('inspection_checkboxes', [])]
+                    
+                    if checkbox_states:
+                        checkbox_image = self._generate_checkbox_image(
+                            step.get('reference_image'),
+                            checkbox_states,
+                            i
+                        )
                 
                 checklist_data.append({
                     'name': step_title,
@@ -864,9 +993,11 @@ class WorkflowExecutionScreen(QWidget):
         
         dialog = QDialog(self)
         dialog.setWindowTitle("Reference Image - Full Size")
-        dialog.setModal(False)  # Non-modal so it doesn't block
+        dialog.setModal(False)
         
         layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(5)
         
         # Create interactive reference image for dialog
         fullsize_ref = InteractiveReferenceImage()
@@ -900,6 +1031,7 @@ class WorkflowExecutionScreen(QWidget):
         
         # Close button
         close_button = QPushButton("Close")
+        close_button.setMaximumHeight(35)
         close_button.setStyleSheet("""
             QPushButton {
                 background-color: #77C25E;
@@ -916,7 +1048,7 @@ class WorkflowExecutionScreen(QWidget):
         close_button.clicked.connect(dialog.close)
         layout.addWidget(close_button)
         
-        dialog.show()  # Use show() instead of exec_() for non-modal
+        dialog.show()
     
     def cleanup_resources(self):
         """Clean up camera resources."""
