@@ -130,20 +130,63 @@ class DOCXReportGenerator:
                     p = doc.add_paragraph()
                     p.add_run(desc_text).italic = True
                 
-                # Checkbox image
+                # Reference image with label
                 if item.get('checkbox_image') and os.path.exists(item['checkbox_image']):
+                    p = doc.add_paragraph()
+                    p.add_run('Reference Image (Inspection Points):').bold = True
                     try:
                         doc.add_picture(item['checkbox_image'], width=Inches(4))
                     except Exception as e:
                         p = doc.add_paragraph()
-                        p.add_run(f'Error loading checkbox image: {str(e)}').italic = True
+                        p.add_run(f'Error loading reference image: {str(e)}').italic = True
+                
+                # Captured images for this step
+                step_number = item.get('step_number')
+                if step_number and images:
+                    step_images = [img for img in images if isinstance(img, dict) and img.get('step') == step_number]
+                    
+                    if step_images:
+                        p = doc.add_paragraph()
+                        p.add_run(f'Captured Images ({len(step_images)}):').bold = True
+                        
+                        for img_data in step_images:
+                            img_path = img_data['path']
+                            camera = img_data.get('camera', 'Unknown')
+                            notes = img_data.get('notes', '')
+                            markers = img_data.get('markers', [])
+                            
+                            if os.path.exists(img_path):
+                                p = doc.add_paragraph()
+                                p.add_run('Camera: ').italic = True
+                                p.add_run(camera)
+                                
+                                if notes:
+                                    p = doc.add_paragraph()
+                                    p.add_run('Notes: ').bold = True
+                                    p.add_run(notes)
+                                
+                                marker_notes = [m for m in markers if m.get('note', '').strip()]
+                                if marker_notes:
+                                    p = doc.add_paragraph()
+                                    p.add_run('Annotations:').bold = True
+                                    for m in marker_notes:
+                                        p = doc.add_paragraph(style='List Bullet')
+                                        p.add_run(f"{m['label']}: {m['note']}")
+                                
+                                try:
+                                    doc.add_picture(img_path, width=Inches(4))
+                                except Exception as e:
+                                    p = doc.add_paragraph()
+                                    p.add_run(f'Error loading image: {str(e)}').italic = True
+                                
+                                doc.add_paragraph()
                 
                 doc.add_paragraph()  # Spacing between steps
             
             doc.add_paragraph()
         
-        # Captured Images
-        if images:
+        # Captured Images (only for Mode 1 - no workflow)
+        elif images:
             doc.add_heading(f'Captured Images ({len(images)})', level=2)
             
             for idx, img_data in enumerate(images, 1):

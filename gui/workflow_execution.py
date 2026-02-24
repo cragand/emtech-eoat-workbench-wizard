@@ -968,7 +968,8 @@ class WorkflowExecutionScreen(QWidget):
                     'description': step_description,
                     'passed': passed,
                     'has_pass_fail': has_pass_fail,
-                    'checkbox_image': checkbox_image
+                    'checkbox_image': checkbox_image,
+                    'step_number': i + 1
                 })
             
             # Generate both PDF and DOCX reports

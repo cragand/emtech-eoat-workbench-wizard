@@ -158,19 +158,61 @@ class PDFReportGenerator:
                 # Add checkbox image if present
                 if item.get('checkbox_image') and os.path.exists(item['checkbox_image']):
                     story.append(Spacer(1, 0.1*inch))
+                    story.append(Paragraph("<b>Reference Image (Inspection Points):</b>", self.styles['Normal']))
+                    story.append(Spacer(1, 0.05*inch))
                     try:
                         checkbox_img = Image(item['checkbox_image'], width=4*inch, height=3*inch, kind='proportional')
                         story.append(checkbox_img)
                     except Exception as e:
-                        error_msg = Paragraph(f"<i>Error loading checkbox image: {str(e)}</i>", self.styles['Normal'])
+                        error_msg = Paragraph(f"<i>Error loading reference image: {str(e)}</i>", self.styles['Normal'])
                         story.append(error_msg)
                 
-                story.append(Spacer(1, 0.2*inch))
+                # Add captured images for this step
+                step_number = item.get('step_number')
+                if step_number and images:
+                    step_images = [img for img in images if isinstance(img, dict) and img.get('step') == step_number]
+                    
+                    if step_images:
+                        story.append(Spacer(1, 0.1*inch))
+                        story.append(Paragraph(f"<b>Captured Images ({len(step_images)}):</b>", self.styles['Normal']))
+                        story.append(Spacer(1, 0.05*inch))
+                        
+                        for img_data in step_images:
+                            img_path = img_data['path']
+                            camera = img_data.get('camera', 'Unknown')
+                            notes = img_data.get('notes', '')
+                            markers = img_data.get('markers', [])
+                            
+                            if os.path.exists(img_path):
+                                caption_text = f"<i>Camera: {camera}</i>"
+                                if notes:
+                                    caption_text += f"<br/><b>Notes:</b> {notes}"
+                                
+                                marker_notes = [m for m in markers if m.get('note', '').strip()]
+                                if marker_notes:
+                                    caption_text += "<br/><b>Annotations:</b>"
+                                    for m in marker_notes:
+                                        caption_text += f"<br/>  • {m['label']}: {m['note']}"
+                                
+                                caption = Paragraph(caption_text, self.styles['Normal'])
+                                story.append(caption)
+                                story.append(Spacer(1, 0.05*inch))
+                                
+                                try:
+                                    img = Image(img_path, width=4*inch, height=3*inch, kind='proportional')
+                                    story.append(img)
+                                except Exception as e:
+                                    error_msg = Paragraph(f"<i>Error loading image: {str(e)}</i>", self.styles['Normal'])
+                                    story.append(error_msg)
+                                
+                                story.append(Spacer(1, 0.15*inch))
+                
+                story.append(Spacer(1, 0.3*inch))
             
             story.append(Spacer(1, 0.2*inch))
         
-        # Captured Images
-        if images:
+        # Captured Images (only for Mode 1 - no workflow)
+        elif images:
             story.append(Paragraph(f"Captured Images ({len(images)})", self.styles['SectionHeader']))
             story.append(Spacer(1, 0.2*inch))
             
