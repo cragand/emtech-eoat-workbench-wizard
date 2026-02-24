@@ -58,7 +58,7 @@ class AnnotatablePreview(QLabel):
     
     def __init__(self):
         super().__init__()
-        self.markers = []  # List of {pos: QPoint, label: str, angle: float, note: str}
+        self.markers = []  # List of {x: %, y: %, label: str, angle: float, note: str}
         self.dragging_marker = None
         self.drag_offset = QPoint()
         self.current_frame = None
@@ -66,16 +66,66 @@ class AnnotatablePreview(QLabel):
         self.setMouseTracking(True)
         self.setCursor(Qt.CrossCursor)
     
+    def _pixel_to_relative(self, pixel_pos):
+        """Convert pixel position to relative coordinates (0-1) based on displayed image."""
+        if not self.current_frame:
+            return None
+        
+        widget_rect = self.rect()
+        scaled_frame = self.current_frame.scaled(
+            widget_rect.size(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+        
+        x_offset = (widget_rect.width() - scaled_frame.width()) // 2
+        y_offset = (widget_rect.height() - scaled_frame.height()) // 2
+        
+        # Convert to relative position within the image
+        rel_x = (pixel_pos.x() - x_offset) / scaled_frame.width() if scaled_frame.width() > 0 else 0
+        rel_y = (pixel_pos.y() - y_offset) / scaled_frame.height() if scaled_frame.height() > 0 else 0
+        
+        # Clamp to 0-1 range
+        rel_x = max(0, min(1, rel_x))
+        rel_y = max(0, min(1, rel_y))
+        
+        return (rel_x, rel_y)
+    
+    def _relative_to_pixel(self, rel_x, rel_y):
+        """Convert relative coordinates (0-1) to pixel position based on displayed image."""
+        if not self.current_frame:
+            return None
+        
+        widget_rect = self.rect()
+        scaled_frame = self.current_frame.scaled(
+            widget_rect.size(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+        
+        x_offset = (widget_rect.width() - scaled_frame.width()) // 2
+        y_offset = (widget_rect.height() - scaled_frame.height()) // 2
+        
+        pixel_x = x_offset + int(rel_x * scaled_frame.width())
+        pixel_y = y_offset + int(rel_y * scaled_frame.height())
+        
+        return QPoint(pixel_x, pixel_y)
+    
     def add_marker(self, pos):
         """Add a new marker at the given position and prompt for note."""
+        # Convert pixel position to relative
+        rel_pos = self._pixel_to_relative(pos)
+        if not rel_pos:
+            return
+        
         # Generate label (A, B, C, ...)
         label = string.ascii_uppercase[len(self.markers) % 26]
         if len(self.markers) >= 26:
             # After Z, use AA, AB, etc.
             label = string.ascii_uppercase[(len(self.markers) // 26) - 1] + label
         
-        # Create marker with empty note
-        new_marker = {'pos': pos, 'label': label, 'angle': 45, 'note': ''}
+        # Create marker with relative coordinates
+        new_marker = {'x': rel_pos[0], 'y': rel_pos[1], 'label': label, 'angle': 45, 'note': ''}
         self.markers.append(new_marker)
         
         # Immediately open note dialog for the new marker
@@ -96,7 +146,7 @@ class AnnotatablePreview(QLabel):
     
     def get_markers_data(self):
         """Get marker data for saving with image."""
-        return [{'x': m['pos'].x(), 'y': m['pos'].y(), 'label': m['label'], 'angle': m['angle'], 'note': m.get('note', '')} 
+        return [{'x': m['x'], 'y': m['y'], 'label': m['label'], 'angle': m['angle'], 'note': m.get('note', '')} 
                 for m in self.markers]
     
     def set_frame(self, pixmap):
@@ -117,7 +167,8 @@ class AnnotatablePreview(QLabel):
         """Handle double-click - edit marker note."""
         if event.button() == Qt.LeftButton:
             for marker in self.markers:
-                if self._is_near_marker(event.pos(), marker['pos']):
+                marker_pixel_pos = self._relative_to_pixel(marker['x'], marker['y'])
+                if marker_pixel_pos and self._is_near_marker(event.pos(), marker_pixel_pos):
                     # Open note dialog
                     dialog = MarkerNoteDialog(marker['label'], marker.get('note', ''), self)
                     if dialog.exec_() == QDialog.Accepted:
@@ -131,9 +182,10 @@ class AnnotatablePreview(QLabel):
         if event.button() == Qt.LeftButton:
             # Check if clicking on existing marker
             for marker in self.markers:
-                if self._is_near_marker(event.pos(), marker['pos']):
+                marker_pixel_pos = self._relative_to_pixel(marker['x'], marker['y'])
+                if marker_pixel_pos and self._is_near_marker(event.pos(), marker_pixel_pos):
                     self.dragging_marker = marker
-                    self.drag_offset = marker['pos'] - event.pos()
+                    self.drag_offset = marker_pixel_pos - event.pos()
                     self.setCursor(Qt.ClosedHandCursor)
                     return
             
@@ -142,7 +194,8 @@ class AnnotatablePreview(QLabel):
         elif event.button() == Qt.RightButton:
             # Right click removes nearest marker
             for i, marker in enumerate(self.markers):
-                if self._is_near_marker(event.pos(), marker['pos']):
+                marker_pixel_pos = self._relative_to_pixel(marker['x'], marker['y'])
+                if marker_pixel_pos and self._is_near_marker(event.pos(), marker_pixel_pos):
                     self.markers.pop(i)
                     self.hover_marker = None
                     self.markers_changed.emit()
@@ -152,15 +205,20 @@ class AnnotatablePreview(QLabel):
     def mouseMoveEvent(self, event):
         """Handle mouse move - drag marker or show cursor."""
         if self.dragging_marker:
-            # Update marker position
-            self.dragging_marker['pos'] = event.pos() + self.drag_offset
-            self.markers_changed.emit()
-            self.update()
+            # Update marker position (convert to relative)
+            new_pixel_pos = event.pos() + self.drag_offset
+            rel_pos = self._pixel_to_relative(new_pixel_pos)
+            if rel_pos:
+                self.dragging_marker['x'] = rel_pos[0]
+                self.dragging_marker['y'] = rel_pos[1]
+                self.markers_changed.emit()
+                self.update()
         else:
             # Update hover marker for rotation
             self.hover_marker = None
             for marker in self.markers:
-                if self._is_near_marker(event.pos(), marker['pos']):
+                marker_pixel_pos = self._relative_to_pixel(marker['x'], marker['y'])
+                if marker_pixel_pos and self._is_near_marker(event.pos(), marker_pixel_pos):
                     self.hover_marker = marker
                     break
             
@@ -214,7 +272,11 @@ class AnnotatablePreview(QLabel):
     
     def _draw_marker(self, painter, marker):
         """Draw a single marker (rotatable arrow with label)."""
-        pos = marker['pos']
+        # Convert relative position to pixel position
+        pixel_pos = self._relative_to_pixel(marker['x'], marker['y'])
+        if not pixel_pos:
+            return
+        
         label = marker['label']
         angle = marker['angle']
         has_note = bool(marker.get('note', '').strip())
@@ -224,13 +286,13 @@ class AnnotatablePreview(QLabel):
         
         # Calculate arrow endpoint based on angle
         angle_rad = math.radians(angle)
-        end_x = pos.x() + arrow_length * math.cos(angle_rad)
-        end_y = pos.y() + arrow_length * math.sin(angle_rad)
+        end_x = pixel_pos.x() + arrow_length * math.cos(angle_rad)
+        end_y = pixel_pos.y() + arrow_length * math.sin(angle_rad)
         
         # Draw arrow line
         pen = QPen(QColor(255, 0, 0), 2)
         painter.setPen(pen)
-        painter.drawLine(pos.x(), pos.y(), int(end_x), int(end_y))
+        painter.drawLine(pixel_pos.x(), pixel_pos.y(), int(end_x), int(end_y))
         
         # Draw arrowhead
         arrow_size = 8

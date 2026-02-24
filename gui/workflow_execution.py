@@ -200,6 +200,39 @@ class CombinedReferenceImage(QLabel):
         self.setText("")
         self.update()
     
+    def _pixel_to_relative(self, pixel_pos):
+        """Convert pixel position to relative coordinates (0-1) based on displayed image."""
+        if not self.image_pixmap:
+            return None
+        
+        widget_rect = self.rect()
+        scaled_pixmap = self.image_pixmap.scaled(
+            widget_rect.size(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+        
+        x_offset = (widget_rect.width() - scaled_pixmap.width()) // 2
+        y_offset = (widget_rect.height() - scaled_pixmap.height()) // 2
+        
+        rel_x = (pixel_pos.x() - x_offset) / scaled_pixmap.width() if scaled_pixmap.width() > 0 else 0
+        rel_y = (pixel_pos.y() - y_offset) / scaled_pixmap.height() if scaled_pixmap.height() > 0 else 0
+        
+        rel_x = max(0, min(1, rel_x))
+        rel_y = max(0, min(1, rel_y))
+        
+        return (rel_x, rel_y)
+    
+    def _relative_to_pixel(self, rel_x, rel_y):
+        """Convert relative coordinates (0-1) to pixel position based on displayed image."""
+        if not self.image_pixmap:
+            return None
+        
+        pixel_x = x_offset + int(rel_x * scaled_pixmap.width())
+        pixel_y = y_offset + int(rel_y * scaled_pixmap.height())
+        
+        return QPoint(pixel_x, pixel_y)
+    
     def mousePressEvent(self, event):
         """Handle clicks for both checkboxes and markers."""
         if not self.image_pixmap:
@@ -210,9 +243,10 @@ class CombinedReferenceImage(QLabel):
         if event.button() == Qt.LeftButton:
             # Check if clicking on a marker first
             for marker in self.markers:
-                if self._is_near_marker(click_pos, marker['pos']):
+                marker_pixel_pos = self._relative_to_pixel(marker['x'], marker['y'])
+                if marker_pixel_pos and self._is_near_marker(click_pos, marker_pixel_pos):
                     self.dragging_marker = marker
-                    self.drag_offset = marker['pos'] - click_pos
+                    self.drag_offset = marker_pixel_pos - click_pos
                     self.setCursor(Qt.ClosedHandCursor)
                     return
             
@@ -241,15 +275,20 @@ class CombinedReferenceImage(QLabel):
     def mouseMoveEvent(self, event):
         """Handle marker dragging and hover."""
         if self.dragging_marker:
-            self.dragging_marker['pos'] = event.pos() + self.drag_offset
-            self.markers_changed.emit()
-            self.update()
+            new_pixel_pos = event.pos() + self.drag_offset
+            rel_pos = self._pixel_to_relative(new_pixel_pos)
+            if rel_pos:
+                self.dragging_marker['x'] = rel_pos[0]
+                self.dragging_marker['y'] = rel_pos[1]
+                self.markers_changed.emit()
+                self.update()
         else:
             # Update hover state
             old_hover = self.hover_marker
             self.hover_marker = None
             for marker in self.markers:
-                if self._is_near_marker(event.pos(), marker['pos']):
+                marker_pixel_pos = self._relative_to_pixel(marker['x'], marker['y'])
+                if marker_pixel_pos and self._is_near_marker(event.pos(), marker_pixel_pos):
                     self.hover_marker = marker
                     break
             if old_hover != self.hover_marker:
@@ -265,7 +304,8 @@ class CombinedReferenceImage(QLabel):
         """Edit marker note on double-click."""
         if event.button() == Qt.LeftButton:
             for marker in self.markers:
-                if self._is_near_marker(event.pos(), marker['pos']):
+                marker_pixel_pos = self._relative_to_pixel(marker['x'], marker['y'])
+                if marker_pixel_pos and self._is_near_marker(event.pos(), marker_pixel_pos):
                     from gui.annotatable_preview import MarkerNoteDialog
                     dialog = MarkerNoteDialog(marker['label'], marker.get('note', ''), self)
                     if dialog.exec_() == QDialog.Accepted:
@@ -284,12 +324,16 @@ class CombinedReferenceImage(QLabel):
     
     def add_marker(self, pos):
         """Add a new annotation marker."""
+        rel_pos = self._pixel_to_relative(pos)
+        if not rel_pos:
+            return
+        
         import string
         label = string.ascii_uppercase[len(self.markers) % 26]
         if len(self.markers) >= 26:
             label = string.ascii_uppercase[(len(self.markers) // 26) - 1] + label
         
-        new_marker = {'pos': pos, 'label': label, 'angle': 45, 'note': ''}
+        new_marker = {'x': rel_pos[0], 'y': rel_pos[1], 'label': label, 'angle': 45, 'note': ''}
         self.markers.append(new_marker)
         
         from gui.annotatable_preview import MarkerNoteDialog
@@ -376,7 +420,12 @@ class CombinedReferenceImage(QLabel):
     def _draw_marker(self, painter, marker):
         """Draw an annotation marker."""
         import math
-        pos = marker['pos']
+        
+        # Convert relative position to pixel position
+        pixel_pos = self._relative_to_pixel(marker['x'], marker['y'])
+        if not pixel_pos:
+            return
+        
         label = marker['label']
         angle = marker.get('angle', 45)
         is_hover = (marker == self.hover_marker)
@@ -394,15 +443,15 @@ class CombinedReferenceImage(QLabel):
         # Draw line from center
         line_length = 40
         rad = math.radians(angle)
-        end_x = pos.x() + int(line_length * math.cos(rad))
-        end_y = pos.y() - int(line_length * math.sin(rad))
+        end_x = pixel_pos.x() + int(line_length * math.cos(rad))
+        end_y = pixel_pos.y() - int(line_length * math.sin(rad))
         
         painter.setPen(QPen(line_color, 3))
-        painter.drawLine(pos.x(), pos.y(), end_x, end_y)
+        painter.drawLine(pixel_pos.x(), pixel_pos.y(), end_x, end_y)
         
         # Draw center circle
         painter.setBrush(circle_color)
-        painter.drawEllipse(pos, 6, 6)
+        painter.drawEllipse(pixel_pos, 6, 6)
         
         # Draw label box
         font = QFont("Arial", 10, QFont.Weight.Bold)
