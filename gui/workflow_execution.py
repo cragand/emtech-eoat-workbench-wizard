@@ -367,7 +367,8 @@ class WorkflowExecutionScreen(QWidget):
         # Camera selection
         camera_layout = QHBoxLayout()
         camera_label = QLabel("Camera:")
-        camera_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        camera_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        camera_label.setMinimumWidth(60)
         self.camera_combo = QComboBox()
         self.camera_combo.currentIndexChanged.connect(self.on_camera_changed)
         camera_layout.addWidget(camera_label)
