@@ -252,6 +252,7 @@ class WorkflowExecutionScreen(QWidget):
         
         # Right side: Back button
         self.back_button = QPushButton("← Back to Menu")
+        self.back_button.setFocusPolicy(Qt.NoFocus)
         self.back_button.setStyleSheet("""
             QPushButton {
                 background-color: #333333;
@@ -302,6 +303,7 @@ class WorkflowExecutionScreen(QWidget):
         ref_header_layout.addStretch()
         
         self.view_fullsize_button = QPushButton("🔍 View Full Size")
+        self.view_fullsize_button.setFocusPolicy(Qt.NoFocus)
         self.view_fullsize_button.setStyleSheet("""
             QPushButton {
                 background-color: #77C25E;
@@ -324,6 +326,7 @@ class WorkflowExecutionScreen(QWidget):
         ref_header_layout.addWidget(self.view_fullsize_button)
         
         self.undo_checkbox_button = QPushButton("↶ Undo")
+        self.undo_checkbox_button.setFocusPolicy(Qt.NoFocus)
         self.undo_checkbox_button.setStyleSheet("""
             QPushButton {
                 background-color: #FF9800;
@@ -383,6 +386,7 @@ class WorkflowExecutionScreen(QWidget):
         # Annotation controls
         annotation_layout = QHBoxLayout()
         self.clear_markers_button = QPushButton("Clear Markers")
+        self.clear_markers_button.setFocusPolicy(Qt.NoFocus)
         self.clear_markers_button.setStyleSheet("""
             QPushButton {
                 background-color: #FF6B6B;
@@ -423,6 +427,7 @@ class WorkflowExecutionScreen(QWidget):
         
         # Compare button
         self.compare_button = QPushButton("📷 Compare with Reference")
+        self.compare_button.setFocusPolicy(Qt.NoFocus)
         self.compare_button.setStyleSheet("""
             QPushButton {
                 background-color: #2196F3;
@@ -454,6 +459,7 @@ class WorkflowExecutionScreen(QWidget):
         pass_fail_layout.addWidget(pass_fail_label)
         
         self.pass_button = QPushButton("✓ Pass")
+        self.pass_button.setFocusPolicy(Qt.NoFocus)
         self.pass_button.setStyleSheet("""
             QPushButton {
                 background-color: #4CAF50;
@@ -472,6 +478,7 @@ class WorkflowExecutionScreen(QWidget):
         pass_fail_layout.addWidget(self.pass_button)
         
         self.fail_button = QPushButton("✗ Fail")
+        self.fail_button.setFocusPolicy(Qt.NoFocus)
         self.fail_button.setStyleSheet("""
             QPushButton {
                 background-color: #F44336;
@@ -514,6 +521,7 @@ class WorkflowExecutionScreen(QWidget):
         
         self.prev_button = QPushButton("← Previous Step")
         self.prev_button.setMinimumHeight(50)
+        self.prev_button.setFocusPolicy(Qt.NoFocus)
         self.prev_button.setStyleSheet("""
             QPushButton {
                 background-color: #666666;
@@ -535,6 +543,7 @@ class WorkflowExecutionScreen(QWidget):
         
         self.next_button = QPushButton("Next Step →")
         self.next_button.setMinimumHeight(50)
+        self.next_button.setFocusPolicy(Qt.NoFocus)
         self.next_button.setStyleSheet("""
             QPushButton {
                 background-color: #77C25E;
@@ -556,6 +565,7 @@ class WorkflowExecutionScreen(QWidget):
         
         self.finish_button = QPushButton("Finish Workflow")
         self.finish_button.setMinimumHeight(50)
+        self.finish_button.setFocusPolicy(Qt.NoFocus)
         self.finish_button.setStyleSheet("""
             QPushButton {
                 background-color: #4CAF50;
@@ -835,24 +845,17 @@ class WorkflowExecutionScreen(QWidget):
     
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts."""
-        # Ignore if a button has focus (prevent spacebar triggering buttons)
-        focused = self.focusWidget()
-        if isinstance(focused, QPushButton):
-            super().keyPressEvent(event)
-            return
-        
         # Space: Capture image
         if event.key() == Qt.Key_Space and self.capture_button.isEnabled():
             self.capture_image()
             event.accept()
-        # Enter/Return: Advance to next step
-        elif event.key() in (Qt.Key_Return, Qt.Key_Enter):
-            if not self.notes_input.hasFocus():  # Don't advance if typing notes
-                if self.finish_button.isVisible():
-                    self.finish_workflow()
-                elif self.next_button.isEnabled():
-                    self.next_step()
-                event.accept()
+        # Enter/Return: Advance to next step (only if not typing in notes)
+        elif event.key() in (Qt.Key_Return, Qt.Key_Enter) and not self.notes_input.hasFocus():
+            if self.finish_button.isVisible():
+                self.finish_workflow()
+            elif self.next_button.isEnabled():
+                self.next_step()
+            event.accept()
         # Ctrl+Z: Undo checkbox
         elif event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
             self.undo_checkbox_click()
