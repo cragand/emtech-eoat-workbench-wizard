@@ -1394,12 +1394,7 @@ class WorkflowExecutionScreen(QWidget):
         ref_display = QLabel()
         ref_display.setAlignment(Qt.AlignCenter)
         ref_display.setStyleSheet("border: 2px solid #77C25E; background-color: #2b2b2b;")
-        ref_display.setScaledContents(False)
-        ref_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        
-        # Load and scale reference image
-        ref_pixmap = QPixmap(self.reference_image_path)
-        ref_display.setPixmap(ref_pixmap)
+        ref_display.setMinimumSize(400, 300)
         
         splitter.addWidget(ref_display)
         
@@ -1407,12 +1402,11 @@ class WorkflowExecutionScreen(QWidget):
         live_display = QLabel()
         live_display.setAlignment(Qt.AlignCenter)
         live_display.setStyleSheet("border: 2px solid #2196F3; background-color: #2b2b2b;")
-        live_display.setScaledContents(False)
-        live_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        live_display.setMinimumSize(400, 300)
         
         splitter.addWidget(live_display)
         
-        layout.addWidget(splitter, 1)  # Stretch factor 1 to take all available space
+        layout.addWidget(splitter, 1)
         
         # Update timer for live feed
         def update_comparison():
@@ -1424,28 +1418,17 @@ class WorkflowExecutionScreen(QWidget):
                     bytes_per_line = ch * w
                     qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
                     live_pixmap = QPixmap.fromImage(qt_image)
-                    
-                    # Scale to fit label while maintaining aspect ratio
                     scaled = live_pixmap.scaled(live_display.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
                     live_display.setPixmap(scaled)
-        
-        # Also update reference image scaling on resize
-        def update_reference_scale():
+            
+            # Update reference scaling
             ref_pixmap = QPixmap(self.reference_image_path)
-            scaled = ref_pixmap.scaled(ref_display.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            ref_display.setPixmap(scaled)
+            scaled_ref = ref_pixmap.scaled(ref_display.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            ref_display.setPixmap(scaled_ref)
         
         comparison_timer = QTimer()
         comparison_timer.timeout.connect(update_comparison)
-        comparison_timer.start(30)
-        
-        # Resize event to update scaling
-        original_resize = dialog.resizeEvent
-        def on_resize(event):
-            original_resize(event)
-            update_reference_scale()
-            update_comparison()
-        dialog.resizeEvent = on_resize
+        comparison_timer.start(100)  # Update every 100ms
         
         # Close button - compact
         close_button = QPushButton("Close")
@@ -1473,10 +1456,7 @@ class WorkflowExecutionScreen(QWidget):
         layout.addWidget(close_button)
         
         screen = self.screen().geometry()
-        dialog.resize(int(screen.width() * 0.8), int(screen.height() * 0.7))
-        
-        # Initial scale
-        update_reference_scale()
+        dialog.resize(int(screen.width() * 0.7), int(screen.height() * 0.6))
         
         dialog.show()
     
