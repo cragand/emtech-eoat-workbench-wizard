@@ -39,7 +39,7 @@ class MainWindow(QMainWindow):
         theme_layout.addStretch()
         
         self.theme_button = QPushButton("🌙 Dark Mode")
-        self.theme_button.setMaximumWidth(120)
+        self.theme_button.setMinimumWidth(130)
         self.theme_button.clicked.connect(self.toggle_theme)
         theme_layout.addWidget(self.theme_button)
         

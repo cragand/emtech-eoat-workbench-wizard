@@ -864,7 +864,7 @@ class WorkflowExecutionScreen(QWidget):
         
         dialog = QDialog(self)
         dialog.setWindowTitle("Reference Image - Full Size")
-        dialog.setModal(True)
+        dialog.setModal(False)  # Non-modal so it doesn't block
         
         layout = QVBoxLayout(dialog)
         
@@ -882,11 +882,11 @@ class WorkflowExecutionScreen(QWidget):
         # Load image with current checkbox states
         fullsize_ref.set_image_and_checkboxes(self.reference_image_path, current_checkboxes)
         
-        # Scale to fit screen (90% of screen size)
+        # Set reasonable initial size (60% of screen)
         screen = self.screen().geometry()
-        max_width = int(screen.width() * 0.9)
-        max_height = int(screen.height() * 0.9)
-        fullsize_ref.setMinimumSize(max_width, max_height - 100)
+        initial_width = int(screen.width() * 0.6)
+        initial_height = int(screen.height() * 0.6)
+        dialog.resize(initial_width, initial_height)
         
         # Sync checkbox changes back to main reference image
         def sync_checkboxes(checked, total):
@@ -916,7 +916,7 @@ class WorkflowExecutionScreen(QWidget):
         close_button.clicked.connect(dialog.close)
         layout.addWidget(close_button)
         
-        dialog.exec_()
+        dialog.show()  # Use show() instead of exec_() for non-modal
     
     def cleanup_resources(self):
         """Clean up camera resources."""
