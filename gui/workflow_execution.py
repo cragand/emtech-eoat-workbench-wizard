@@ -1662,18 +1662,36 @@ class WorkflowExecutionScreen(QWidget):
         ref_display.setStyleSheet("border: 2px solid #77C25E; background-color: #2b2b2b;")
         ref_display.setMinimumSize(400, 300)
         
-        # Load reference image with checkboxes
+        # Load reference image with checkboxes - copy current state from main view
         checkbox_data = []
         if hasattr(self, 'workflow') and self.workflow:
             current_step = self.workflow['steps'][self.current_step]
             checkbox_data = current_step.get('inspection_checkboxes', [])
         ref_display.set_image_and_checkboxes(self.reference_image_path, checkbox_data)
         
+        # Copy current checkbox states from main view
+        if hasattr(self.reference_image, 'checkboxes'):
+            for i, cb in enumerate(self.reference_image.checkboxes):
+                if i < len(ref_display.checkboxes):
+                    ref_display.checkboxes[i]['checked'] = cb['checked']
+            ref_display.update()
+        
+        # Sync checkboxes back to main view when changed
+        def sync_checkboxes():
+            if hasattr(self.reference_image, 'checkboxes'):
+                for i, cb in enumerate(ref_display.checkboxes):
+                    if i < len(self.reference_image.checkboxes):
+                        self.reference_image.checkboxes[i]['checked'] = cb['checked']
+                self.reference_image.update()
+                self.reference_image.emit_status()
+                self.update_step_status()
+        
+        ref_display.checkboxes_changed.connect(sync_checkboxes)
+        
         splitter.addWidget(ref_display)
         
-        # Right: Live camera
-        live_display = QLabel()
-        live_display.setAlignment(Qt.AlignCenter)
+        # Right: Live camera with annotations
+        live_display = AnnotatablePreview()
         live_display.setStyleSheet("border: 2px solid #2196F3; background-color: #2b2b2b;")
         live_display.setMinimumSize(400, 300)
         
@@ -1691,8 +1709,7 @@ class WorkflowExecutionScreen(QWidget):
                     bytes_per_line = ch * w
                     qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
                     live_pixmap = QPixmap.fromImage(qt_image)
-                    scaled = live_pixmap.scaled(live_display.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                    live_display.setPixmap(scaled)
+                    live_display.set_frame(live_pixmap)
         
         comparison_timer = QTimer()
         comparison_timer.timeout.connect(update_comparison)
