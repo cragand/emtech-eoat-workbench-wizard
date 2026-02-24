@@ -197,6 +197,10 @@ class WorkflowExecutionScreen(QWidget):
         self.load_progress()  # Load any saved progress
         self.show_current_step()
         self.update_breadcrumb()
+        
+        # Set focus to this widget so keyboard shortcuts work immediately
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.setFocus()
     
     def _sanitize_filename(self, filename):
         """Remove invalid characters from filename."""
