@@ -1393,11 +1393,15 @@ class WorkflowExecutionScreen(QWidget):
         from PyQt5.QtWidgets import QSplitter
         splitter = QSplitter(Qt.Horizontal)
         
-        # Left: Reference image
-        ref_display = QLabel()
-        ref_display.setAlignment(Qt.AlignCenter)
+        # Left: Reference image with checkboxes
+        ref_display = AnnotatablePreview()
         ref_display.setStyleSheet("border: 2px solid #77C25E; background-color: #2b2b2b;")
         ref_display.setMinimumSize(400, 300)
+        
+        # Load reference image with checkboxes
+        current_step = self.workflow_data['steps'][self.current_step]
+        checkbox_data = current_step.get('inspection_checkboxes', [])
+        ref_display.set_image_and_checkboxes(self.reference_image_path, checkbox_data)
         
         splitter.addWidget(ref_display)
         
@@ -1423,11 +1427,6 @@ class WorkflowExecutionScreen(QWidget):
                     live_pixmap = QPixmap.fromImage(qt_image)
                     scaled = live_pixmap.scaled(live_display.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
                     live_display.setPixmap(scaled)
-            
-            # Update reference scaling
-            ref_pixmap = QPixmap(self.reference_image_path)
-            scaled_ref = ref_pixmap.scaled(ref_display.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            ref_display.setPixmap(scaled_ref)
         
         comparison_timer = QTimer()
         comparison_timer.timeout.connect(update_comparison)
@@ -1456,10 +1455,33 @@ class WorkflowExecutionScreen(QWidget):
             dialog.close()
         
         close_button.clicked.connect(close_dialog)
+        
+        # Stop timer when dialog is destroyed to prevent accessing deleted widgets
+        dialog.destroyed.connect(comparison_timer.stop)
+        
         layout.addWidget(close_button)
         
-        screen = self.screen().geometry()
-        dialog.resize(int(screen.width() * 0.7), int(screen.height() * 0.6))
+        # Set initial size based on actual image dimensions
+        ref_pixmap = QPixmap(self.reference_image_path)
+        if not ref_pixmap.isNull():
+            # Calculate dialog size based on image aspect ratio
+            img_width = ref_pixmap.width()
+            img_height = ref_pixmap.height()
+            
+            # Target width for each panel (2 panels side by side)
+            screen = self.screen().geometry()
+            max_width = int(screen.width() * 0.9)
+            max_height = int(screen.height() * 0.8)
+            
+            # Calculate size to fit both images side by side
+            panel_width = min(img_width, max_width // 2 - 50)
+            panel_height = min(img_height, max_height - 100)
+            
+            dialog.resize(panel_width * 2 + 100, panel_height + 100)
+        else:
+            # Fallback to percentage-based sizing
+            screen = self.screen().geometry()
+            dialog.resize(int(screen.width() * 0.7), int(screen.height() * 0.6))
         
         dialog.show()
     
