@@ -54,7 +54,7 @@ class WorkflowSelectionScreen(QWidget):
         """Initialize the user interface."""
         layout = QVBoxLayout()
         layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
+        layout.setSpacing(10)
         
         # Title - more compact
         mode_name = "QC Process" if self.mode_number == 2 else "Maintenance/Repair"
@@ -69,11 +69,6 @@ class WorkflowSelectionScreen(QWidget):
         """)
         title.setMaximumHeight(50)
         layout.addWidget(title)
-        
-        # Instructions
-        instructions = QLabel("Select a workflow to begin:")
-        instructions.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        layout.addWidget(instructions)
         
         # Main content - split between workflow list and step preview
         from PyQt5.QtWidgets import QSplitter
