@@ -497,6 +497,12 @@ class WorkflowExecutionScreen(QWidget):
         self.step_status.setStyleSheet("color: #888888; font-size: 11px;")
         right_layout.addWidget(self.step_status)
         
+        # Auto-save status indicator
+        self.autosave_label = QLabel()
+        self.autosave_label.setStyleSheet("color: #4CAF50; font-size: 10px; font-style: italic;")
+        self.autosave_label.setAlignment(Qt.AlignRight)
+        right_layout.addWidget(self.autosave_label)
+        
         splitter.addWidget(right_widget)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 1)
@@ -1000,6 +1006,10 @@ class WorkflowExecutionScreen(QWidget):
             }
             with open(progress_file, 'w') as f:
                 json.dump(progress_data, f, indent=2)
+            
+            # Show brief save confirmation
+            self.autosave_label.setText("✓ Progress saved")
+            QTimer.singleShot(2000, lambda: self.autosave_label.setText(""))
         except Exception as e:
             print(f"Error saving progress: {e}")
     
