@@ -36,13 +36,17 @@ class InteractiveReferenceImage(QLabel):
     def set_image_and_checkboxes(self, image_path, checkbox_data):
         """Load image and set up checkboxes."""
         if not image_path or not os.path.exists(image_path):
+            self.image_pixmap = None
+            self.checkboxes = []
             self.clear()
             self.setText("No reference image")
+            self.update()
             return
         
         self.image_pixmap = QPixmap(image_path)
         self.checkboxes = [{'x': cb['x'], 'y': cb['y'], 'checked': False} 
                           for cb in (checkbox_data or [])]
+        self.setText("")  # Clear any text
         self.update()
         self.emit_status()
     
@@ -567,13 +571,18 @@ class WorkflowExecutionScreen(QWidget):
         ref_image_path = step.get('reference_image', '')
         checkbox_data = step.get('inspection_checkboxes', [])
         
+        # Only load if path exists and is not empty
         if ref_image_path and os.path.exists(ref_image_path):
             self.reference_image_path = ref_image_path
             self.reference_image.set_image_and_checkboxes(ref_image_path, checkbox_data)
             self.view_fullsize_button.setEnabled(True)
         else:
+            # Clear reference image completely
             self.reference_image_path = None
-            self.reference_image.set_image_and_checkboxes(None, [])
+            self.reference_image.image_pixmap = None
+            self.reference_image.checkboxes = []
+            self.reference_image.clear()
+            self.reference_image.setText("No reference image")
             self.view_fullsize_button.setEnabled(False)
         
         # Show/hide pass/fail buttons based on step requirement
@@ -703,7 +712,7 @@ class WorkflowExecutionScreen(QWidget):
             self.notes_input.clear()
             self.preview_label.clear_markers()
             
-            self.show_current_step()  # Update status
+            self.update_step_status()  # Update status only, don't reload step
             
             QMessageBox.information(self, "Image Captured", 
                                    f"Image saved for step {self.current_step + 1}")
