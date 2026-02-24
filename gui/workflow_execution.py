@@ -376,7 +376,7 @@ class WorkflowExecutionScreen(QWidget):
         pass_fail_layout.setContentsMargins(0, 0, 0, 0)
         
         pass_fail_label = QLabel("Mark Step Result:")
-        pass_fail_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        pass_fail_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         pass_fail_layout.addWidget(pass_fail_label)
         
         self.pass_button = QPushButton("✓ Pass")
@@ -386,8 +386,9 @@ class WorkflowExecutionScreen(QWidget):
                 color: white;
                 border: none;
                 border-radius: 3px;
-                padding: 8px 15px;
+                padding: 6px 12px;
                 font-weight: bold;
+                font-size: 9pt;
             }
             QPushButton:hover {
                 background-color: #45A049;
@@ -403,8 +404,9 @@ class WorkflowExecutionScreen(QWidget):
                 color: white;
                 border: none;
                 border-radius: 3px;
-                padding: 8px 15px;
+                padding: 6px 12px;
                 font-weight: bold;
+                font-size: 9pt;
             }
             QPushButton:hover {
                 background-color: #D32F2F;
