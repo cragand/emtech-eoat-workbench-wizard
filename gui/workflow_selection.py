@@ -111,7 +111,7 @@ class WorkflowSelectionScreen(QWidget):
         self.steps_preview = QTextEdit()
         self.steps_preview.setReadOnly(True)
         self.steps_preview.setPlaceholderText("Select a workflow to view its steps...")
-        self.steps_preview.setFont(QFont("Arial", 13))
+        self.steps_preview.setFont(QFont("Arial", 11))
         preview_layout.addWidget(self.steps_preview)
         
         splitter.addWidget(preview_widget)
