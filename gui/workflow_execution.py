@@ -1695,6 +1695,19 @@ class WorkflowExecutionScreen(QWidget):
         live_display.setStyleSheet("border: 2px solid #2196F3; background-color: #2b2b2b;")
         live_display.setMinimumSize(400, 300)
         
+        # Copy current markers from main preview
+        if hasattr(self.preview_label, 'markers'):
+            live_display.markers = [m.copy() for m in self.preview_label.markers]
+            live_display.update()
+        
+        # Sync markers back to main preview when changed
+        def sync_markers():
+            if hasattr(self.preview_label, 'markers'):
+                self.preview_label.markers = [m.copy() for m in live_display.markers]
+                self.preview_label.update()
+        
+        live_display.markers_changed.connect(sync_markers)
+        
         splitter.addWidget(live_display)
         
         layout.addWidget(splitter, 1)
