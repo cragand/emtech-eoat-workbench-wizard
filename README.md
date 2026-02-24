@@ -9,6 +9,20 @@ Quality control and maintenance application with guided workflows, camera integr
 2. First run will automatically set up the environment (takes 1-2 minutes)
 3. Subsequent runs launch immediately
 
+## Quick Start (Linux)
+
+**Easy Method - Run script:**
+1. Make the script executable (first time only):
+   ```bash
+   chmod +x runEEWW.sh
+   ```
+2. Run the script:
+   ```bash
+   ./runEEWW.sh
+   ```
+3. First run will automatically set up the environment (takes 1-2 minutes)
+4. Subsequent runs launch immediately
+
 **Manual Method:**
 
 ## Setup
