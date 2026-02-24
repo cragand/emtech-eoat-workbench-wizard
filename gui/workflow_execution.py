@@ -55,11 +55,11 @@ class InteractiveReferenceImage(QLabel):
         if not self.image_pixmap or not self.checkboxes:
             return
         
-        # Find which checkbox was clicked
+        # Find which checkbox was clicked (increased hit radius for larger boxes)
         click_pos = event.pos()
         for cb in self.checkboxes:
             cb_pos = self._get_checkbox_position(cb)
-            if cb_pos and (cb_pos.x() - click_pos.x())**2 + (cb_pos.y() - click_pos.y())**2 < 400:
+            if cb_pos and (cb_pos.x() - click_pos.x())**2 + (cb_pos.y() - click_pos.y())**2 < 600:
                 cb['checked'] = not cb['checked']
                 self.update()
                 self.emit_status()
@@ -109,25 +109,25 @@ class InteractiveReferenceImage(QLabel):
         
         painter.drawPixmap(x_offset, y_offset, scaled_pixmap)
         
-        # Draw checkboxes
+        # Draw checkboxes - larger and more visible
         for cb in self.checkboxes:
             pos = self._get_checkbox_position(cb)
             if pos:
                 # Draw checkbox square
                 if cb['checked']:
-                    painter.setPen(QPen(QColor(119, 194, 94), 3))
-                    painter.setBrush(QColor(119, 194, 94, 150))
+                    painter.setPen(QPen(QColor(255, 193, 7), 4))  # Bright amber/yellow
+                    painter.setBrush(QColor(255, 193, 7, 180))
                 else:
-                    painter.setPen(QPen(QColor(119, 194, 94), 2))
-                    painter.setBrush(QColor(255, 255, 255, 200))
+                    painter.setPen(QPen(QColor(255, 193, 7), 3))  # Bright amber/yellow
+                    painter.setBrush(QColor(255, 255, 255, 220))
                 
-                painter.drawRect(pos.x() - 12, pos.y() - 12, 24, 24)
+                painter.drawRect(pos.x() - 16, pos.y() - 16, 32, 32)
                 
                 # Draw checkmark if checked
                 if cb['checked']:
-                    painter.setPen(QPen(QColor(255, 255, 255), 3))
-                    painter.drawLine(pos.x() - 6, pos.y(), pos.x() - 2, pos.y() + 6)
-                    painter.drawLine(pos.x() - 2, pos.y() + 6, pos.x() + 8, pos.y() - 6)
+                    painter.setPen(QPen(QColor(0, 0, 0), 4))
+                    painter.drawLine(pos.x() - 8, pos.y(), pos.x() - 3, pos.y() + 8)
+                    painter.drawLine(pos.x() - 3, pos.y() + 8, pos.x() + 10, pos.y() - 8)
         
         painter.end()
     
@@ -874,26 +874,28 @@ class WorkflowExecutionScreen(QWidget):
                 y = int(cb['y'] * h)
                 is_checked = cb.get('checked', False)
                 
-                # Color based on checked state
+                # Use bright amber/yellow for visibility
                 if is_checked:
-                    color = (94, 194, 119)  # BGR format of #77C25E (green)
-                    fill_alpha = 0.6
+                    color = (7, 193, 255)  # BGR format of #FFC107 (amber)
+                    fill_alpha = 0.7
+                    checkmark_color = (0, 0, 0)  # Black checkmark
                 else:
-                    color = (200, 200, 200)  # Gray for unchecked
-                    fill_alpha = 0.3
+                    color = (7, 193, 255)  # BGR format of #FFC107 (amber)
+                    fill_alpha = 0.4
+                    checkmark_color = None
                 
-                # Draw checkbox square
-                cv2.rectangle(img, (x-12, y-12), (x+12, y+12), color, 2)
+                # Draw checkbox square - larger
+                cv2.rectangle(img, (x-16, y-16), (x+16, y+16), color, 3)
                 
                 # Fill with semi-transparent color
                 overlay = img.copy()
-                cv2.rectangle(overlay, (x-12, y-12), (x+12, y+12), color, -1)
+                cv2.rectangle(overlay, (x-16, y-16), (x+16, y+16), color, -1)
                 cv2.addWeighted(overlay, fill_alpha, img, 1-fill_alpha, 0, img)
                 
                 # Draw checkmark if checked
                 if is_checked:
-                    cv2.line(img, (x-6, y), (x-2, y+6), (255, 255, 255), 2)
-                    cv2.line(img, (x-2, y+6), (x+8, y-6), (255, 255, 255), 2)
+                    cv2.line(img, (x-8, y), (x-3, y+8), checkmark_color, 3)
+                    cv2.line(img, (x-3, y+8), (x+10, y-8), checkmark_color, 3)
             
             # Save to output directory
             serial_prefix = self.serial_number if self.serial_number else "unknown"
