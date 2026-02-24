@@ -44,7 +44,7 @@ class PDFReportGenerator:
         ))
     
     def generate_report(self, serial_number, technician, description, images, mode_name="General Capture", 
-                       workflow_name=None, checklist_data=None):
+                       workflow_name=None, checklist_data=None, video_paths=None):
         """Generate a PDF report.
         
         Args:
@@ -55,6 +55,7 @@ class PDFReportGenerator:
             mode_name: Name of the mode used
             workflow_name: Optional workflow name (for Mode 2/3)
             checklist_data: Optional list of checklist items with status
+            video_paths: Optional list of video file paths
             
         Returns:
             Path to generated PDF file
@@ -317,6 +318,21 @@ class PDFReportGenerator:
                             story.append(PageBreak())
         else:
             story.append(Paragraph("No images captured", self.styles['Normal']))
+        
+        # Recorded Videos section
+        if video_paths:
+            story.append(Spacer(1, 0.3*inch))
+            story.append(Paragraph(f"Recorded Videos ({len(video_paths)})", self.styles['SectionHeader']))
+            story.append(Spacer(1, 0.1*inch))
+            
+            for idx, video_path in enumerate(video_paths, 1):
+                video_name = os.path.basename(video_path)
+                story.append(Paragraph(f"<b>{idx}.</b> {video_name}", self.styles['Normal']))
+                story.append(Spacer(1, 0.05*inch))
+            
+            story.append(Spacer(1, 0.1*inch))
+            story.append(Paragraph("<i>Note: Video files are saved separately and not embedded in this report.</i>", 
+                                 self.styles['Normal']))
         
         # Build PDF
         doc.build(story)

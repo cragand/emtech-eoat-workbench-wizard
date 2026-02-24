@@ -503,6 +503,12 @@ class WorkflowExecutionScreen(QWidget):
         self.step_results = {}  # Track pass/fail for each step: {step_index: bool}
         self.step_checkbox_states = {}  # Track checkbox states: {step_index: [{'x', 'y', 'checked'}]}
         
+        # Video recording state
+        self.is_recording = False
+        self.video_writer = None
+        self.current_video_path = None
+        self.recorded_videos = []  # List of recorded video paths
+        
         # Setup output directory - sanitize serial number for filesystem
         output_serial = self._sanitize_filename(serial_number) if serial_number else "unknown"
         self.output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
@@ -519,6 +525,24 @@ class WorkflowExecutionScreen(QWidget):
         # Set focus to this widget so keyboard shortcuts work immediately
         self.setFocusPolicy(Qt.StrongFocus)
         self.setFocus()
+    
+    def closeEvent(self, event):
+        """Handle window close event."""
+        # Stop recording if active
+        if self.is_recording and self.video_writer:
+            self.video_writer.release()
+            self.video_writer = None
+            logger.info("Video recording stopped due to window close")
+        
+        # Stop timer
+        if self.timer.isActive():
+            self.timer.stop()
+        
+        # Close camera
+        if self.current_camera:
+            self.current_camera.close()
+        
+        event.accept()
     
     def _sanitize_filename(self, filename):
         """Remove invalid characters from filename."""
@@ -769,12 +793,40 @@ class WorkflowExecutionScreen(QWidget):
         notes_layout.addWidget(self.notes_input)
         right_layout.addLayout(notes_layout)
         
+        # Capture and record buttons in a row
+        capture_layout = QHBoxLayout()
+        
         # Capture button
         self.capture_button = QPushButton("Capture Image")
         self.capture_button.setMinimumHeight(40)
         self.capture_button.clicked.connect(self.capture_image)
         self.capture_button.setEnabled(False)
-        right_layout.addWidget(self.capture_button)
+        capture_layout.addWidget(self.capture_button)
+        
+        # Record button
+        self.record_button = QPushButton("🔴 Start Recording")
+        self.record_button.setMinimumHeight(40)
+        self.record_button.clicked.connect(self.toggle_recording)
+        self.record_button.setEnabled(False)
+        self.record_button.setStyleSheet("""
+            QPushButton {
+                background-color: #DC3545;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #C82333;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #666666;
+            }
+        """)
+        capture_layout.addWidget(self.record_button)
+        
+        right_layout.addLayout(capture_layout)
         
         # Compare button
         self.compare_button = QPushButton("📷 Compare with Reference")
@@ -978,6 +1030,7 @@ class WorkflowExecutionScreen(QWidget):
                 if self.current_camera.open():
                     self.timer.start(30)
                     self.capture_button.setEnabled(True)
+                    self.record_button.setEnabled(True)
                     logger.info("Camera opened successfully")
                 else:
                     raise Exception(f"Failed to open camera: {self.current_camera.name}")
@@ -995,6 +1048,15 @@ class WorkflowExecutionScreen(QWidget):
         try:
             frame = self.current_camera.capture_frame()
             if frame is not None:
+                # If recording, write frame with annotations to video
+                if self.is_recording and self.video_writer:
+                    # Draw markers on frame for video
+                    annotated_frame = frame.copy()
+                    if self.preview_label.markers:
+                        annotated_frame = self._draw_markers_on_frame(annotated_frame, self.preview_label.markers)
+                    self.video_writer.write(annotated_frame)
+                
+                # Update preview
                 rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 h, w, ch = rgb_frame.shape
                 bytes_per_line = ch * w
@@ -1010,6 +1072,91 @@ class WorkflowExecutionScreen(QWidget):
             logger.error(f"Frame capture error: {e}")
             # Don't show message box here as it would spam during continuous capture
             # Just log the error and continue
+    
+    def toggle_recording(self):
+        """Start or stop video recording."""
+        if not self.current_camera:
+            return
+        
+        try:
+            if not self.is_recording:
+                # Start recording
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                video_filename = f"video_{timestamp}.avi"
+                self.current_video_path = os.path.join(self.output_dir, video_filename)
+                
+                # Get frame dimensions
+                frame = self.current_camera.capture_frame()
+                if frame is None:
+                    raise Exception("Cannot start recording: no frame available")
+                
+                h, w = frame.shape[:2]
+                
+                # Initialize video writer (using XVID codec, 30 fps)
+                fourcc = cv2.VideoWriter_fourcc(*'XVID')
+                self.video_writer = cv2.VideoWriter(self.current_video_path, fourcc, 30.0, (w, h))
+                
+                if not self.video_writer.isOpened():
+                    raise Exception("Failed to initialize video writer")
+                
+                self.is_recording = True
+                self.record_button.setText("⏹ Stop Recording")
+                self.record_button.setStyleSheet("""
+                    QPushButton {
+                        background-color: #28A745;
+                        color: white;
+                        border: none;
+                        border-radius: 3px;
+                        font-weight: bold;
+                    }
+                    QPushButton:hover {
+                        background-color: #218838;
+                    }
+                """)
+                logger.info(f"Started recording video: {self.current_video_path}")
+                
+            else:
+                # Stop recording
+                if self.video_writer:
+                    self.video_writer.release()
+                    self.video_writer = None
+                
+                self.is_recording = False
+                self.record_button.setText("🔴 Start Recording")
+                self.record_button.setStyleSheet("""
+                    QPushButton {
+                        background-color: #DC3545;
+                        color: white;
+                        border: none;
+                        border-radius: 3px;
+                        font-weight: bold;
+                    }
+                    QPushButton:hover {
+                        background-color: #C82333;
+                    }
+                    QPushButton:disabled {
+                        background-color: #CCCCCC;
+                        color: #666666;
+                    }
+                """)
+                
+                # Add to recorded videos list
+                if self.current_video_path and os.path.exists(self.current_video_path):
+                    self.recorded_videos.append(self.current_video_path)
+                    logger.info(f"Stopped recording. Video saved: {self.current_video_path}")
+                    QMessageBox.information(self, "Recording Stopped", 
+                                          f"Video saved:\n{os.path.basename(self.current_video_path)}")
+                
+                self.current_video_path = None
+                
+        except Exception as e:
+            logger.error(f"Video recording error: {e}", exc_info=True)
+            QMessageBox.warning(self, "Recording Error",
+                              f"Failed to record video:\n{str(e)}")
+            self.is_recording = False
+            if self.video_writer:
+                self.video_writer.release()
+                self.video_writer = None
     
     def show_current_step(self):
         """Display the current step information."""
@@ -1678,15 +1825,17 @@ class WorkflowExecutionScreen(QWidget):
                 images=self.captured_images,
                 mode_name=workflow_name,
                 workflow_name=workflow_name,
-                checklist_data=checklist_data
+                checklist_data=checklist_data,
+                video_paths=self.recorded_videos
             )
             
+            video_info = f"\nVideos: {len(self.recorded_videos)}" if self.recorded_videos else ""
             QMessageBox.information(self, "Reports Generated", 
                                    f"PDF and DOCX reports generated successfully!\n\n"
                                    f"PDF: {pdf_path}\n\n"
                                    f"DOCX: {docx_path}\n\n"
                                    f"Images: {len(self.captured_images)}\n"
-                                   f"Steps completed: {len(checklist_data)}")
+                                   f"Steps completed: {len(checklist_data)}{video_info}")
         
         except Exception as e:
             QMessageBox.critical(self, "Report Error", 

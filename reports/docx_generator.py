@@ -19,7 +19,7 @@ class DOCXReportGenerator:
         os.makedirs(output_dir, exist_ok=True)
     
     def generate_report(self, serial_number, technician, description, images, mode_name="General Capture", 
-                       workflow_name=None, checklist_data=None):
+                       workflow_name=None, checklist_data=None, video_paths=None):
         """Generate a DOCX report.
         
         Args:
@@ -30,6 +30,7 @@ class DOCXReportGenerator:
             mode_name: Name of the mode used
             workflow_name: Optional workflow name (for Mode 2/3)
             checklist_data: Optional list of checklist items with status
+            video_paths: Optional list of video file paths
             
         Returns:
             Path to generated DOCX file
@@ -322,6 +323,20 @@ class DOCXReportGenerator:
                         doc.add_paragraph()
         else:
             doc.add_paragraph('No images captured')
+        
+        # Recorded Videos section
+        if video_paths:
+            doc.add_page_break()
+            doc.add_heading(f'Recorded Videos ({len(video_paths)})', level=2)
+            
+            for idx, video_path in enumerate(video_paths, 1):
+                video_name = os.path.basename(video_path)
+                p = doc.add_paragraph(style='List Number')
+                p.add_run(video_name).bold = True
+            
+            doc.add_paragraph()
+            note = doc.add_paragraph()
+            note.add_run('Note: Video files are saved separately and not embedded in this report.').italic = True
         
         # Save document
         doc.save(filepath)
