@@ -1023,24 +1023,45 @@ class WorkflowExecutionScreen(QWidget):
                 
                 # Verify it's the same workflow
                 if progress_data.get('workflow_path') == self.workflow_path:
-                    reply = QMessageBox.question(
-                        self, "Resume Progress?",
-                        f"Found saved progress at step {progress_data.get('current_step', 0) + 1}.\n\n"
-                        f"Do you want to resume from where you left off?",
-                        QMessageBox.Yes | QMessageBox.No,
-                        QMessageBox.Yes
-                    )
+                    msg = QMessageBox(self)
+                    msg.setWindowTitle("Resume Progress?")
+                    msg.setText(f"Found saved progress at step {progress_data.get('current_step', 0) + 1}.")
+                    msg.setInformativeText("What would you like to do?")
                     
-                    if reply == QMessageBox.Yes:
+                    resume_btn = msg.addButton("Resume", QMessageBox.AcceptRole)
+                    report_btn = msg.addButton("Generate Partial Report", QMessageBox.ActionRole)
+                    discard_btn = msg.addButton("Discard", QMessageBox.RejectRole)
+                    
+                    msg.exec_()
+                    
+                    if msg.clickedButton() == resume_btn:
+                        # Resume progress
                         self.current_step = progress_data.get('current_step', 0)
                         self.step_results = progress_data.get('step_results', {})
-                        # Convert string keys back to int
                         self.step_results = {int(k): v for k, v in self.step_results.items()}
                         self.step_checkbox_states = progress_data.get('step_checkbox_states', {})
                         self.step_checkbox_states = {int(k): v for k, v in self.step_checkbox_states.items()}
                         self.captured_images = progress_data.get('captured_images', [])
+                    elif msg.clickedButton() == report_btn:
+                        # Generate partial report
+                        self.step_results = progress_data.get('step_results', {})
+                        self.step_results = {int(k): v for k, v in self.step_results.items()}
+                        self.step_checkbox_states = progress_data.get('step_checkbox_states', {})
+                        self.step_checkbox_states = {int(k): v for k, v in self.step_checkbox_states.items()}
+                        self.captured_images = progress_data.get('captured_images', [])
+                        
+                        # Generate report with partial data
+                        self.generate_workflow_report()
+                        
+                        # Delete progress and exit
+                        os.remove(progress_file)
+                        QMessageBox.information(self, "Partial Report Generated", 
+                                              "Partial report has been generated.\n\nReturning to menu...")
+                        self.cleanup_resources()
+                        self.back_requested.emit()
+                        return
                     else:
-                        # Delete old progress
+                        # Discard progress
                         os.remove(progress_file)
         except Exception as e:
             print(f"Error loading progress: {e}")
