@@ -1230,15 +1230,12 @@ class WorkflowExecutionScreen(QWidget):
     
     def _draw_markers_on_frame(self, frame, markers):
         """Draw annotation markers on frame."""
-        preview_size = self.preview_label.size()
         frame_h, frame_w = frame.shape[:2]
         
-        scale_x = frame_w / preview_size.width()
-        scale_y = frame_h / preview_size.height()
-        
         for marker in markers:
-            x = int(marker['x'] * scale_x)
-            y = int(marker['y'] * scale_y)
+            # Markers are now stored as relative coordinates (0-1)
+            x = int(marker['x'] * frame_w)
+            y = int(marker['y'] * frame_h)
             label = marker['label']
             angle = marker.get('angle', 45)
             
