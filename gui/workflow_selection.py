@@ -74,11 +74,37 @@ class WorkflowSelectionScreen(QWidget):
         instructions.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         layout.addWidget(instructions)
         
-        # Workflow list
+        # Main content - split between workflow list and step preview
+        from PyQt5.QtWidgets import QSplitter
+        splitter = QSplitter(Qt.Horizontal)
+        
+        # Left side - Workflow list
         self.workflow_list = QListWidget()
         self.workflow_list.itemDoubleClicked.connect(self.on_workflow_double_clicked)
         self.workflow_list.itemSelectionChanged.connect(self.on_selection_changed)
-        layout.addWidget(self.workflow_list)
+        splitter.addWidget(self.workflow_list)
+        
+        # Right side - Step preview
+        from PyQt5.QtWidgets import QTextEdit
+        preview_widget = QWidget()
+        preview_layout = QVBoxLayout(preview_widget)
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+        
+        preview_label = QLabel("Workflow Steps:")
+        preview_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        preview_layout.addWidget(preview_label)
+        
+        self.steps_preview = QTextEdit()
+        self.steps_preview.setReadOnly(True)
+        self.steps_preview.setPlaceholderText("Select a workflow to view its steps...")
+        self.steps_preview.setStyleSheet("border: 2px solid #CCCCCC; background-color: #F9F9F9;")
+        preview_layout.addWidget(self.steps_preview)
+        
+        splitter.addWidget(preview_widget)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 1)
+        
+        layout.addWidget(splitter)
         
         # Buttons
         button_layout = QHBoxLayout()
@@ -179,6 +205,40 @@ class WorkflowSelectionScreen(QWidget):
                 QMessageBox.warning(self, "Access Denied", "Incorrect password.")
     
     def on_selection_changed(self):
-        """Enable start button when workflow is selected."""
-        self.start_button.setEnabled(self.workflow_list.currentRow() >= 0 and len(self.workflows) > 0)
+        """Enable start button and show step preview when workflow is selected."""
+        selected_row = self.workflow_list.currentRow()
+        self.start_button.setEnabled(selected_row >= 0 and len(self.workflows) > 0)
+        
+        # Show step preview
+        if selected_row >= 0 and selected_row < len(self.workflows):
+            workflow = self.workflows[selected_row]
+            steps = workflow.get('steps', [])
+            
+            if steps:
+                preview_text = ""
+                for i, step in enumerate(steps, 1):
+                    step_title = step.get('title', f'Step {i}')
+                    preview_text += f"{i}. {step_title}\n"
+                    
+                    # Add requirements if any
+                    requirements = []
+                    if step.get('require_photo'):
+                        requirements.append("Photo required")
+                    if step.get('require_annotations'):
+                        requirements.append("Annotations required")
+                    if step.get('require_pass_fail'):
+                        requirements.append("Pass/Fail required")
+                    if step.get('inspection_checkboxes'):
+                        requirements.append(f"{len(step['inspection_checkboxes'])} inspection points")
+                    
+                    if requirements:
+                        preview_text += f"   ({', '.join(requirements)})\n"
+                    
+                    preview_text += "\n"
+                
+                self.steps_preview.setText(preview_text.strip())
+            else:
+                self.steps_preview.setText("No steps defined in this workflow.")
+        else:
+            self.steps_preview.clear()
 
