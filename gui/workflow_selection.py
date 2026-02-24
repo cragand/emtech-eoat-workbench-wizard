@@ -53,45 +53,58 @@ class WorkflowSelectionScreen(QWidget):
     def init_ui(self):
         """Initialize the user interface."""
         layout = QVBoxLayout()
-        layout.setContentsMargins(40, 40, 40, 40)
-        layout.setSpacing(20)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
         
-        # Title
+        # Title - more compact
         mode_name = "QC Process" if self.mode_number == 2 else "Maintenance/Repair"
         title = QLabel(f"Mode {self.mode_number}: {mode_name}")
-        title.setFont(QFont("Arial", 20, QFont.Weight.Bold))
+        title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("""
             background-color: #77C25E;
             color: white;
-            padding: 20px;
-            border-radius: 5px;
+            padding: 12px;
+            border-radius: 3px;
         """)
+        title.setMaximumHeight(50)
         layout.addWidget(title)
         
         # Instructions
         instructions = QLabel("Select a workflow to begin:")
-        instructions.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        instructions.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         layout.addWidget(instructions)
         
         # Main content - split between workflow list and step preview
         from PyQt5.QtWidgets import QSplitter
         splitter = QSplitter(Qt.Horizontal)
         
-        # Left side - Workflow list
+        # Left side - Workflow list with header
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(5)
+        
+        workflows_label = QLabel("Available Workflows:")
+        workflows_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        left_layout.addWidget(workflows_label)
+        
         self.workflow_list = QListWidget()
         self.workflow_list.itemDoubleClicked.connect(self.on_workflow_double_clicked)
         self.workflow_list.itemSelectionChanged.connect(self.on_selection_changed)
-        splitter.addWidget(self.workflow_list)
+        left_layout.addWidget(self.workflow_list)
         
-        # Right side - Step preview
+        splitter.addWidget(left_widget)
+        
+        # Right side - Step preview with header
         from PyQt5.QtWidgets import QTextEdit
         preview_widget = QWidget()
         preview_layout = QVBoxLayout(preview_widget)
         preview_layout.setContentsMargins(0, 0, 0, 0)
+        preview_layout.setSpacing(5)
         
         preview_label = QLabel("Workflow Steps:")
-        preview_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        preview_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         preview_layout.addWidget(preview_label)
         
         self.steps_preview = QTextEdit()
