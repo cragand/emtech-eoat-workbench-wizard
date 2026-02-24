@@ -107,7 +107,16 @@ Guided quality control workflows with step-by-step instructions.
 **Step Requirements:**
 - Some steps require photo capture before proceeding
 - Some steps require annotations on photos
+- Some steps require pass/fail marking
+- Steps with inspection checkboxes automatically fail if not all checked
 - System validates requirements before allowing next step
+
+**Inspection Checkboxes:**
+- Click checkboxes on reference image to mark inspection points
+- All checkboxes must be checked for step to pass
+- Checkboxes are bright amber/yellow for visibility
+- Click "🔍 View Full Size" to see reference image in resizable window
+- Checkbox states are saved and included in reports
 
 ### Mode 3: Maintenance/Repair
 
@@ -148,8 +157,10 @@ Create and customize workflows for Mode 2 and Mode 3.
    - Title
    - Instructions
    - Reference image (optional)
+   - Inspection checkboxes (optional - click "Place Checkboxes" after selecting reference image)
    - Require photo capture (checkbox)
    - Require annotations (checkbox)
+   - Require pass/fail marking (checkbox)
 5. Use ↑↓ buttons to reorder steps
 6. Click "Save Workflow"
 
@@ -162,8 +173,18 @@ Create and customize workflows for Mode 2 and Mode 3.
 - **Title**: Short name for the step
 - **Instructions**: Detailed instructions for the user
 - **Reference Image**: Optional image to display alongside camera
+- **Place Checkboxes**: Add inspection points on reference image (bright amber/yellow boxes)
 - **Require Photo**: User must capture at least one photo
 - **Require Annotations**: User must add markers to photos
+- **Require Pass/Fail**: User must explicitly mark step as pass or fail
+
+**Inspection Checkboxes:**
+- Click on reference image to place checkboxes at inspection points
+- Left-click: Add checkbox
+- Right-click: Remove checkbox
+- Checkboxes appear as bright amber/yellow squares
+- During workflow execution, user clicks checkboxes to mark inspection complete
+- Step automatically fails if not all checkboxes are checked
 
 ## Annotations
 
@@ -189,15 +210,30 @@ The annotation system allows you to mark specific features in images.
 - Rotate markers to point in the appropriate direction
 - Markers are permanently drawn on saved images
 
-## PDF Reports
+## PDF/DOCX Reports
 
-Professional PDF reports are generated with all captured data.
+Professional PDF and DOCX reports are generated with all captured data.
 
 **Report Contents:**
 - **Header**: Emtech EOAT Report - Inspection/QC/Maintenance
 - **Session Information**: Serial number, description, date/time
 - **Workflow Info**: Workflow name (Mode 2/3 only)
-- **Checklist**: Step completion status (Mode 2/3 only)
+- **Procedure Summary**: Quick overview table of all steps and their status (Mode 2/3 only)
+- **Procedure Steps**: Detailed view of each step with:
+  - Step name and status (Complete/Pass/Fail)
+  - Step description
+  - Reference image with inspection checkboxes (if applicable)
+  - Captured images with annotations and notes
+- **Images**: All captured images with:
+  - Camera source
+  - Per-image notes
+  - Annotation markers
+  - Step context (Mode 2/3)
+
+**Status Types:**
+- **✓ Complete** (light green) - Step completed without pass/fail criteria
+- **✓ Pass** (green) - Step passed inspection (all checkboxes checked or explicitly marked pass)
+- **✗ Fail** (red) - Step failed inspection (incomplete checkboxes or explicitly marked fail)
 - **Images**: All captured images with:
   - Camera source
   - Per-image notes
