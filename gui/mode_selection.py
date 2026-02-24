@@ -21,7 +21,7 @@ class ModeSelectionScreen(QWidget):
         layout.setContentsMargins(40, 40, 40, 40)
         
         # Title with green background
-        title = QLabel("Emtech EoAT Cam Viewer")
+        title = QLabel("Emtech EoAT Workbench Wizard")
         title.setFont(QFont("Arial", 24, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("""
