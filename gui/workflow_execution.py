@@ -30,6 +30,7 @@ class InteractiveReferenceImage(QLabel):
         super().__init__()
         self.image_pixmap = None
         self.checkboxes = []  # List of {'x': %, 'y': %, 'checked': bool}
+        self.checkbox_history = []  # Undo history
         self.setAlignment(Qt.AlignCenter)
         self.setMouseTracking(True)
     
@@ -38,6 +39,7 @@ class InteractiveReferenceImage(QLabel):
         if not image_path or not os.path.exists(image_path):
             self.image_pixmap = None
             self.checkboxes = []
+            self.checkbox_history = []
             self.clear()
             self.setText("No reference image")
             self.update()
@@ -46,6 +48,7 @@ class InteractiveReferenceImage(QLabel):
         self.image_pixmap = QPixmap(image_path)
         self.checkboxes = [{'x': cb['x'], 'y': cb['y'], 'checked': False} 
                           for cb in (checkbox_data or [])]
+        self.checkbox_history = []
         self.setText("")  # Clear any text
         self.update()
         self.emit_status()
@@ -54,6 +57,12 @@ class InteractiveReferenceImage(QLabel):
         """Toggle checkbox on click."""
         if not self.image_pixmap or not self.checkboxes:
             return
+        
+        # Save state for undo
+        self.checkbox_history.append([{'x': cb['x'], 'y': cb['y'], 'checked': cb['checked']} 
+                                      for cb in self.checkboxes])
+        if len(self.checkbox_history) > 20:  # Limit history
+            self.checkbox_history.pop(0)
         
         # Find which checkbox was clicked (increased hit radius for larger boxes)
         click_pos = event.pos()
@@ -64,6 +73,15 @@ class InteractiveReferenceImage(QLabel):
                 self.update()
                 self.emit_status()
                 break
+    
+    def undo_checkbox(self):
+        """Undo last checkbox change."""
+        if self.checkbox_history:
+            self.checkboxes = self.checkbox_history.pop()
+            self.update()
+            self.emit_status()
+            return True
+        return False
     
     def _get_checkbox_position(self, checkbox):
         """Convert percentage position to widget pixels."""
@@ -176,7 +194,9 @@ class WorkflowExecutionScreen(QWidget):
         self.load_workflow()
         self.init_ui()
         self.discover_cameras()
+        self.load_progress()  # Load any saved progress
         self.show_current_step()
+        self.update_breadcrumb()
     
     def _sanitize_filename(self, filename):
         """Remove invalid characters from filename."""
@@ -250,6 +270,15 @@ class WorkflowExecutionScreen(QWidget):
         
         main_layout.addWidget(header_widget)
         
+        # Step breadcrumb navigation
+        self.breadcrumb_widget = QWidget()
+        self.breadcrumb_widget.setStyleSheet("background-color: #F5F5F5; border-radius: 3px;")
+        self.breadcrumb_widget.setMaximumHeight(40)
+        self.breadcrumb_layout = QHBoxLayout(self.breadcrumb_widget)
+        self.breadcrumb_layout.setContentsMargins(10, 5, 10, 5)
+        self.breadcrumb_layout.setSpacing(5)
+        main_layout.addWidget(self.breadcrumb_widget)
+        
         # Main content area - split between instructions and camera
         splitter = QSplitter(Qt.Horizontal)
         
@@ -293,6 +322,28 @@ class WorkflowExecutionScreen(QWidget):
         self.view_fullsize_button.clicked.connect(self.show_reference_fullsize)
         self.view_fullsize_button.setEnabled(False)
         ref_header_layout.addWidget(self.view_fullsize_button)
+        
+        self.undo_checkbox_button = QPushButton("↶ Undo")
+        self.undo_checkbox_button.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 4px 8px;
+                font-size: 9pt;
+            }
+            QPushButton:hover {
+                background-color: #F57C00;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #666666;
+            }
+        """)
+        self.undo_checkbox_button.clicked.connect(self.undo_checkbox_click)
+        self.undo_checkbox_button.setEnabled(False)
+        ref_header_layout.addWidget(self.undo_checkbox_button)
         
         left_layout.addLayout(ref_header_layout)
         
@@ -369,6 +420,29 @@ class WorkflowExecutionScreen(QWidget):
         self.capture_button.clicked.connect(self.capture_image)
         self.capture_button.setEnabled(False)
         right_layout.addWidget(self.capture_button)
+        
+        # Compare button
+        self.compare_button = QPushButton("📷 Compare with Reference")
+        self.compare_button.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 8px 15px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #666666;
+            }
+        """)
+        self.compare_button.clicked.connect(self.show_comparison)
+        self.compare_button.setEnabled(False)
+        right_layout.addWidget(self.compare_button)
         
         # Pass/Fail buttons (only shown when step requires it)
         self.pass_fail_widget = QWidget()
@@ -563,6 +637,9 @@ class WorkflowExecutionScreen(QWidget):
         
         step = steps[self.current_step]
         
+        # Update breadcrumb
+        self.update_breadcrumb()
+        
         # Update header
         self.step_label.setText(f"Step {self.current_step + 1} of {len(steps)}: {step.get('title', 'Untitled')}")
         
@@ -589,6 +666,9 @@ class WorkflowExecutionScreen(QWidget):
         
         # Show/hide pass/fail buttons based on step requirement
         self.pass_fail_widget.setVisible(step.get('require_pass_fail', False))
+        
+        # Enable/disable compare button
+        self.compare_button.setEnabled(bool(self.reference_image_path and self.current_camera))
         
         # Update step status
         photo_required = step.get('require_photo', False)
@@ -672,7 +752,98 @@ class WorkflowExecutionScreen(QWidget):
     
     def on_checkboxes_changed(self, checked, total):
         """Handle checkbox status change."""
-        self.update_step_status()  # Refresh status display only (avoid recursion)
+        self.update_step_status()
+        # Enable/disable undo button
+        self.undo_checkbox_button.setEnabled(len(self.reference_image.checkbox_history) > 0)
+    
+    def undo_checkbox_click(self):
+        """Handle undo button click."""
+        if self.reference_image.undo_checkbox():
+            self.undo_checkbox_button.setEnabled(len(self.reference_image.checkbox_history) > 0)
+    
+    def update_breadcrumb(self):
+        """Update step breadcrumb navigation."""
+        # Clear existing breadcrumb
+        while self.breadcrumb_layout.count():
+            item = self.breadcrumb_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        
+        if not self.workflow or 'steps' not in self.workflow:
+            return
+        
+        steps = self.workflow['steps']
+        for i in range(len(steps)):
+            # Determine step status
+            if i < self.current_step:
+                # Past step - check if passed
+                if i in self.step_results:
+                    status = "✓" if self.step_results[i] else "✗"
+                    color = "#4CAF50" if self.step_results[i] else "#F44336"
+                elif i in self.step_checkbox_states:
+                    checkbox_states = self.step_checkbox_states[i]
+                    if isinstance(checkbox_states, list):
+                        checked_count = sum(1 for cb in checkbox_states if cb.get('checked', False))
+                        if checked_count == len(checkbox_states):
+                            status = "✓"
+                            color = "#4CAF50"
+                        else:
+                            status = "✗"
+                            color = "#F44336"
+                    else:
+                        status = "✓"
+                        color = "#81C784"
+                else:
+                    status = "✓"
+                    color = "#81C784"
+            elif i == self.current_step:
+                status = str(i + 1)
+                color = "#77C25E"
+            else:
+                status = str(i + 1)
+                color = "#CCCCCC"
+            
+            # Create step indicator
+            step_btn = QPushButton(status)
+            step_btn.setFixedSize(30, 30)
+            step_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {color};
+                    color: white;
+                    border: none;
+                    border-radius: 15px;
+                    font-weight: bold;
+                    font-size: 10pt;
+                }}
+            """)
+            step_btn.setEnabled(False)  # Not clickable
+            self.breadcrumb_layout.addWidget(step_btn)
+            
+            # Add arrow between steps
+            if i < len(steps) - 1:
+                arrow = QLabel("→")
+                arrow.setStyleSheet("color: #888888; font-size: 12pt;")
+                self.breadcrumb_layout.addWidget(arrow)
+        
+        self.breadcrumb_layout.addStretch()
+    
+    def keyPressEvent(self, event):
+        """Handle keyboard shortcuts."""
+        # Space: Capture image
+        if event.key() == Qt.Key_Space and self.capture_button.isEnabled():
+            self.capture_image()
+        # Enter/Return: Advance to next step
+        elif event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            if not self.notes_input.hasFocus():  # Don't advance if typing notes
+                if self.finish_button.isVisible():
+                    self.finish_workflow()
+                elif self.next_button.isEnabled():
+                    self.next_step()
+        # Ctrl+Z: Undo checkbox
+        elif event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
+            self.undo_checkbox_click()
+        else:
+            super().keyPressEvent(event)
     
     def capture_image(self):
         """Capture image for current step."""
@@ -785,6 +956,85 @@ class WorkflowExecutionScreen(QWidget):
             self.step_images = []  # Clear images for new step
             self.show_current_step()
     
+    def next_step(self):
+        """Go to next step."""
+        if not self.validate_step():
+            return
+        
+        # Store checkbox state for current step (including which ones were checked)
+        step = self.workflow['steps'][self.current_step]
+        if step.get('inspection_checkboxes'):
+            # Store the actual checkbox objects with their checked states
+            self.step_checkbox_states[self.current_step] = [
+                {'x': cb['x'], 'y': cb['y'], 'checked': cb['checked']} 
+                for cb in self.reference_image.checkboxes
+            ]
+        
+        if self.current_step < len(self.workflow['steps']) - 1:
+            self.current_step += 1
+            self.step_images = []  # Clear images for new step
+            self.save_progress()  # Auto-save progress
+            self.show_current_step()
+    
+    def save_progress(self):
+        """Save current workflow progress."""
+        try:
+            progress_file = os.path.join(self.output_dir, "_workflow_progress.json")
+            progress_data = {
+                'workflow_path': self.workflow_path,
+                'current_step': self.current_step,
+                'step_results': self.step_results,
+                'step_checkbox_states': self.step_checkbox_states,
+                'captured_images': self.captured_images,
+                'serial_number': self.serial_number,
+                'description': self.description
+            }
+            with open(progress_file, 'w') as f:
+                json.dump(progress_data, f, indent=2)
+        except Exception as e:
+            print(f"Error saving progress: {e}")
+    
+    def load_progress(self):
+        """Load saved workflow progress if exists."""
+        try:
+            progress_file = os.path.join(self.output_dir, "_workflow_progress.json")
+            if os.path.exists(progress_file):
+                with open(progress_file, 'r') as f:
+                    progress_data = json.load(f)
+                
+                # Verify it's the same workflow
+                if progress_data.get('workflow_path') == self.workflow_path:
+                    reply = QMessageBox.question(
+                        self, "Resume Progress?",
+                        f"Found saved progress at step {progress_data.get('current_step', 0) + 1}.\n\n"
+                        f"Do you want to resume from where you left off?",
+                        QMessageBox.Yes | QMessageBox.No,
+                        QMessageBox.Yes
+                    )
+                    
+                    if reply == QMessageBox.Yes:
+                        self.current_step = progress_data.get('current_step', 0)
+                        self.step_results = progress_data.get('step_results', {})
+                        # Convert string keys back to int
+                        self.step_results = {int(k): v for k, v in self.step_results.items()}
+                        self.step_checkbox_states = progress_data.get('step_checkbox_states', {})
+                        self.step_checkbox_states = {int(k): v for k, v in self.step_checkbox_states.items()}
+                        self.captured_images = progress_data.get('captured_images', [])
+                    else:
+                        # Delete old progress
+                        os.remove(progress_file)
+        except Exception as e:
+            print(f"Error loading progress: {e}")
+    
+    def clear_progress(self):
+        """Clear saved progress file."""
+        try:
+            progress_file = os.path.join(self.output_dir, "_workflow_progress.json")
+            if os.path.exists(progress_file):
+                os.remove(progress_file)
+        except Exception as e:
+            print(f"Error clearing progress: {e}")
+    
     def validate_step(self):
         """Validate current step requirements."""
         step = self.workflow['steps'][self.current_step]
@@ -843,6 +1093,7 @@ class WorkflowExecutionScreen(QWidget):
         if reply == QMessageBox.Yes:
             self.generate_workflow_report()
         
+        self.clear_progress()  # Clear saved progress
         self.cleanup_resources()
         self.back_requested.emit()
     
@@ -1057,6 +1308,98 @@ class WorkflowExecutionScreen(QWidget):
         close_button.clicked.connect(dialog.close)
         layout.addWidget(close_button)
         
+        dialog.show()
+    
+    def show_comparison(self):
+        """Show side-by-side comparison of reference and live camera."""
+        if not self.reference_image_path or not self.current_camera:
+            return
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Reference vs Live Camera Comparison")
+        dialog.setModal(False)
+        
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(5)
+        
+        # Split view
+        split_layout = QHBoxLayout()
+        
+        # Left: Reference image
+        left_layout = QVBoxLayout()
+        ref_label = QLabel("Reference Image")
+        ref_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        ref_label.setAlignment(Qt.AlignCenter)
+        left_layout.addWidget(ref_label)
+        
+        ref_display = QLabel()
+        ref_display.setAlignment(Qt.AlignCenter)
+        ref_display.setStyleSheet("border: 2px solid #77C25E;")
+        ref_pixmap = QPixmap(self.reference_image_path)
+        ref_display.setPixmap(ref_pixmap.scaled(400, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        left_layout.addWidget(ref_display)
+        
+        split_layout.addLayout(left_layout)
+        
+        # Right: Live camera
+        right_layout = QVBoxLayout()
+        live_label = QLabel("Live Camera")
+        live_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        live_label.setAlignment(Qt.AlignCenter)
+        right_layout.addWidget(live_label)
+        
+        live_display = QLabel()
+        live_display.setAlignment(Qt.AlignCenter)
+        live_display.setStyleSheet("border: 2px solid #2196F3;")
+        right_layout.addWidget(live_display)
+        
+        split_layout.addLayout(right_layout)
+        
+        layout.addLayout(split_layout)
+        
+        # Update timer for live feed
+        def update_comparison():
+            if self.current_camera:
+                frame = self.current_camera.capture_frame()
+                if frame is not None:
+                    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    h, w, ch = rgb_frame.shape
+                    bytes_per_line = ch * w
+                    qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+                    live_pixmap = QPixmap.fromImage(qt_image).scaled(400, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    live_display.setPixmap(live_pixmap)
+        
+        comparison_timer = QTimer()
+        comparison_timer.timeout.connect(update_comparison)
+        comparison_timer.start(30)
+        
+        # Close button
+        close_button = QPushButton("Close")
+        close_button.setMaximumHeight(35)
+        close_button.setStyleSheet("""
+            QPushButton {
+                background-color: #77C25E;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 8px 15px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #5FA84A;
+            }
+        """)
+        
+        def close_dialog():
+            comparison_timer.stop()
+            dialog.close()
+        
+        close_button.clicked.connect(close_dialog)
+        layout.addWidget(close_button)
+        
+        screen = self.screen().geometry()
+        dialog.resize(int(screen.width() * 0.7), int(screen.height() * 0.5))
         dialog.show()
     
     def cleanup_resources(self):
