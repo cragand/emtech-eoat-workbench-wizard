@@ -268,7 +268,7 @@ class WorkflowExecutionScreen(QWidget):
         # Reference image header with button
         ref_header_layout = QHBoxLayout()
         ref_label = QLabel("Reference Image:")
-        ref_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        ref_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         ref_header_layout.addWidget(ref_label)
         ref_header_layout.addStretch()
         
@@ -279,8 +279,8 @@ class WorkflowExecutionScreen(QWidget):
                 color: white;
                 border: none;
                 border-radius: 3px;
-                padding: 5px 10px;
-                font-size: 10pt;
+                padding: 4px 8px;
+                font-size: 9pt;
             }
             QPushButton:hover {
                 background-color: #5FA84A;
@@ -356,7 +356,7 @@ class WorkflowExecutionScreen(QWidget):
         # Notes input
         notes_layout = QHBoxLayout()
         notes_label = QLabel("Notes:")
-        notes_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        notes_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         self.notes_input = QLineEdit()
         self.notes_input.setPlaceholderText("Add notes for this step...")
         notes_layout.addWidget(notes_label)
