@@ -164,6 +164,270 @@ class InteractiveReferenceImage(QLabel):
         return len(self.checkboxes)
 
 
+class CombinedReferenceImage(QLabel):
+    """Reference image with both checkboxes and annotation markers."""
+    
+    checkboxes_changed = pyqtSignal(int, int)  # checked_count, total_count
+    markers_changed = pyqtSignal()
+    
+    def __init__(self):
+        super().__init__()
+        self.image_pixmap = None
+        self.checkboxes = []
+        self.markers = []
+        self.dragging_marker = None
+        self.drag_offset = QPoint()
+        self.hover_marker = None
+        self.setAlignment(Qt.AlignCenter)
+        self.setMouseTracking(True)
+        self.setCursor(Qt.CrossCursor)
+    
+    def set_image_and_checkboxes(self, image_path, checkbox_data):
+        """Load image and set up checkboxes."""
+        if not image_path or not os.path.exists(image_path):
+            self.image_pixmap = None
+            self.checkboxes = []
+            self.markers = []
+            self.clear()
+            self.setText("No reference image")
+            self.update()
+            return
+        
+        self.image_pixmap = QPixmap(image_path)
+        self.checkboxes = [{'x': cb['x'], 'y': cb['y'], 'checked': False} 
+                          for cb in (checkbox_data or [])]
+        self.markers = []
+        self.setText("")
+        self.update()
+    
+    def mousePressEvent(self, event):
+        """Handle clicks for both checkboxes and markers."""
+        if not self.image_pixmap:
+            return
+        
+        click_pos = event.pos()
+        
+        if event.button() == Qt.LeftButton:
+            # Check if clicking on a marker first
+            for marker in self.markers:
+                if self._is_near_marker(click_pos, marker['pos']):
+                    self.dragging_marker = marker
+                    self.drag_offset = marker['pos'] - click_pos
+                    self.setCursor(Qt.ClosedHandCursor)
+                    return
+            
+            # Check if clicking on a checkbox
+            for cb in self.checkboxes:
+                cb_pos = self._get_checkbox_position(cb)
+                if cb_pos and (cb_pos.x() - click_pos.x())**2 + (cb_pos.y() - click_pos.y())**2 < 600:
+                    cb['checked'] = not cb['checked']
+                    self.update()
+                    self.checkboxes_changed.emit(self.get_checked_count(), self.get_total_count())
+                    return
+            
+            # Add new marker if not clicking on anything
+            self.add_marker(click_pos)
+        
+        elif event.button() == Qt.RightButton:
+            # Right click removes nearest marker
+            for i, marker in enumerate(self.markers):
+                if self._is_near_marker(click_pos, marker['pos']):
+                    self.markers.pop(i)
+                    self.hover_marker = None
+                    self.markers_changed.emit()
+                    self.update()
+                    break
+    
+    def mouseMoveEvent(self, event):
+        """Handle marker dragging and hover."""
+        if self.dragging_marker:
+            self.dragging_marker['pos'] = event.pos() + self.drag_offset
+            self.markers_changed.emit()
+            self.update()
+        else:
+            # Update hover state
+            old_hover = self.hover_marker
+            self.hover_marker = None
+            for marker in self.markers:
+                if self._is_near_marker(event.pos(), marker['pos']):
+                    self.hover_marker = marker
+                    break
+            if old_hover != self.hover_marker:
+                self.update()
+    
+    def mouseReleaseEvent(self, event):
+        """Stop dragging marker."""
+        if self.dragging_marker:
+            self.dragging_marker = None
+            self.setCursor(Qt.CrossCursor)
+    
+    def mouseDoubleClickEvent(self, event):
+        """Edit marker note on double-click."""
+        if event.button() == Qt.LeftButton:
+            for marker in self.markers:
+                if self._is_near_marker(event.pos(), marker['pos']):
+                    from gui.annotatable_preview import MarkerNoteDialog
+                    dialog = MarkerNoteDialog(marker['label'], marker.get('note', ''), self)
+                    if dialog.exec_() == QDialog.Accepted:
+                        marker['note'] = dialog.get_note()
+                        self.markers_changed.emit()
+                        self.update()
+                    return
+    
+    def wheelEvent(self, event):
+        """Rotate marker on scroll."""
+        if self.hover_marker:
+            delta = event.angleDelta().y() / 120
+            self.hover_marker['angle'] = (self.hover_marker['angle'] + delta * 15) % 360
+            self.markers_changed.emit()
+            self.update()
+    
+    def add_marker(self, pos):
+        """Add a new annotation marker."""
+        import string
+        label = string.ascii_uppercase[len(self.markers) % 26]
+        if len(self.markers) >= 26:
+            label = string.ascii_uppercase[(len(self.markers) // 26) - 1] + label
+        
+        new_marker = {'pos': pos, 'label': label, 'angle': 45, 'note': ''}
+        self.markers.append(new_marker)
+        
+        from gui.annotatable_preview import MarkerNoteDialog
+        dialog = MarkerNoteDialog(label, '', self)
+        if dialog.exec_() == QDialog.Accepted:
+            new_marker['note'] = dialog.get_note()
+        
+        self.markers_changed.emit()
+        self.update()
+    
+    def _is_near_marker(self, pos, marker_pos, threshold=20):
+        """Check if position is near a marker."""
+        dx = pos.x() - marker_pos.x()
+        dy = pos.y() - marker_pos.y()
+        return (dx*dx + dy*dy) < (threshold*threshold)
+    
+    def _get_checkbox_position(self, checkbox):
+        """Convert percentage position to widget pixels."""
+        if not self.image_pixmap:
+            return None
+        
+        widget_rect = self.rect()
+        scaled_pixmap = self.image_pixmap.scaled(
+            widget_rect.size(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+        
+        x_offset = (widget_rect.width() - scaled_pixmap.width()) // 2
+        y_offset = (widget_rect.height() - scaled_pixmap.height()) // 2
+        
+        x = x_offset + int(checkbox['x'] * scaled_pixmap.width())
+        y = y_offset + int(checkbox['y'] * scaled_pixmap.height())
+        
+        return QPoint(x, y)
+    
+    def paintEvent(self, event):
+        """Draw image, checkboxes, and markers."""
+        super().paintEvent(event)
+        
+        if not self.image_pixmap:
+            return
+        
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        # Draw scaled image
+        widget_rect = self.rect()
+        scaled_pixmap = self.image_pixmap.scaled(
+            widget_rect.size(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+        
+        x_offset = (widget_rect.width() - scaled_pixmap.width()) // 2
+        y_offset = (widget_rect.height() - scaled_pixmap.height()) // 2
+        
+        painter.drawPixmap(x_offset, y_offset, scaled_pixmap)
+        
+        # Draw checkboxes
+        for cb in self.checkboxes:
+            pos = self._get_checkbox_position(cb)
+            if pos:
+                if cb['checked']:
+                    painter.setPen(QPen(QColor(255, 193, 7), 4))
+                    painter.setBrush(QColor(255, 193, 7, 180))
+                else:
+                    painter.setPen(QPen(QColor(255, 193, 7), 3))
+                    painter.setBrush(QColor(255, 255, 255, 220))
+                
+                painter.drawRect(pos.x() - 16, pos.y() - 16, 32, 32)
+                
+                if cb['checked']:
+                    painter.setPen(QPen(QColor(0, 0, 0), 4))
+                    painter.drawLine(pos.x() - 8, pos.y(), pos.x() - 3, pos.y() + 8)
+                    painter.drawLine(pos.x() - 3, pos.y() + 8, pos.x() + 10, pos.y() - 8)
+        
+        # Draw markers
+        for marker in self.markers:
+            self._draw_marker(painter, marker)
+        
+        painter.end()
+    
+    def _draw_marker(self, painter, marker):
+        """Draw an annotation marker."""
+        import math
+        pos = marker['pos']
+        label = marker['label']
+        angle = marker.get('angle', 45)
+        is_hover = (marker == self.hover_marker)
+        
+        # Marker colors
+        if is_hover:
+            line_color = QColor(255, 193, 7)
+            circle_color = QColor(255, 193, 7)
+            text_bg = QColor(255, 193, 7)
+        else:
+            line_color = QColor(119, 194, 94)
+            circle_color = QColor(119, 194, 94)
+            text_bg = QColor(119, 194, 94)
+        
+        # Draw line from center
+        line_length = 40
+        rad = math.radians(angle)
+        end_x = pos.x() + int(line_length * math.cos(rad))
+        end_y = pos.y() - int(line_length * math.sin(rad))
+        
+        painter.setPen(QPen(line_color, 3))
+        painter.drawLine(pos.x(), pos.y(), end_x, end_y)
+        
+        # Draw center circle
+        painter.setBrush(circle_color)
+        painter.drawEllipse(pos, 6, 6)
+        
+        # Draw label box
+        font = QFont("Arial", 10, QFont.Weight.Bold)
+        painter.setFont(font)
+        
+        text_rect = painter.fontMetrics().boundingRect(label)
+        text_rect.adjust(-4, -2, 4, 2)
+        text_rect.moveCenter(QPoint(end_x, end_y))
+        
+        painter.setBrush(text_bg)
+        painter.setPen(Qt.NoPen)
+        painter.drawRect(text_rect)
+        
+        painter.setPen(QColor(0, 0, 0))
+        painter.drawText(text_rect, Qt.AlignCenter, label)
+    
+    def get_checked_count(self):
+        """Get number of checked boxes."""
+        return sum(1 for cb in self.checkboxes if cb['checked'])
+    
+    def get_total_count(self):
+        """Get total number of checkboxes."""
+        return len(self.checkboxes)
+
+
 class WorkflowExecutionScreen(QWidget):
     """Execute a workflow step-by-step with camera integration."""
     
@@ -1393,8 +1657,8 @@ class WorkflowExecutionScreen(QWidget):
         from PyQt5.QtWidgets import QSplitter
         splitter = QSplitter(Qt.Horizontal)
         
-        # Left: Reference image with checkboxes
-        ref_display = InteractiveReferenceImage()
+        # Left: Reference image with checkboxes and markers
+        ref_display = CombinedReferenceImage()
         ref_display.setStyleSheet("border: 2px solid #77C25E; background-color: #2b2b2b;")
         ref_display.setMinimumSize(400, 300)
         
