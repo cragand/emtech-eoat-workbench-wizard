@@ -40,6 +40,7 @@ class MainWindow(QMainWindow):
         
         self.theme_button = QPushButton("🌙 Dark Mode")
         self.theme_button.setMinimumWidth(130)
+        self.theme_button.setFocusPolicy(Qt.NoFocus)  # Prevent spacebar from triggering
         self.theme_button.clicked.connect(self.toggle_theme)
         theme_layout.addWidget(self.theme_button)
         
