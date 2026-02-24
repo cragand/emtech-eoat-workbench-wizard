@@ -366,8 +366,11 @@ class WorkflowExecutionScreen(QWidget):
         self.capture_button.setEnabled(False)
         right_layout.addWidget(self.capture_button)
         
-        # Pass/Fail buttons
-        pass_fail_layout = QHBoxLayout()
+        # Pass/Fail buttons (only shown when step requires it)
+        self.pass_fail_widget = QWidget()
+        pass_fail_layout = QHBoxLayout(self.pass_fail_widget)
+        pass_fail_layout.setContentsMargins(0, 0, 0, 0)
+        
         pass_fail_label = QLabel("Mark Step Result:")
         pass_fail_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         pass_fail_layout.addWidget(pass_fail_label)
@@ -384,9 +387,6 @@ class WorkflowExecutionScreen(QWidget):
             }
             QPushButton:hover {
                 background-color: #45A049;
-            }
-            QPushButton:pressed {
-                background-color: #2E7D32;
             }
         """)
         self.pass_button.clicked.connect(lambda: self.mark_step_result(True))
@@ -405,15 +405,13 @@ class WorkflowExecutionScreen(QWidget):
             QPushButton:hover {
                 background-color: #D32F2F;
             }
-            QPushButton:pressed {
-                background-color: #B71C1C;
-            }
         """)
         self.fail_button.clicked.connect(lambda: self.mark_step_result(False))
         pass_fail_layout.addWidget(self.fail_button)
         
         pass_fail_layout.addStretch()
-        right_layout.addLayout(pass_fail_layout)
+        self.pass_fail_widget.setVisible(False)  # Hidden by default
+        right_layout.addWidget(self.pass_fail_widget)
         
         self.step_status = QLabel()
         self.step_status.setStyleSheet("color: #888888; font-size: 11px;")
@@ -577,6 +575,9 @@ class WorkflowExecutionScreen(QWidget):
             self.reference_image_path = None
             self.reference_image.set_image_and_checkboxes(None, [])
             self.view_fullsize_button.setEnabled(False)
+        
+        # Show/hide pass/fail buttons based on step requirement
+        self.pass_fail_widget.setVisible(step.get('require_pass_fail', False))
         
         # Update step status
         photo_required = step.get('require_photo', False)
@@ -767,12 +768,6 @@ class WorkflowExecutionScreen(QWidget):
                 {'x': cb['x'], 'y': cb['y'], 'checked': cb['checked']} 
                 for cb in self.reference_image.checkboxes
             ]
-            
-            # Auto-mark as pass if all checkboxes checked (and not already marked)
-            checked = self.reference_image.get_checked_count()
-            total = self.reference_image.get_total_count()
-            if checked == total and self.current_step not in self.step_results:
-                self.step_results[self.current_step] = True
         
         if self.current_step < len(self.workflow['steps']) - 1:
             self.current_step += 1
@@ -789,7 +784,6 @@ class WorkflowExecutionScreen(QWidget):
             return False
         
         if step.get('require_annotations', False):
-            # Check if any image has markers (non-empty list)
             has_annotations = any(img.get('markers') and len(img.get('markers', [])) > 0 
                                  for img in self.step_images)
             if not has_annotations:
@@ -797,6 +791,11 @@ class WorkflowExecutionScreen(QWidget):
                                    "This step requires annotations (markers) on captured images.\n\n"
                                    "Click on the camera preview to add markers (A, B, C...) before capturing.")
                 return False
+        
+        if step.get('require_pass_fail', False) and self.current_step not in self.step_results:
+            QMessageBox.warning(self, "Pass/Fail Required", 
+                               "This step requires you to mark it as Pass or Fail before proceeding.")
+            return False
         
         return True
     
@@ -907,12 +906,6 @@ class WorkflowExecutionScreen(QWidget):
                     {'x': cb['x'], 'y': cb['y'], 'checked': cb['checked']} 
                     for cb in self.reference_image.checkboxes
                 ]
-                
-                # Auto-mark as pass if all checkboxes checked (and not already marked)
-                checked = self.reference_image.get_checked_count()
-                total = self.reference_image.get_total_count()
-                if checked == total and self.current_step not in self.step_results:
-                    self.step_results[self.current_step] = True
             
             # Determine mode name for report
             workflow_name = self.workflow.get('name', 'Workflow')
@@ -925,20 +918,20 @@ class WorkflowExecutionScreen(QWidget):
                 
                 # Determine pass/fail status
                 if i in self.step_results:
-                    # User explicitly marked pass/fail
+                    # User explicitly marked pass/fail (takes priority)
                     passed = self.step_results[i]
-                elif i in self.step_checkbox_states:
-                    # Has checkboxes - check if all were checked
-                    checkbox_states = self.step_checkbox_states[i]
-                    if isinstance(checkbox_states, list):
-                        checked_count = sum(1 for cb in checkbox_states if cb.get('checked', False))
-                        passed = checked_count == len(checkbox_states)
-                    else:
-                        passed = False
                 else:
-                    # No checkboxes and no explicit marking - pass if images captured
-                    step_imgs = [img for img in self.captured_images if img.get('step') == i+1]
-                    passed = len(step_imgs) > 0
+                    # Default to pass
+                    passed = True
+                    
+                    # Check checkboxes (background criteria - always applies)
+                    if i in self.step_checkbox_states:
+                        checkbox_states = self.step_checkbox_states[i]
+                        if isinstance(checkbox_states, list):
+                            checked_count = sum(1 for cb in checkbox_states if cb.get('checked', False))
+                            # Fail if not all checkboxes checked
+                            if checked_count < len(checkbox_states):
+                                passed = False
                 
                 # Generate checkbox completion image if checkboxes exist
                 checkbox_image = None

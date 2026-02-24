@@ -215,6 +215,10 @@ class StepEditorDialog(QDialog):
         self.require_annotations_check.setToolTip("User must add annotation markers to photos")
         req_layout.addWidget(self.require_annotations_check)
         
+        self.require_pass_fail_check = QCheckBox("Require pass/fail marking")
+        self.require_pass_fail_check.setToolTip("User must explicitly mark this step as pass or fail")
+        req_layout.addWidget(self.require_pass_fail_check)
+        
         req_group.setLayout(req_layout)
         layout.addWidget(req_group)
         
@@ -262,6 +266,7 @@ class StepEditorDialog(QDialog):
         self.ref_image_input.setText(self.step_data.get('reference_image', ''))
         self.require_photo_check.setChecked(self.step_data.get('require_photo', False))
         self.require_annotations_check.setChecked(self.step_data.get('require_annotations', False))
+        self.require_pass_fail_check.setChecked(self.step_data.get('require_pass_fail', False))
     
     def get_step_data(self):
         """Get step data from form."""
@@ -270,7 +275,8 @@ class StepEditorDialog(QDialog):
             'instructions': self.instructions_input.toPlainText().strip(),
             'reference_image': self.ref_image_input.text().strip(),
             'require_photo': self.require_photo_check.isChecked(),
-            'require_annotations': self.require_annotations_check.isChecked()
+            'require_annotations': self.require_annotations_check.isChecked(),
+            'require_pass_fail': self.require_pass_fail_check.isChecked()
         }
         
         # Include inspection checkboxes if they were placed
