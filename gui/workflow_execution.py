@@ -259,15 +259,43 @@ class WorkflowExecutionScreen(QWidget):
         self.instructions_text.setReadOnly(True)
         left_layout.addWidget(self.instructions_text)
         
+        # Reference image header with button
+        ref_header_layout = QHBoxLayout()
         ref_label = QLabel("Reference Image:")
         ref_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
-        left_layout.addWidget(ref_label)
+        ref_header_layout.addWidget(ref_label)
+        ref_header_layout.addStretch()
+        
+        self.view_fullsize_button = QPushButton("🔍 View Full Size")
+        self.view_fullsize_button.setStyleSheet("""
+            QPushButton {
+                background-color: #77C25E;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 5px 10px;
+                font-size: 10pt;
+            }
+            QPushButton:hover {
+                background-color: #5FA84A;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #666666;
+            }
+        """)
+        self.view_fullsize_button.clicked.connect(self.show_reference_fullsize)
+        self.view_fullsize_button.setEnabled(False)
+        ref_header_layout.addWidget(self.view_fullsize_button)
+        
+        left_layout.addLayout(ref_header_layout)
         
         self.reference_image = InteractiveReferenceImage()
         self.reference_image.setMinimumSize(300, 200)
         self.reference_image.setStyleSheet("border: 2px solid #CCCCCC;")
         self.reference_image.checkboxes_changed.connect(self.on_checkboxes_changed)
         self.reference_image_path = None  # Store current reference image path
+        self.reference_checkboxes = []  # Store current checkboxes
         left_layout.addWidget(self.reference_image)
         
         splitter.addWidget(left_widget)
@@ -493,9 +521,11 @@ class WorkflowExecutionScreen(QWidget):
         if ref_image_path and os.path.exists(ref_image_path):
             self.reference_image_path = ref_image_path
             self.reference_image.set_image_and_checkboxes(ref_image_path, checkbox_data)
+            self.view_fullsize_button.setEnabled(True)
         else:
             self.reference_image_path = None
             self.reference_image.set_image_and_checkboxes(None, [])
+            self.view_fullsize_button.setEnabled(False)
         
         # Update step status
         photo_required = step.get('require_photo', False)
@@ -827,37 +857,62 @@ class WorkflowExecutionScreen(QWidget):
             QMessageBox.critical(self, "Report Error", 
                                f"Failed to generate report:\n{str(e)}")
     
-    def show_reference_fullsize(self, event):
-        """Show reference image in full size popup."""
+    def show_reference_fullsize(self):
+        """Show reference image in full size popup with interactive checkboxes."""
         if not self.reference_image_path:
             return
         
-        # Create dialog
         dialog = QDialog(self)
         dialog.setWindowTitle("Reference Image - Full Size")
         dialog.setModal(True)
         
         layout = QVBoxLayout(dialog)
         
-        # Load and display full size image
-        image_label = QLabel()
-        pixmap = QPixmap(self.reference_image_path)
+        # Create interactive reference image for dialog
+        fullsize_ref = InteractiveReferenceImage()
         
-        # Scale to fit screen if too large (90% of screen size)
+        # Get current step's checkbox data
+        step = self.workflow['steps'][self.current_step]
+        checkbox_data = step.get('inspection_checkboxes', [])
+        
+        # Copy current checkbox states from main reference image
+        current_checkboxes = [{'x': cb['x'], 'y': cb['y'], 'checked': cb['checked']} 
+                             for cb in self.reference_image.checkboxes]
+        
+        # Load image with current checkbox states
+        fullsize_ref.set_image_and_checkboxes(self.reference_image_path, current_checkboxes)
+        
+        # Scale to fit screen (90% of screen size)
         screen = self.screen().geometry()
         max_width = int(screen.width() * 0.9)
         max_height = int(screen.height() * 0.9)
+        fullsize_ref.setMinimumSize(max_width, max_height - 100)
         
-        if pixmap.width() > max_width or pixmap.height() > max_height:
-            pixmap = pixmap.scaled(max_width, max_height,
-                                  Qt.AspectRatioMode.KeepAspectRatio,
-                                  Qt.TransformationMode.SmoothTransformation)
+        # Sync checkbox changes back to main reference image
+        def sync_checkboxes(checked, total):
+            self.reference_image.checkboxes = fullsize_ref.checkboxes
+            self.reference_image.update()
+            self.update_step_status()
         
-        image_label.setPixmap(pixmap)
-        layout.addWidget(image_label)
+        fullsize_ref.checkboxes_changed.connect(sync_checkboxes)
+        
+        layout.addWidget(fullsize_ref)
         
         # Close button
         close_button = QPushButton("Close")
+        close_button.setStyleSheet("""
+            QPushButton {
+                background-color: #77C25E;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 8px 15px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #5FA84A;
+            }
+        """)
         close_button.clicked.connect(dialog.close)
         layout.addWidget(close_button)
         
