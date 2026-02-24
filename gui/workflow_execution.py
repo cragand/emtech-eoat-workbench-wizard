@@ -169,10 +169,11 @@ class WorkflowExecutionScreen(QWidget):
     
     back_requested = pyqtSignal()
     
-    def __init__(self, workflow_path, serial_number, description):
+    def __init__(self, workflow_path, serial_number, technician, description):
         super().__init__()
         self.workflow_path = workflow_path
         self.serial_number = serial_number
+        self.technician = technician
         self.description = description
         self.current_step = 0
         self.workflow = None
@@ -1011,6 +1012,7 @@ class WorkflowExecutionScreen(QWidget):
                 'step_checkbox_states': self.step_checkbox_states,
                 'captured_images': self.captured_images,
                 'serial_number': self.serial_number,
+                'technician': self.technician,
                 'description': self.description
             }
             with open(progress_file, 'w') as f:
@@ -1277,6 +1279,7 @@ class WorkflowExecutionScreen(QWidget):
             # Generate both PDF and DOCX reports
             pdf_path, docx_path = generate_reports(
                 serial_number=self.serial_number,
+                technician=self.technician,
                 description=self.description,
                 images=self.captured_images,
                 mode_name=workflow_name,

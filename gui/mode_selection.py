@@ -8,7 +8,7 @@ from PyQt5.QtGui import QFont, QPalette, QColor
 class ModeSelectionScreen(QWidget):
     """Initial screen for selecting mode and entering job information."""
     
-    mode_selected = pyqtSignal(int, str, str)  # mode, serial_number, description
+    mode_selected = pyqtSignal(int, str, str, str)  # mode, serial_number, technician, description
     
     def __init__(self):
         super().__init__()
@@ -44,6 +44,17 @@ class ModeSelectionScreen(QWidget):
         serial_layout.addWidget(serial_label)
         serial_layout.addWidget(self.serial_input)
         layout.addLayout(serial_layout)
+        
+        # Technician name input
+        tech_layout = QHBoxLayout()
+        tech_label = QLabel("Technician Name:")
+        tech_label.setMinimumWidth(150)
+        tech_label.setStyleSheet("font-weight: bold;")
+        self.tech_input = QLineEdit()
+        self.tech_input.setPlaceholderText("Your name")
+        tech_layout.addWidget(tech_label)
+        tech_layout.addWidget(self.tech_input)
+        layout.addLayout(tech_layout)
         
         # Description input
         desc_layout = QVBoxLayout()
@@ -109,6 +120,7 @@ class ModeSelectionScreen(QWidget):
     def on_start_clicked(self):
         """Handle start button click."""
         serial = self.serial_input.text().strip()
+        technician = self.tech_input.text().strip()
         description = self.description_input.toPlainText().strip()
         selected_mode = self.mode_group.checkedId()
         
@@ -121,7 +133,16 @@ class ModeSelectionScreen(QWidget):
         
         self.serial_input.setStyleSheet("")
         
+        # Technician name is required
+        if not technician:
+            QMessageBox.warning(self, "Technician Name Required", 
+                               "Please enter your name before starting.")
+            self.tech_input.setStyleSheet("border: 2px solid red;")
+            return
+        
+        self.tech_input.setStyleSheet("")
+        
         if selected_mode == -1:
             return
         
-        self.mode_selected.emit(selected_mode, serial, description)
+        self.mode_selected.emit(selected_mode, serial, technician, description)

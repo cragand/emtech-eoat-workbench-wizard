@@ -18,12 +18,13 @@ class DOCXReportGenerator:
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
     
-    def generate_report(self, serial_number, description, images, mode_name="General Capture", 
+    def generate_report(self, serial_number, technician, description, images, mode_name="General Capture", 
                        workflow_name=None, checklist_data=None):
         """Generate a DOCX report.
         
         Args:
             serial_number: Serial number or identifier
+            technician: Technician name
             description: Job description
             images: List of image file paths OR list of dicts with {path, camera, notes}
             mode_name: Name of the mode used
@@ -65,28 +66,32 @@ class DOCXReportGenerator:
         doc.add_heading('Session Information', level=2)
         
         # Info table
-        table = doc.add_table(rows=4, cols=2)
+        table = doc.add_table(rows=5, cols=2)
         table.style = 'Light Grid Accent 1'
         
         # Serial Number
         table.rows[0].cells[0].text = 'Serial Number:'
         table.rows[0].cells[1].text = serial_number if serial_number else "N/A"
         
+        # Technician
+        table.rows[1].cells[0].text = 'Technician:'
+        table.rows[1].cells[1].text = technician if technician else "N/A"
+        
         # Mode
-        table.rows[1].cells[0].text = 'Mode:'
-        table.rows[1].cells[1].text = mode_name
+        table.rows[2].cells[0].text = 'Mode:'
+        table.rows[2].cells[1].text = mode_name
         
         # Date/Time
-        table.rows[2].cells[0].text = 'Date/Time:'
-        table.rows[2].cells[1].text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        table.rows[3].cells[0].text = 'Date/Time:'
+        table.rows[3].cells[1].text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         # Workflow (if applicable)
         if workflow_name:
-            table.rows[3].cells[0].text = 'Workflow:'
-            table.rows[3].cells[1].text = workflow_name
+            table.rows[4].cells[0].text = 'Workflow:'
+            table.rows[4].cells[1].text = workflow_name
         else:
             # Remove the extra row if no workflow
-            table._element.remove(table.rows[3]._element)
+            table._element.remove(table.rows[4]._element)
         
         # Make first column bold
         for row in table.rows:

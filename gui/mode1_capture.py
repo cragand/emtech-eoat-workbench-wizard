@@ -26,9 +26,10 @@ class Mode1CaptureScreen(QWidget):
     
     back_requested = pyqtSignal()  # Signal to request return to menu
     
-    def __init__(self, serial_number: str, description: str):
+    def __init__(self, serial_number: str, technician: str, description: str):
         super().__init__()
         self.serial_number = serial_number
+        self.technician = technician
         self.description = description
         self.current_camera = None
         self.is_recording = False
@@ -462,6 +463,7 @@ class Mode1CaptureScreen(QWidget):
         try:
             pdf_path, docx_path = generate_reports(
                 self.serial_number,
+                self.technician,
                 self.description,
                 self.captured_images
             )

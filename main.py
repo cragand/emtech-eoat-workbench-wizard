@@ -57,10 +57,11 @@ class MainWindow(QMainWindow):
         
         self.current_mode_widget = None
     
-    def on_mode_selected(self, mode: int, serial_number: str, description: str):
+    def on_mode_selected(self, mode: int, serial_number: str, technician: str, description: str):
         """Handle mode selection."""
         # Store for workflow modes
         self.current_serial = serial_number
+        self.current_technician = technician
         self.current_description = description
         
         # Remove previous mode widget if exists
@@ -71,7 +72,7 @@ class MainWindow(QMainWindow):
         
         # Create appropriate mode widget
         if mode == 1:
-            self.current_mode_widget = Mode1CaptureScreen(serial_number, description)
+            self.current_mode_widget = Mode1CaptureScreen(serial_number, technician, description)
             self.current_mode_widget.back_requested.connect(self.return_to_mode_selection)
         elif mode == 2:
             # Show workflow selection for QC
@@ -104,7 +105,8 @@ class MainWindow(QMainWindow):
         # Create workflow execution screen
         self.current_mode_widget = WorkflowExecutionScreen(
             workflow_path, 
-            self.current_serial, 
+            self.current_serial,
+            self.current_technician,
             self.current_description
         )
         self.current_mode_widget.back_requested.connect(self.return_to_mode_selection)

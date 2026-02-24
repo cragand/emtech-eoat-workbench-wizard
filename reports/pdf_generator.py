@@ -43,12 +43,13 @@ class PDFReportGenerator:
             spaceBefore=12
         ))
     
-    def generate_report(self, serial_number, description, images, mode_name="General Capture", 
+    def generate_report(self, serial_number, technician, description, images, mode_name="General Capture", 
                        workflow_name=None, checklist_data=None):
         """Generate a PDF report.
         
         Args:
             serial_number: Serial number or identifier
+            technician: Technician name
             description: Job description
             images: List of image file paths to include
             mode_name: Name of the mode used
@@ -88,6 +89,7 @@ class PDFReportGenerator:
         # Basic info table (without description)
         info_data = [
             ["Serial Number:", serial_number if serial_number else "N/A"],
+            ["Technician:", technician if technician else "N/A"],
             ["Mode:", mode_name],
             ["Date/Time:", datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
         ]

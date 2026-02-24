@@ -3,12 +3,13 @@ from .pdf_generator import PDFReportGenerator
 from .docx_generator import DOCXReportGenerator
 
 
-def generate_reports(serial_number, description, images, mode_name="General Capture",
+def generate_reports(serial_number, technician, description, images, mode_name="General Capture",
                     workflow_name=None, checklist_data=None, output_dir="output/reports"):
     """Generate both PDF and DOCX reports.
     
     Args:
         serial_number: Serial number or identifier
+        technician: Technician name
         description: Job description
         images: List of image file paths OR list of dicts with {path, camera, notes}
         mode_name: Name of the mode used
@@ -23,11 +24,11 @@ def generate_reports(serial_number, description, images, mode_name="General Capt
     docx_gen = DOCXReportGenerator(output_dir)
     
     pdf_path = pdf_gen.generate_report(
-        serial_number, description, images, mode_name, workflow_name, checklist_data
+        serial_number, technician, description, images, mode_name, workflow_name, checklist_data
     )
     
     docx_path = docx_gen.generate_report(
-        serial_number, description, images, mode_name, workflow_name, checklist_data
+        serial_number, technician, description, images, mode_name, workflow_name, checklist_data
     )
     
     return pdf_path, docx_path
