@@ -122,19 +122,23 @@ class PDFReportGenerator:
         
         # Checklist (if provided)
         if checklist_data:
-            story.append(Paragraph("Checklist Results", self.styles['SectionHeader']))
+            story.append(Paragraph("Procedure Steps", self.styles['SectionHeader']))
             
             for item in checklist_data:
                 # Step name and status
-                status = "✓ Pass" if item.get('passed', False) else "✗ Fail"
-                status_color = colors.HexColor('#4CAF50') if item.get('passed', False) else colors.HexColor('#F44336')
+                if item.get('has_pass_fail', False):
+                    status = "✓ Pass" if item.get('passed', False) else "✗ Fail"
+                    status_color = colors.HexColor('#4CAF50') if item.get('passed', False) else colors.HexColor('#F44336')
+                else:
+                    status = "✓ Complete"
+                    status_color = colors.HexColor('#4a4a4a')
                 
                 step_table_data = [[item['name'], status]]
                 step_table = Table(step_table_data, colWidths=[4*inch, 2*inch])
                 step_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4a4a4a')),
                     ('TEXTCOLOR', (0, 0), (0, 0), colors.whitesmoke),
-                    ('TEXTCOLOR', (1, 0), (1, 0), status_color),
+                    ('TEXTCOLOR', (1, 0), (1, 0), status_color if item.get('has_pass_fail', False) else colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                     ('FONTSIZE', (0, 0), (-1, -1), 10),

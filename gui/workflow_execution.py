@@ -915,6 +915,7 @@ class WorkflowExecutionScreen(QWidget):
             for i, step in enumerate(self.workflow['steps']):
                 step_title = step.get('title', f'Step {i+1}')
                 step_description = step.get('instructions', '')
+                has_pass_fail = step.get('require_pass_fail', False) or bool(step.get('inspection_checkboxes'))
                 
                 # Determine pass/fail status
                 if i in self.step_results:
@@ -955,6 +956,7 @@ class WorkflowExecutionScreen(QWidget):
                     'name': step_title,
                     'description': step_description,
                     'passed': passed,
+                    'has_pass_fail': has_pass_fail,
                     'checkbox_image': checkbox_image
                 })
             

@@ -102,21 +102,27 @@ class DOCXReportGenerator:
         
         # Checklist (if provided)
         if checklist_data:
-            doc.add_heading('Checklist Results', level=2)
+            doc.add_heading('Procedure Steps', level=2)
             
             for item in checklist_data:
                 # Step name
                 p = doc.add_paragraph()
                 p.add_run(item['name']).bold = True
                 
-                # Status
-                status = "✓ Pass" if item.get('passed', False) else "✗ Fail"
-                status_run = p.add_run(f" - {status}")
-                status_run.bold = True
-                if item.get('passed', False):
-                    status_run.font.color.rgb = RGBColor(76, 175, 80)  # Green
+                # Status - Complete/Incomplete or Pass/Fail
+                if item.get('has_pass_fail', False):
+                    status = "✓ Pass" if item.get('passed', False) else "✗ Fail"
+                    status_run = p.add_run(f" - {status}")
+                    status_run.bold = True
+                    if item.get('passed', False):
+                        status_run.font.color.rgb = RGBColor(76, 175, 80)  # Green
+                    else:
+                        status_run.font.color.rgb = RGBColor(244, 67, 54)  # Red
                 else:
-                    status_run.font.color.rgb = RGBColor(244, 67, 54)  # Red
+                    status = "✓ Complete"
+                    status_run = p.add_run(f" - {status}")
+                    status_run.bold = True
+                    status_run.font.color.rgb = RGBColor(74, 74, 74)  # Dark gray
                 
                 # Description
                 if item.get('description'):
