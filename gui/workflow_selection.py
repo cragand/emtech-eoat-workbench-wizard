@@ -85,11 +85,8 @@ class WorkflowSelectionScreen(QWidget):
         left_layout.addWidget(workflows_label)
         
         self.workflow_list = QListWidget()
-        self.workflow_list.setFont(QFont("Arial", 12))
+        self.workflow_list.setFont(QFont("Arial", 13))
         self.workflow_list.setStyleSheet("""
-            QListWidget {
-                border: 2px solid #CCCCCC;
-            }
             QListWidget::item {
                 padding: 8px;
             }
@@ -114,8 +111,7 @@ class WorkflowSelectionScreen(QWidget):
         self.steps_preview = QTextEdit()
         self.steps_preview.setReadOnly(True)
         self.steps_preview.setPlaceholderText("Select a workflow to view its steps...")
-        self.steps_preview.setFont(QFont("Arial", 12))
-        self.steps_preview.setStyleSheet("border: 2px solid #CCCCCC; background-color: #F9F9F9;")
+        self.steps_preview.setFont(QFont("Arial", 13))
         preview_layout.addWidget(self.steps_preview)
         
         splitter.addWidget(preview_widget)
