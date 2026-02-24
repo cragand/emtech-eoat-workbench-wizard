@@ -131,7 +131,7 @@ class PDFReportGenerator:
                     status_color = colors.HexColor('#4CAF50') if item.get('passed', False) else colors.HexColor('#F44336')
                 else:
                     status = "✓ Complete"
-                    status_color = colors.HexColor('#4a4a4a')
+                    status_color = colors.HexColor('#81C784')  # Light green
                 
                 step_table_data = [[item['name'], status]]
                 step_table = Table(step_table_data, colWidths=[4*inch, 2*inch])

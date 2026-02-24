@@ -122,7 +122,7 @@ class DOCXReportGenerator:
                     status = "✓ Complete"
                     status_run = p.add_run(f" - {status}")
                     status_run.bold = True
-                    status_run.font.color.rgb = RGBColor(74, 74, 74)  # Dark gray
+                    status_run.font.color.rgb = RGBColor(129, 199, 132)  # Light green
                 
                 # Description
                 if item.get('description'):
