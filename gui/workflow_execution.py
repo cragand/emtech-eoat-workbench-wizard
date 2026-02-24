@@ -11,6 +11,9 @@ from datetime import datetime
 from camera import CameraManager
 from reports import generate_reports
 from gui.annotatable_preview import AnnotatablePreview
+from logger_config import get_logger
+
+logger = get_logger(__name__)
 
 # Optional QR scanner support
 try:
@@ -18,6 +21,7 @@ try:
     QR_SCANNER_AVAILABLE = True
 except ImportError:
     QR_SCANNER_AVAILABLE = False
+    logger.warning("QR scanner not available")
     QRScannerThread = None
 
 
@@ -529,10 +533,37 @@ class WorkflowExecutionScreen(QWidget):
     def load_workflow(self):
         """Load workflow from JSON file."""
         try:
+            logger.info(f"Loading workflow from: {self.workflow_path}")
+            
+            if not os.path.exists(self.workflow_path):
+                raise FileNotFoundError(f"Workflow file not found: {self.workflow_path}")
+            
             with open(self.workflow_path, 'r') as f:
                 self.workflow = json.load(f)
+            
+            # Validate workflow structure
+            if not isinstance(self.workflow, dict):
+                raise ValueError("Workflow file must contain a JSON object")
+            
+            if 'steps' not in self.workflow:
+                raise ValueError("Workflow must contain 'steps' array")
+            
+            if not isinstance(self.workflow['steps'], list):
+                raise ValueError("Workflow 'steps' must be an array")
+            
+            logger.info(f"Workflow loaded successfully: {self.workflow.get('name', 'Unnamed')} "
+                       f"with {len(self.workflow['steps'])} steps")
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Workflow file is not valid JSON: {e}")
+            QMessageBox.critical(self, "Workflow Error", 
+                               f"Workflow file is corrupted or invalid:\n{str(e)}\n\n"
+                               "Please check the workflow file format.")
+            self.workflow = {"name": "Error", "steps": []}
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to load workflow: {e}")
+            logger.error(f"Failed to load workflow: {e}", exc_info=True)
+            QMessageBox.critical(self, "Workflow Error", 
+                               f"Failed to load workflow:\n{str(e)}")
             self.workflow = {"name": "Error", "steps": []}
     
     def init_ui(self):
@@ -909,6 +940,7 @@ class WorkflowExecutionScreen(QWidget):
     def discover_cameras(self):
         """Discover available cameras."""
         try:
+            logger.info("Discovering cameras...")
             cameras = CameraManager.discover_cameras()
             for cam in cameras:
                 cam.close()
@@ -918,9 +950,13 @@ class WorkflowExecutionScreen(QWidget):
             
             for cam in cameras:
                 self.camera_combo.addItem(cam.name)
+            
+            logger.info(f"Found {len(cameras)} camera(s)")
         except Exception as e:
-            print(f"Camera discovery error: {e}")
+            logger.error(f"Camera discovery error: {e}", exc_info=True)
             self.available_cameras = []
+            QMessageBox.warning(self, "Camera Discovery Error",
+                              f"Failed to discover cameras:\n{str(e)}\n\nPlease check camera connections.")
     
     def on_camera_changed(self, index):
         """Handle camera selection change."""
@@ -937,30 +973,43 @@ class WorkflowExecutionScreen(QWidget):
             
             if index >= 0 and index < len(self.available_cameras):
                 self.current_camera = self.available_cameras[index]
+                logger.info(f"Switching to camera: {self.current_camera.name}")
+                
                 if self.current_camera.open():
                     self.timer.start(30)
                     self.capture_button.setEnabled(True)
+                    logger.info("Camera opened successfully")
+                else:
+                    raise Exception(f"Failed to open camera: {self.current_camera.name}")
         except Exception as e:
-            print(f"Camera error: {e}")
+            logger.error(f"Camera error: {e}", exc_info=True)
+            QMessageBox.warning(self, "Camera Error",
+                              f"Failed to open camera:\n{str(e)}\n\nTry selecting a different camera.")
+            self.capture_button.setEnabled(False)
     
     def update_frame(self):
         """Update camera preview."""
         if not self.current_camera:
             return
         
-        frame = self.current_camera.capture_frame()
-        if frame is not None:
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            h, w, ch = rgb_frame.shape
-            bytes_per_line = ch * w
-            qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
-            
-            scaled_pixmap = QPixmap.fromImage(qt_image).scaled(
-                self.preview_label.size(), 
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
-            )
-            self.preview_label.set_frame(scaled_pixmap)
+        try:
+            frame = self.current_camera.capture_frame()
+            if frame is not None:
+                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                h, w, ch = rgb_frame.shape
+                bytes_per_line = ch * w
+                qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+                
+                scaled_pixmap = QPixmap.fromImage(qt_image).scaled(
+                    self.preview_label.size(), 
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation
+                )
+                self.preview_label.set_frame(scaled_pixmap)
+        except Exception as e:
+            logger.error(f"Frame capture error: {e}")
+            # Don't show message box here as it would spam during continuous capture
+            # Just log the error and continue
     
     def show_current_step(self):
         """Display the current step information."""
@@ -1336,56 +1385,90 @@ class WorkflowExecutionScreen(QWidget):
     
     def load_progress(self):
         """Load saved workflow progress if exists."""
+        progress_file = os.path.join(self.output_dir, "_workflow_progress.json")
+        
         try:
-            progress_file = os.path.join(self.output_dir, "_workflow_progress.json")
-            if os.path.exists(progress_file):
-                with open(progress_file, 'r') as f:
-                    progress_data = json.load(f)
+            if not os.path.exists(progress_file):
+                return
+            
+            logger.info(f"Found progress file: {progress_file}")
+            
+            with open(progress_file, 'r') as f:
+                progress_data = json.load(f)
+            
+            # Validate progress data structure
+            if not isinstance(progress_data, dict):
+                raise ValueError("Progress file is not a valid JSON object")
+            
+            # Verify it's the same workflow
+            if progress_data.get('workflow_path') != self.workflow_path:
+                logger.warning("Progress file is for a different workflow, ignoring")
+                return
+            
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Resume Progress?")
+            msg.setText(f"Found saved progress at step {progress_data.get('current_step', 0) + 1}.")
+            msg.setInformativeText("What would you like to do?")
+            
+            resume_btn = msg.addButton("Resume", QMessageBox.AcceptRole)
+            report_btn = msg.addButton("Generate Partial Report", QMessageBox.ActionRole)
+            discard_btn = msg.addButton("Discard", QMessageBox.RejectRole)
+            
+            msg.exec_()
+            
+            if msg.clickedButton() == resume_btn:
+                # Resume progress
+                logger.info("Resuming workflow progress")
+                self.current_step = progress_data.get('current_step', 0)
+                self.step_results = progress_data.get('step_results', {})
+                self.step_results = {int(k): v for k, v in self.step_results.items()}
+                self.step_checkbox_states = progress_data.get('step_checkbox_states', {})
+                self.step_checkbox_states = {int(k): v for k, v in self.step_checkbox_states.items()}
+                self.captured_images = progress_data.get('captured_images', [])
+            elif msg.clickedButton() == report_btn:
+                # Generate partial report
+                logger.info("Generating partial report from progress")
+                self.step_results = progress_data.get('step_results', {})
+                self.step_results = {int(k): v for k, v in self.step_results.items()}
+                self.step_checkbox_states = progress_data.get('step_checkbox_states', {})
+                self.step_checkbox_states = {int(k): v for k, v in self.step_checkbox_states.items()}
+                self.captured_images = progress_data.get('captured_images', [])
                 
-                # Verify it's the same workflow
-                if progress_data.get('workflow_path') == self.workflow_path:
-                    msg = QMessageBox(self)
-                    msg.setWindowTitle("Resume Progress?")
-                    msg.setText(f"Found saved progress at step {progress_data.get('current_step', 0) + 1}.")
-                    msg.setInformativeText("What would you like to do?")
-                    
-                    resume_btn = msg.addButton("Resume", QMessageBox.AcceptRole)
-                    report_btn = msg.addButton("Generate Partial Report", QMessageBox.ActionRole)
-                    discard_btn = msg.addButton("Discard", QMessageBox.RejectRole)
-                    
-                    msg.exec_()
-                    
-                    if msg.clickedButton() == resume_btn:
-                        # Resume progress
-                        self.current_step = progress_data.get('current_step', 0)
-                        self.step_results = progress_data.get('step_results', {})
-                        self.step_results = {int(k): v for k, v in self.step_results.items()}
-                        self.step_checkbox_states = progress_data.get('step_checkbox_states', {})
-                        self.step_checkbox_states = {int(k): v for k, v in self.step_checkbox_states.items()}
-                        self.captured_images = progress_data.get('captured_images', [])
-                    elif msg.clickedButton() == report_btn:
-                        # Generate partial report
-                        self.step_results = progress_data.get('step_results', {})
-                        self.step_results = {int(k): v for k, v in self.step_results.items()}
-                        self.step_checkbox_states = progress_data.get('step_checkbox_states', {})
-                        self.step_checkbox_states = {int(k): v for k, v in self.step_checkbox_states.items()}
-                        self.captured_images = progress_data.get('captured_images', [])
-                        
-                        # Generate report with partial data
-                        self.generate_workflow_report()
-                        
-                        # Delete progress and exit
-                        os.remove(progress_file)
-                        QMessageBox.information(self, "Partial Report Generated", 
-                                              "Partial report has been generated.\n\nReturning to menu...")
-                        self.cleanup_resources()
-                        self.back_requested.emit()
-                        return
-                    else:
-                        # Discard progress
-                        os.remove(progress_file)
+                # Generate report with partial data
+                self.generate_workflow_report()
+                
+                # Delete progress and exit
+                os.remove(progress_file)
+                QMessageBox.information(self, "Partial Report Generated", 
+                                      "Partial report has been generated.\n\nReturning to menu...")
+                self.cleanup_resources()
+                self.back_requested.emit()
+                return
+            else:
+                # Discard progress
+                logger.info("Discarding workflow progress")
+                os.remove(progress_file)
+                
+        except json.JSONDecodeError as e:
+            logger.error(f"Progress file is corrupted (invalid JSON): {e}")
+            QMessageBox.warning(self, "Corrupted Progress File",
+                              "The saved progress file is corrupted and cannot be loaded.\n\n"
+                              "Starting workflow from the beginning.")
+            # Try to remove corrupted file
+            try:
+                os.remove(progress_file)
+            except:
+                pass
         except Exception as e:
-            print(f"Error loading progress: {e}")
+            logger.error(f"Error loading progress: {e}", exc_info=True)
+            QMessageBox.warning(self, "Progress Load Error",
+                              f"Failed to load saved progress:\n{str(e)}\n\n"
+                              "Starting workflow from the beginning.")
+            # Try to remove problematic file
+            try:
+                os.remove(progress_file)
+            except:
+                pass
     
     def clear_progress(self):
         """Clear saved progress file."""
@@ -1393,8 +1476,9 @@ class WorkflowExecutionScreen(QWidget):
             progress_file = os.path.join(self.output_dir, "_workflow_progress.json")
             if os.path.exists(progress_file):
                 os.remove(progress_file)
+                logger.info("Progress file cleared")
         except Exception as e:
-            print(f"Error clearing progress: {e}")
+            logger.error(f"Error clearing progress: {e}", exc_info=True)
     
     def validate_step(self):
         """Validate current step requirements."""

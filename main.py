@@ -1,6 +1,7 @@
 """Main application entry point."""
 import sys
 import os
+import logging
 from PyQt5.QtWidgets import QApplication, QMainWindow, QStackedWidget, QMessageBox, QPushButton, QHBoxLayout, QWidget
 from PyQt5.QtCore import Qt
 from gui import ModeSelectionScreen, Mode1CaptureScreen
@@ -8,6 +9,9 @@ from gui.workflow_selection import WorkflowSelectionScreen
 from gui.workflow_execution import WorkflowExecutionScreen
 from gui.workflow_editor import WorkflowEditorScreen
 from theme_manager import theme_manager
+from logger_config import setup_logging, get_logger
+
+logger = get_logger(__name__)
 
 
 class MainWindow(QMainWindow):
@@ -157,14 +161,26 @@ class MainWindow(QMainWindow):
 
 def main():
     """Application entry point."""
-    app = QApplication(sys.argv)
+    # Initialize logging first
+    setup_logging()
+    logger.info("Starting Camera QC Application")
     
-    # Apply initial theme (light mode)
-    app.setStyleSheet(theme_manager.get_stylesheet())
-    
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec_())
+    try:
+        app = QApplication(sys.argv)
+        
+        # Apply initial theme (light mode)
+        app.setStyleSheet(theme_manager.get_stylesheet())
+        
+        window = MainWindow()
+        window.show()
+        
+        logger.info("Application window displayed successfully")
+        sys.exit(app.exec_())
+    except Exception as e:
+        logger.exception("Fatal error during application startup")
+        QMessageBox.critical(None, "Startup Error", 
+                           f"Failed to start application:\n{str(e)}\n\nCheck logs for details.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
