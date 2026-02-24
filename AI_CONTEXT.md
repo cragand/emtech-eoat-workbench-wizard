@@ -1,7 +1,12 @@
-# AI Context: Camera QC Application
+# AI Context: Emtech EoAT Workbench Wizard
 
 ## Project Overview
 This is a Python-based quality control and maintenance application designed for manufacturing/lab environments. It provides guided workflows with camera integration for documentation and reporting.
+
+## Application Name
+- **Full Name**: Emtech EoAT Workbench Wizard
+- **Abbreviation**: EEWW
+- **Previous Name**: Emtech EoAT Cam Viewer (legacy)
 
 ## Core Purpose
 - Perform systematic quality control checks on manufactured components

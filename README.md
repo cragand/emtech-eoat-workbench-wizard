@@ -1,15 +1,15 @@
-# Emtech EoAT Cam Viewer
+# Emtech EoAT Workbench Wizard
 
 Quality control and maintenance application with guided workflows, camera integration, and annotation system.
 
-## Features
+## Quick Start (Windows)
 
-- **Mode 1: General Image Capture** - Free-form image/video capture with annotations
-- **Mode 2: QC Process** - Guided quality control workflows with step-by-step instructions
-- **Mode 3: Maintenance/Repair** - Guided maintenance procedures with documentation
-- **Annotation System** - Add rotatable markers to images to highlight features
-- **PDF Reports** - Professional reports with images, checklists, and metadata
-- **Workflow Editor** - Create and customize workflows (password-protected)
+**Easy Method - Double-click to run:**
+1. Double-click `runEEWW.bat`
+2. First run will automatically set up the environment (takes 1-2 minutes)
+3. Subsequent runs launch immediately
+
+**Manual Method:**
 
 ## Setup
 
