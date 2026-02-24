@@ -1394,7 +1394,7 @@ class WorkflowExecutionScreen(QWidget):
         splitter = QSplitter(Qt.Horizontal)
         
         # Left: Reference image with checkboxes
-        ref_display = AnnotatablePreview()
+        ref_display = InteractiveReferenceImage()
         ref_display.setStyleSheet("border: 2px solid #77C25E; background-color: #2b2b2b;")
         ref_display.setMinimumSize(400, 300)
         
