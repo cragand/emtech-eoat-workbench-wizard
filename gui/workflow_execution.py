@@ -1399,8 +1399,10 @@ class WorkflowExecutionScreen(QWidget):
         ref_display.setMinimumSize(400, 300)
         
         # Load reference image with checkboxes
-        current_step = self.workflow_data['steps'][self.current_step]
-        checkbox_data = current_step.get('inspection_checkboxes', [])
+        checkbox_data = []
+        if hasattr(self, 'workflow') and self.workflow:
+            current_step = self.workflow['steps'][self.current_step]
+            checkbox_data = current_step.get('inspection_checkboxes', [])
         ref_display.set_image_and_checkboxes(self.reference_image_path, checkbox_data)
         
         splitter.addWidget(ref_display)
