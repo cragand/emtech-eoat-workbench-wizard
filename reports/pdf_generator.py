@@ -120,6 +120,33 @@ class PDFReportGenerator:
         
         story.append(Spacer(1, 0.3*inch))
         
+        # Procedure Summary (if provided)
+        if checklist_data:
+            story.append(Paragraph("Procedure Summary", self.styles['SectionHeader']))
+            
+            summary_table_data = [["Step", "Status"]]
+            for item in checklist_data:
+                if item.get('has_pass_fail', False):
+                    status = "✓ Pass" if item.get('passed', False) else "✗ Fail"
+                else:
+                    status = "✓ Complete"
+                summary_table_data.append([item['name'], status])
+            
+            summary_table = Table(summary_table_data, colWidths=[4*inch, 2*inch])
+            summary_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4a4a4a')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('TOPPADDING', (0, 0), (-1, -1), 8),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f9f9f9')])
+            ]))
+            story.append(summary_table)
+            story.append(Spacer(1, 0.3*inch))
+        
         # Checklist (if provided)
         if checklist_data:
             story.append(Paragraph("Procedure Steps", self.styles['SectionHeader']))

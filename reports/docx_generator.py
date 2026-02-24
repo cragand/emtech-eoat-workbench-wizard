@@ -100,6 +100,39 @@ class DOCXReportGenerator:
             doc.add_paragraph(description)
             doc.add_paragraph()
         
+        # Procedure Summary (if provided)
+        if checklist_data:
+            doc.add_heading('Procedure Summary', level=2)
+            
+            summary_table = doc.add_table(rows=len(checklist_data) + 1, cols=2)
+            summary_table.style = 'Light Grid Accent 1'
+            
+            # Header row
+            summary_table.rows[0].cells[0].text = 'Step'
+            summary_table.rows[0].cells[1].text = 'Status'
+            for cell in summary_table.rows[0].cells:
+                cell.paragraphs[0].runs[0].font.bold = True
+            
+            # Data rows
+            for idx, item in enumerate(checklist_data, 1):
+                summary_table.rows[idx].cells[0].text = item['name']
+                
+                if item.get('has_pass_fail', False):
+                    status = "✓ Pass" if item.get('passed', False) else "✗ Fail"
+                    status_cell = summary_table.rows[idx].cells[1]
+                    status_cell.text = status
+                    if item.get('passed', False):
+                        status_cell.paragraphs[0].runs[0].font.color.rgb = RGBColor(76, 175, 80)  # Green
+                    else:
+                        status_cell.paragraphs[0].runs[0].font.color.rgb = RGBColor(244, 67, 54)  # Red
+                else:
+                    status = "✓ Complete"
+                    status_cell = summary_table.rows[idx].cells[1]
+                    status_cell.text = status
+                    status_cell.paragraphs[0].runs[0].font.color.rgb = RGBColor(129, 199, 132)  # Light green
+            
+            doc.add_paragraph()
+        
         # Checklist (if provided)
         if checklist_data:
             doc.add_heading('Procedure Steps', level=2)
