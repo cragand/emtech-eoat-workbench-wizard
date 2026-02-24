@@ -829,9 +829,16 @@ class WorkflowExecutionScreen(QWidget):
     
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts."""
+        # Ignore if a button has focus (prevent spacebar triggering buttons)
+        focused = self.focusWidget()
+        if isinstance(focused, QPushButton):
+            super().keyPressEvent(event)
+            return
+        
         # Space: Capture image
         if event.key() == Qt.Key_Space and self.capture_button.isEnabled():
             self.capture_image()
+            event.accept()
         # Enter/Return: Advance to next step
         elif event.key() in (Qt.Key_Return, Qt.Key_Enter):
             if not self.notes_input.hasFocus():  # Don't advance if typing notes
@@ -839,9 +846,11 @@ class WorkflowExecutionScreen(QWidget):
                     self.finish_workflow()
                 elif self.next_button.isEnabled():
                     self.next_step()
+                event.accept()
         # Ctrl+Z: Undo checkbox
         elif event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
             self.undo_checkbox_click()
+            event.accept()
         else:
             super().keyPressEvent(event)
     
