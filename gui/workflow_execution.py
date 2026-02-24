@@ -368,9 +368,9 @@ class WorkflowExecutionScreen(QWidget):
         camera_layout = QHBoxLayout()
         camera_label = QLabel("Camera:")
         camera_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
-        camera_label.setMinimumWidth(70)
+        camera_label.setMinimumWidth(80)
         self.camera_combo = QComboBox()
-        self.camera_combo.setMinimumWidth(200)
+        self.camera_combo.setMinimumWidth(250)
         self.camera_combo.currentIndexChanged.connect(self.on_camera_changed)
         camera_layout.addWidget(camera_label)
         camera_layout.addWidget(self.camera_combo)
@@ -1368,40 +1368,47 @@ class WorkflowExecutionScreen(QWidget):
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
         
-        # Split view
-        split_layout = QHBoxLayout()
+        # Compact header with labels
+        header_layout = QHBoxLayout()
+        ref_label = QLabel("Reference Image")
+        ref_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        ref_label.setAlignment(Qt.AlignCenter)
+        header_layout.addWidget(ref_label)
+        
+        live_label = QLabel("Live Camera")
+        live_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        live_label.setAlignment(Qt.AlignCenter)
+        header_layout.addWidget(live_label)
+        
+        layout.addLayout(header_layout)
+        
+        # Split view for images
+        from PyQt5.QtWidgets import QSplitter
+        splitter = QSplitter(Qt.Horizontal)
         
         # Left: Reference image
-        left_layout = QVBoxLayout()
-        ref_label = QLabel("Reference Image")
-        ref_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
-        ref_label.setAlignment(Qt.AlignCenter)
-        left_layout.addWidget(ref_label)
-        
         ref_display = QLabel()
         ref_display.setAlignment(Qt.AlignCenter)
-        ref_display.setStyleSheet("border: 2px solid #77C25E;")
-        ref_pixmap = QPixmap(self.reference_image_path)
-        ref_display.setPixmap(ref_pixmap.scaled(400, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-        left_layout.addWidget(ref_display)
+        ref_display.setStyleSheet("border: 2px solid #77C25E; background-color: #2b2b2b;")
+        ref_display.setScaledContents(False)
+        ref_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         
-        split_layout.addLayout(left_layout)
+        # Load and scale reference image
+        ref_pixmap = QPixmap(self.reference_image_path)
+        ref_display.setPixmap(ref_pixmap)
+        
+        splitter.addWidget(ref_display)
         
         # Right: Live camera
-        right_layout = QVBoxLayout()
-        live_label = QLabel("Live Camera")
-        live_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
-        live_label.setAlignment(Qt.AlignCenter)
-        right_layout.addWidget(live_label)
-        
         live_display = QLabel()
         live_display.setAlignment(Qt.AlignCenter)
-        live_display.setStyleSheet("border: 2px solid #2196F3;")
-        right_layout.addWidget(live_display)
+        live_display.setStyleSheet("border: 2px solid #2196F3; background-color: #2b2b2b;")
+        live_display.setScaledContents(False)
+        live_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         
-        split_layout.addLayout(right_layout)
+        splitter.addWidget(live_display)
         
-        layout.addLayout(split_layout)
+        layout.addWidget(splitter, 1)  # Stretch factor 1 to take all available space
         
         # Update timer for live feed
         def update_comparison():
@@ -1412,23 +1419,41 @@ class WorkflowExecutionScreen(QWidget):
                     h, w, ch = rgb_frame.shape
                     bytes_per_line = ch * w
                     qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
-                    live_pixmap = QPixmap.fromImage(qt_image).scaled(400, 300, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                    live_display.setPixmap(live_pixmap)
+                    live_pixmap = QPixmap.fromImage(qt_image)
+                    
+                    # Scale to fit label while maintaining aspect ratio
+                    scaled = live_pixmap.scaled(live_display.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    live_display.setPixmap(scaled)
+        
+        # Also update reference image scaling on resize
+        def update_reference_scale():
+            ref_pixmap = QPixmap(self.reference_image_path)
+            scaled = ref_pixmap.scaled(ref_display.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            ref_display.setPixmap(scaled)
         
         comparison_timer = QTimer()
         comparison_timer.timeout.connect(update_comparison)
         comparison_timer.start(30)
         
-        # Close button
+        # Resize event to update scaling
+        original_resize = dialog.resizeEvent
+        def on_resize(event):
+            original_resize(event)
+            update_reference_scale()
+            update_comparison()
+        dialog.resizeEvent = on_resize
+        
+        # Close button - compact
         close_button = QPushButton("Close")
-        close_button.setMaximumHeight(35)
+        close_button.setMaximumHeight(30)
+        close_button.setFocusPolicy(Qt.NoFocus)
         close_button.setStyleSheet("""
             QPushButton {
                 background-color: #77C25E;
                 color: white;
                 border: none;
                 border-radius: 3px;
-                padding: 8px 15px;
+                padding: 6px 15px;
                 font-weight: bold;
             }
             QPushButton:hover {
@@ -1444,7 +1469,11 @@ class WorkflowExecutionScreen(QWidget):
         layout.addWidget(close_button)
         
         screen = self.screen().geometry()
-        dialog.resize(int(screen.width() * 0.7), int(screen.height() * 0.5))
+        dialog.resize(int(screen.width() * 0.8), int(screen.height() * 0.7))
+        
+        # Initial scale
+        update_reference_scale()
+        
         dialog.show()
     
     def cleanup_resources(self):
