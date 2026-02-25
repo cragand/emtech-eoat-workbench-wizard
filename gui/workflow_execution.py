@@ -1601,7 +1601,7 @@ class WorkflowExecutionScreen(QWidget):
             
             resume_btn = msg.addButton("Resume", QMessageBox.AcceptRole)
             report_btn = msg.addButton("Generate Partial Report", QMessageBox.ActionRole)
-            back_btn = msg.addButton("Back", QMessageBox.RejectRole)
+            back_btn = msg.addButton("Back to Menu", QMessageBox.RejectRole)
             
             msg.exec_()
             

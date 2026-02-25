@@ -13,14 +13,13 @@ from logger_config import setup_logging, get_logger
 
 logger = get_logger(__name__)
 
-
 class MainWindow(QMainWindow):
     """Main application window."""
     
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Emtech EoAT Workbench Wizard")
-        self.setMinimumSize(1024, 768)
+        self.setMinimumSize(1024, 850)
         
         # Store serial number and description for workflow modes
         self.current_serial = None
