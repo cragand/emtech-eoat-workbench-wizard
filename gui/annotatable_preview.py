@@ -162,10 +162,10 @@ class AnnotatablePreview(QLabel):
             
             # Shift+Scroll adjusts length, regular scroll rotates
             if event.modifiers() & Qt.ShiftModifier:
-                # Adjust length (5 pixels per step, min 10, max 100)
+                # Adjust length (5 pixels per step, min 10, max 300)
                 current_length = self.hover_marker.get('length', 30)
                 new_length = current_length + (delta * 5)
-                self.hover_marker['length'] = max(10, min(100, new_length))
+                self.hover_marker['length'] = max(10, min(300, new_length))
             else:
                 # Rotate by 15 degrees per wheel step
                 self.hover_marker['angle'] = (self.hover_marker['angle'] + delta * 15) % 360
