@@ -50,7 +50,7 @@ class InteractiveReferenceImage(QLabel):
             return
         
         self.image_pixmap = QPixmap(image_path)
-        self.checkboxes = [{'x': cb['x'], 'y': cb['y'], 'checked': False} 
+        self.checkboxes = [{'x': cb['x'], 'y': cb['y'], 'checked': cb.get('checked', False)} 
                           for cb in (checkbox_data or [])]
         self.checkbox_history = []
         self.setText("")  # Clear any text
@@ -1920,8 +1920,12 @@ class WorkflowExecutionScreen(QWidget):
         
         # Sync checkbox changes back to main reference image
         def sync_checkboxes(checked, total):
-            self.reference_image.checkboxes = fullsize_ref.checkboxes
+            # Copy checkbox states back to main view
+            for i, cb in enumerate(fullsize_ref.checkboxes):
+                if i < len(self.reference_image.checkboxes):
+                    self.reference_image.checkboxes[i]['checked'] = cb['checked']
             self.reference_image.update()
+            self.reference_image.emit_status()
             self.update_step_status()
         
         fullsize_ref.checkboxes_changed.connect(sync_checkboxes)
