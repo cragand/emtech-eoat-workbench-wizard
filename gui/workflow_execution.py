@@ -1573,6 +1573,13 @@ class WorkflowExecutionScreen(QWidget):
             if not os.path.exists(progress_file):
                 return
             
+            # Check if progress file is older than 30 days
+            file_age_days = (datetime.now().timestamp() - os.path.getmtime(progress_file)) / 86400
+            if file_age_days > 30:
+                logger.info(f"Progress file is {file_age_days:.1f} days old, removing")
+                os.remove(progress_file)
+                return
+            
             logger.info(f"Found progress file: {progress_file}")
             
             with open(progress_file, 'r') as f:
