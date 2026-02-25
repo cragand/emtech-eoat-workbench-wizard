@@ -1601,7 +1601,7 @@ class WorkflowExecutionScreen(QWidget):
             
             resume_btn = msg.addButton("Resume", QMessageBox.AcceptRole)
             report_btn = msg.addButton("Generate Partial Report", QMessageBox.ActionRole)
-            discard_btn = msg.addButton("Discard", QMessageBox.RejectRole)
+            back_btn = msg.addButton("Back", QMessageBox.RejectRole)
             
             msg.exec_()
             
@@ -1636,9 +1636,11 @@ class WorkflowExecutionScreen(QWidget):
                 self.back_requested.emit()
                 return
             else:
-                # Discard progress
-                logger.info("Discarding workflow progress")
-                os.remove(progress_file)
+                # Back - return to menu without discarding progress
+                logger.info("User chose to go back, keeping progress file")
+                self.cleanup_resources()
+                self.back_requested.emit()
+                return
                 
         except json.JSONDecodeError as e:
             logger.error(f"Progress file is corrupted (invalid JSON): {e}")
