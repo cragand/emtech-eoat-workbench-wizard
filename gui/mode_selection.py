@@ -1,14 +1,18 @@
 """Mode selection screen - initial application screen."""
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QLineEdit, QPushButton, QTextEdit, QButtonGroup, QRadioButton, QMessageBox)
+                             QLineEdit, QPushButton, QTextEdit, QButtonGroup, QRadioButton, QMessageBox, QDialog, QListWidget, QListWidgetItem)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont, QPalette, QColor
+import os
+import json
+from datetime import datetime
 
 
 class ModeSelectionScreen(QWidget):
     """Initial screen for selecting mode and entering job information."""
     
     mode_selected = pyqtSignal(int, str, str, str)  # mode, serial_number, technician, description
+    resume_workflow = pyqtSignal(str, str, str)  # workflow_path, serial_number, technician
     
     def __init__(self):
         super().__init__()
@@ -115,6 +119,27 @@ class ModeSelectionScreen(QWidget):
         self.start_button.clicked.connect(self.on_start_clicked)
         layout.addWidget(self.start_button)
         
+        # Resume button - small and unobtrusive
+        self.resume_button = QPushButton("📂 Resume Incomplete Workflow")
+        self.resume_button.setMaximumHeight(30)
+        self.resume_button.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #888888;
+                border: 1px solid #888888;
+                border-radius: 3px;
+                padding: 5px 10px;
+                font-size: 10px;
+            }
+            QPushButton:hover {
+                background-color: #f0f0f0;
+                color: #555555;
+                border-color: #555555;
+            }
+        """)
+        self.resume_button.clicked.connect(self.on_resume_clicked)
+        layout.addWidget(self.resume_button)
+        
         self.setLayout(layout)
     
     def on_start_clicked(self):
@@ -146,3 +171,90 @@ class ModeSelectionScreen(QWidget):
             return
         
         self.mode_selected.emit(selected_mode, serial, technician, description)
+    
+    def on_resume_clicked(self):
+        """Show dialog to select incomplete workflow to resume."""
+        # Find all progress files
+        output_base = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
+                                   "output", "captured_images")
+        
+        progress_files = []
+        if os.path.exists(output_base):
+            for serial_dir in os.listdir(output_base):
+                serial_path = os.path.join(output_base, serial_dir)
+                if os.path.isdir(serial_path):
+                    progress_file = os.path.join(serial_path, "_workflow_progress.json")
+                    if os.path.exists(progress_file):
+                        try:
+                            # Check age (skip if older than 30 days)
+                            file_age_days = (datetime.now().timestamp() - os.path.getmtime(progress_file)) / 86400
+                            if file_age_days > 30:
+                                continue
+                            
+                            with open(progress_file, 'r') as f:
+                                data = json.load(f)
+                            
+                            workflow_path = data.get('workflow_path', '')
+                            workflow_name = os.path.basename(workflow_path).replace('.json', '').replace('_', ' ').title()
+                            
+                            progress_files.append({
+                                'serial': data.get('serial_number', serial_dir),
+                                'technician': data.get('technician', 'Unknown'),
+                                'workflow_name': workflow_name,
+                                'workflow_path': workflow_path,
+                                'step': data.get('current_step', 0) + 1,
+                                'total_steps': len(data.get('step_results', {})),
+                                'modified': datetime.fromtimestamp(os.path.getmtime(progress_file)).strftime("%Y-%m-%d %H:%M"),
+                                'progress_file': progress_file
+                            })
+                        except:
+                            pass
+        
+        if not progress_files:
+            QMessageBox.information(self, "No Incomplete Workflows", 
+                                   "No incomplete workflows found.")
+            return
+        
+        # Show selection dialog
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Resume Incomplete Workflow")
+        dialog.setMinimumWidth(600)
+        dialog.setMinimumHeight(400)
+        
+        layout = QVBoxLayout(dialog)
+        
+        label = QLabel("Select a workflow to resume:")
+        label.setStyleSheet("font-weight: bold; font-size: 12px;")
+        layout.addWidget(label)
+        
+        list_widget = QListWidget()
+        list_widget.setStyleSheet("font-size: 11px;")
+        
+        for pf in progress_files:
+            item_text = (f"{pf['serial']} - {pf['workflow_name']}\n"
+                        f"  Technician: {pf['technician']} | Step {pf['step']} | Last modified: {pf['modified']}")
+            item = QListWidgetItem(item_text)
+            item.setData(Qt.UserRole, pf)
+            list_widget.addItem(item)
+        
+        list_widget.itemDoubleClicked.connect(lambda: dialog.accept())
+        layout.addWidget(list_widget)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        resume_btn = QPushButton("Resume Selected")
+        resume_btn.clicked.connect(dialog.accept)
+        button_layout.addWidget(resume_btn)
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(dialog.reject)
+        button_layout.addWidget(cancel_btn)
+        
+        layout.addLayout(button_layout)
+        
+        if dialog.exec_() == QDialog.Accepted:
+            selected_item = list_widget.currentItem()
+            if selected_item:
+                pf = selected_item.data(Qt.UserRole)
+                self.resume_workflow.emit(pf['workflow_path'], pf['serial'], pf['technician'])

@@ -57,9 +57,37 @@ class MainWindow(QMainWindow):
         # Mode selection screen
         self.mode_selection = ModeSelectionScreen()
         self.mode_selection.mode_selected.connect(self.on_mode_selected)
+        self.mode_selection.resume_workflow.connect(self.on_resume_workflow)
         self.stack.addWidget(self.mode_selection)
         
         self.current_mode_widget = None
+    
+    def on_resume_workflow(self, workflow_path: str, serial_number: str, technician: str):
+        """Handle resuming an incomplete workflow."""
+        logger.info(f"Resuming workflow: {workflow_path} for serial: {serial_number}")
+        
+        # Store for workflow
+        self.current_serial = serial_number
+        self.current_technician = technician
+        self.current_description = ""  # Will be loaded from progress file
+        
+        # Remove previous mode widget if exists
+        if self.current_mode_widget:
+            self.stack.removeWidget(self.current_mode_widget)
+            self.current_mode_widget.deleteLater()
+            self.current_mode_widget = None
+        
+        # Create workflow execution screen
+        self.current_mode_widget = WorkflowExecutionScreen(
+            workflow_path,
+            serial_number,
+            technician,
+            self.current_description
+        )
+        self.current_mode_widget.back_requested.connect(self.return_to_mode_selection)
+        
+        self.stack.addWidget(self.current_mode_widget)
+        self.stack.setCurrentWidget(self.current_mode_widget)
     
     def on_mode_selected(self, mode: int, serial_number: str, technician: str, description: str):
         """Handle mode selection."""
