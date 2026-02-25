@@ -2028,11 +2028,161 @@ class WorkflowExecutionScreen(QWidget):
         
         layout.addWidget(splitter, 1)
         
+        # Action buttons for live camera
+        action_layout = QHBoxLayout()
+        
+        # Capture button
+        capture_btn = QPushButton("📷 Capture Image")
+        capture_btn.setMinimumHeight(35)
+        capture_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #77C25E;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 8px 15px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #5FA84A;
+            }
+        """)
+        
+        def capture_from_comparison():
+            """Capture image from comparison view."""
+            if self.current_camera:
+                frame = self.current_camera.capture_frame()
+                if frame is not None:
+                    # Draw markers on frame
+                    if live_display.markers:
+                        frame = self._draw_markers_on_frame(frame, live_display.markers)
+                    
+                    # Save image
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    camera_name = self.current_camera.name.replace(" ", "_")
+                    filename = f"step{self.current_step + 1}_{camera_name}_{timestamp}.jpg"
+                    filepath = os.path.join(self.output_dir, filename)
+                    cv2.imwrite(filepath, frame)
+                    
+                    # Store image data
+                    image_data = {
+                        'path': filepath,
+                        'camera': self.current_camera.name,
+                        'notes': '',
+                        'markers': live_display.get_markers_data(),
+                        'step': self.current_step + 1
+                    }
+                    
+                    self.captured_images.append(image_data)
+                    self.step_images.append(image_data)
+                    self.update_step_status()
+                    
+                    QMessageBox.information(dialog, "Image Captured", 
+                                          f"Image saved for step {self.current_step + 1}")
+        
+        capture_btn.clicked.connect(capture_from_comparison)
+        action_layout.addWidget(capture_btn)
+        
+        # Record button
+        record_btn = QPushButton("🔴 Start Recording")
+        record_btn.setMinimumHeight(35)
+        comparison_recording = {'active': False, 'writer': None, 'path': None, 'start_time': None}
+        
+        def toggle_comparison_recording():
+            """Toggle video recording in comparison view."""
+            try:
+                if not comparison_recording['active']:
+                    # Start recording
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    video_filename = f"video_{timestamp}.mp4"
+                    video_path = os.path.join(self.output_dir, video_filename)
+                    
+                    frame = self.current_camera.capture_frame()
+                    if frame is None:
+                        raise Exception("Cannot start recording: no frame available")
+                    
+                    h, w = frame.shape[:2]
+                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                    writer = cv2.VideoWriter(video_path, fourcc, 30.0, (w, h))
+                    
+                    if not writer.isOpened():
+                        raise Exception("Failed to initialize video writer")
+                    
+                    comparison_recording['active'] = True
+                    comparison_recording['writer'] = writer
+                    comparison_recording['path'] = video_path
+                    comparison_recording['start_time'] = datetime.now()
+                    
+                    record_btn.setText("⏹ Stop Recording")
+                    record_btn.setStyleSheet("""
+                        QPushButton {
+                            background-color: #28A745;
+                            color: white;
+                            border: none;
+                            border-radius: 3px;
+                            padding: 8px 15px;
+                            font-weight: bold;
+                        }
+                        QPushButton:hover {
+                            background-color: #218838;
+                        }
+                    """)
+                    logger.info(f"Started recording in comparison view: {video_path}")
+                else:
+                    # Stop recording
+                    if comparison_recording['writer']:
+                        comparison_recording['writer'].release()
+                    
+                    comparison_recording['active'] = False
+                    record_btn.setText("🔴 Start Recording")
+                    record_btn.setStyleSheet("""
+                        QPushButton {
+                            background-color: #DC3545;
+                            color: white;
+                            border: none;
+                            border-radius: 3px;
+                            padding: 8px 15px;
+                            font-weight: bold;
+                        }
+                        QPushButton:hover {
+                            background-color: #C82333;
+                        }
+                    """)
+                    
+                    if comparison_recording['path'] and os.path.exists(comparison_recording['path']):
+                        self.recorded_videos.append(comparison_recording['path'])
+                        logger.info(f"Stopped recording in comparison view: {comparison_recording['path']}")
+                        QMessageBox.information(dialog, "Recording Stopped", 
+                                              f"Video saved:\n{os.path.basename(comparison_recording['path'])}")
+                    
+                    comparison_recording['writer'] = None
+                    comparison_recording['path'] = None
+                    comparison_recording['start_time'] = None
+                    
+            except Exception as e:
+                logger.error(f"Comparison recording error: {e}", exc_info=True)
+                QMessageBox.warning(dialog, "Recording Error", f"Failed to record video:\n{str(e)}")
+                comparison_recording['active'] = False
+                if comparison_recording['writer']:
+                    comparison_recording['writer'].release()
+        
+        record_btn.clicked.connect(toggle_comparison_recording)
+        action_layout.addWidget(record_btn)
+        
+        layout.addLayout(action_layout)
+        
         # Update timer for live feed
         def update_comparison():
             if self.current_camera:
                 frame = self.current_camera.capture_frame()
                 if frame is not None:
+                    # If recording in comparison view, write frame with annotations
+                    if comparison_recording['active'] and comparison_recording['writer']:
+                        annotated_frame = frame.copy()
+                        if live_display.markers:
+                            annotated_frame = self._draw_markers_on_frame(annotated_frame, live_display.markers)
+                        comparison_recording['writer'].write(annotated_frame)
+                    
                     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     h, w, ch = rgb_frame.shape
                     bytes_per_line = ch * w
@@ -2063,13 +2213,25 @@ class WorkflowExecutionScreen(QWidget):
         """)
         
         def close_dialog():
+            # Stop any active recording
+            if comparison_recording['active'] and comparison_recording['writer']:
+                comparison_recording['writer'].release()
+                if comparison_recording['path'] and os.path.exists(comparison_recording['path']):
+                    self.recorded_videos.append(comparison_recording['path'])
+                    logger.info(f"Auto-saved recording on dialog close: {comparison_recording['path']}")
+            
             comparison_timer.stop()
             dialog.close()
         
         close_button.clicked.connect(close_dialog)
         
-        # Stop timer when dialog is destroyed to prevent accessing deleted widgets
-        dialog.destroyed.connect(comparison_timer.stop)
+        # Stop timer and recording when dialog is destroyed
+        def cleanup_comparison():
+            comparison_timer.stop()
+            if comparison_recording['active'] and comparison_recording['writer']:
+                comparison_recording['writer'].release()
+        
+        dialog.destroyed.connect(cleanup_comparison)
         
         layout.addWidget(close_button)
         
