@@ -330,9 +330,10 @@ class DOCXReportGenerator:
             doc.add_heading(f'Recorded Videos ({len(video_paths)})', level=2)
             
             for idx, video_path in enumerate(video_paths, 1):
-                video_name = os.path.basename(video_path)
+                # Get relative path from output directory
+                rel_path = os.path.relpath(video_path, start=os.path.dirname(filepath))
                 p = doc.add_paragraph(style='List Number')
-                p.add_run(video_name).bold = True
+                p.add_run(rel_path).bold = True
             
             doc.add_paragraph()
             note = doc.add_paragraph()

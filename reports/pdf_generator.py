@@ -326,8 +326,9 @@ class PDFReportGenerator:
             story.append(Spacer(1, 0.1*inch))
             
             for idx, video_path in enumerate(video_paths, 1):
-                video_name = os.path.basename(video_path)
-                story.append(Paragraph(f"<b>{idx}.</b> {video_name}", self.styles['Normal']))
+                # Get relative path from output directory
+                rel_path = os.path.relpath(video_path, start=os.path.dirname(filepath))
+                story.append(Paragraph(f"<b>{idx}.</b> {rel_path}", self.styles['Normal']))
                 story.append(Spacer(1, 0.05*inch))
             
             story.append(Spacer(1, 0.1*inch))
