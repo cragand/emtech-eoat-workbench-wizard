@@ -2079,6 +2079,15 @@ class WorkflowExecutionScreen(QWidget):
                     
                     self.captured_images.append(image_data)
                     self.step_images.append(image_data)
+                    
+                    # Clear markers after capture (consistent with main view behavior)
+                    live_display.clear_markers()
+                    
+                    # Sync cleared markers back to main view
+                    if hasattr(self.preview_label, 'markers'):
+                        self.preview_label.markers = []
+                        self.preview_label.update()
+                    
                     self.update_step_status()
                     
                     QMessageBox.information(dialog, "Image Captured", 
