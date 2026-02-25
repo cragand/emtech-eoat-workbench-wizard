@@ -240,21 +240,20 @@ class ModeSelectionScreen(QWidget):
         selected_progress = {'data': None}
         
         def create_progress_item(pf):
-            """Create a progress item widget with delete button."""
+            """Create a progress item widget."""
             item_widget = QWidget()
             item_widget.setStyleSheet("""
                 QWidget {
                     background-color: #f5f5f5;
                     border: 1px solid #ddd;
                     border-radius: 3px;
-                    padding: 5px;
+                    padding: 10px;
                 }
                 QWidget:hover {
                     background-color: #e8e8e8;
-                    border-color: #77C25E;
                 }
             """)
-            item_layout = QHBoxLayout(item_widget)
+            item_layout = QVBoxLayout(item_widget)
             item_layout.setContentsMargins(10, 5, 10, 5)
             
             # Info label
@@ -263,45 +262,7 @@ class ModeSelectionScreen(QWidget):
                 f"<small>Technician: {pf['technician']} | Step {pf['step']} | {pf['modified']}</small>"
             )
             info_label.setTextFormat(Qt.RichText)
-            item_layout.addWidget(info_label, 1)
-            
-            # Delete button
-            delete_btn = QPushButton("🗑️")
-            delete_btn.setMaximumWidth(40)
-            delete_btn.setMaximumHeight(30)
-            delete_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #DC3545;
-                    color: white;
-                    border: none;
-                    border-radius: 3px;
-                    font-size: 16px;
-                }
-                QPushButton:hover {
-                    background-color: #C82333;
-                }
-            """)
-            
-            def delete_progress():
-                reply = QMessageBox.question(dialog, "Delete Progress?",
-                                           f"Delete progress for {pf['serial']}?",
-                                           QMessageBox.Yes | QMessageBox.No)
-                if reply == QMessageBox.Yes:
-                    try:
-                        os.remove(pf['progress_file'])
-                        item_widget.setParent(None)
-                        item_widget.deleteLater()
-                        progress_files.remove(pf)
-                        
-                        # Close dialog if no more items
-                        if not progress_files:
-                            QMessageBox.information(dialog, "All Cleared", "No more incomplete workflows.")
-                            dialog.reject()
-                    except Exception as e:
-                        QMessageBox.warning(dialog, "Delete Error", f"Failed to delete:\n{str(e)}")
-            
-            delete_btn.clicked.connect(delete_progress)
-            item_layout.addWidget(delete_btn)
+            item_layout.addWidget(info_label)
             
             # Make item clickable
             def select_item(event):
@@ -310,8 +271,25 @@ class ModeSelectionScreen(QWidget):
                 for i in range(list_layout.count()):
                     w = list_layout.itemAt(i).widget()
                     if w and w != item_widget:
-                        w.setStyleSheet(w.styleSheet().replace('border-color: #77C25E', 'border-color: #ddd'))
-                item_widget.setStyleSheet(item_widget.styleSheet().replace('border-color: #ddd', 'border-color: #77C25E'))
+                        w.setStyleSheet("""
+                            QWidget {
+                                background-color: #f5f5f5;
+                                border: 1px solid #ddd;
+                                border-radius: 3px;
+                                padding: 10px;
+                            }
+                            QWidget:hover {
+                                background-color: #e8e8e8;
+                            }
+                        """)
+                item_widget.setStyleSheet("""
+                    QWidget {
+                        background-color: #e8f5e9;
+                        border: 2px solid #77C25E;
+                        border-radius: 3px;
+                        padding: 10px;
+                    }
+                """)
             
             item_widget.mousePressEvent = select_item
             
@@ -330,6 +308,56 @@ class ModeSelectionScreen(QWidget):
         resume_btn = QPushButton("Resume Selected")
         resume_btn.clicked.connect(dialog.accept)
         button_layout.addWidget(resume_btn)
+        
+        delete_btn = QPushButton("Delete Selected")
+        delete_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #DC3545;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 8px 15px;
+            }
+            QPushButton:hover {
+                background-color: #C82333;
+            }
+        """)
+        
+        def delete_selected():
+            if not selected_progress['data']:
+                QMessageBox.warning(dialog, "No Selection", "Please select a workflow to delete.")
+                return
+            
+            pf = selected_progress['data']
+            reply = QMessageBox.question(dialog, "Delete Progress?",
+                                       f"Delete progress for {pf['serial']} - {pf['workflow_name']}?",
+                                       QMessageBox.Yes | QMessageBox.No)
+            if reply == QMessageBox.Yes:
+                try:
+                    os.remove(pf['progress_file'])
+                    progress_files.remove(pf)
+                    selected_progress['data'] = None
+                    
+                    # Rebuild list
+                    for i in reversed(range(list_layout.count())):
+                        widget = list_layout.itemAt(i).widget()
+                        if widget:
+                            widget.setParent(None)
+                            widget.deleteLater()
+                    
+                    if progress_files:
+                        for pf in progress_files:
+                            list_layout.addWidget(create_progress_item(pf))
+                        list_layout.addStretch()
+                    else:
+                        QMessageBox.information(dialog, "All Cleared", "No more incomplete workflows.")
+                        dialog.reject()
+                        
+                except Exception as e:
+                    QMessageBox.warning(dialog, "Delete Error", f"Failed to delete:\n{str(e)}")
+        
+        delete_btn.clicked.connect(delete_selected)
+        button_layout.addWidget(delete_btn)
         
         cancel_btn = QPushButton("Cancel")
         cancel_btn.clicked.connect(dialog.reject)
