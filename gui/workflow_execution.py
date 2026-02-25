@@ -2006,7 +2006,13 @@ class WorkflowExecutionScreen(QWidget):
         
         splitter.addWidget(ref_display)
         
-        # Right: Live camera with annotations
+        # Right side: Live camera with annotations and action buttons
+        right_container = QWidget()
+        right_layout = QVBoxLayout(right_container)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(5)
+        
+        # Live camera preview
         live_display = AnnotatablePreview()
         live_display.setStyleSheet("border: 2px solid #2196F3; background-color: #2b2b2b;")
         live_display.setMinimumSize(400, 300)
@@ -2024,9 +2030,7 @@ class WorkflowExecutionScreen(QWidget):
         
         live_display.markers_changed.connect(sync_markers)
         
-        splitter.addWidget(live_display)
-        
-        layout.addWidget(splitter, 1)
+        right_layout.addWidget(live_display, 1)
         
         # Action buttons for live camera
         action_layout = QHBoxLayout()
@@ -2169,7 +2173,12 @@ class WorkflowExecutionScreen(QWidget):
         record_btn.clicked.connect(toggle_comparison_recording)
         action_layout.addWidget(record_btn)
         
-        layout.addLayout(action_layout)
+        right_layout.addLayout(action_layout)
+        
+        # Add right container to splitter
+        splitter.addWidget(right_container)
+        
+        layout.addWidget(splitter, 1)
         
         # Update timer for live feed
         def update_comparison():
@@ -2193,7 +2202,6 @@ class WorkflowExecutionScreen(QWidget):
         comparison_timer = QTimer()
         comparison_timer.timeout.connect(update_comparison)
         comparison_timer.start(100)  # Update every 100ms
-        
         # Close button - compact
         close_button = QPushButton("Close")
         close_button.setMaximumHeight(30)
