@@ -331,7 +331,11 @@ class Mode1CaptureScreen(QWidget):
         frame = self.current_camera.capture_frame()
         if frame is not None:
             if self.is_recording and self.video_writer:
-                self.video_writer.write(frame)
+                # Draw markers on frame for video
+                annotated_frame = frame.copy()
+                if self.preview_label.markers:
+                    annotated_frame = self._draw_markers_on_frame(annotated_frame, self.preview_label.markers)
+                self.video_writer.write(annotated_frame)
             
             # Convert to QImage for display
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -394,35 +398,29 @@ class Mode1CaptureScreen(QWidget):
     
     def _draw_markers_on_frame(self, frame, markers):
         """Draw annotation markers on the frame."""
-        # Scale markers from preview size to actual frame size
-        preview_size = self.preview_label.size()
         frame_h, frame_w = frame.shape[:2]
         
-        # Calculate scaling factors
-        scale_x = frame_w / preview_size.width()
-        scale_y = frame_h / preview_size.height()
-        
         for marker in markers:
-            # Scale marker position
-            x = int(marker['x'] * scale_x)
-            y = int(marker['y'] * scale_y)
+            # Markers are now stored as relative coordinates (0-1)
+            x = int(marker['x'] * frame_w)
+            y = int(marker['y'] * frame_h)
             label = marker['label']
-            angle = marker.get('angle', 45)  # Default to 45° if not specified
+            angle = marker.get('angle', 45)
             
-            # Draw arrow with rotation (match preview size: 30px)
+            # Draw arrow with rotation
             arrow_length = 30
             angle_rad = np.radians(angle)
             end_x = int(x + arrow_length * np.cos(angle_rad))
             end_y = int(y + arrow_length * np.sin(angle_rad))
             
-            # Arrow line (thinner to match preview)
+            # Arrow line
             cv2.arrowedLine(frame, (x, y), (end_x, end_y), (0, 0, 255), 2, tipLength=0.3)
             
-            # Label circle at arrow tip (match preview: 12px radius)
+            # Label circle at arrow tip
             cv2.circle(frame, (end_x, end_y), 12, (255, 255, 255), -1)
             cv2.circle(frame, (end_x, end_y), 12, (0, 0, 255), 2)
             
-            # Label text (smaller to match preview)
+            # Label text
             font = cv2.FONT_HERSHEY_SIMPLEX
             text_size = cv2.getTextSize(label, font, 0.5, 2)[0]
             text_x = end_x - text_size[0] // 2
@@ -511,11 +509,11 @@ class Mode1CaptureScreen(QWidget):
             # Start recording
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             serial_prefix = self.serial_number if self.serial_number else "unknown"
-            filename = f"{serial_prefix}_{timestamp}.avi"
+            filename = f"{serial_prefix}_{timestamp}.mp4"
             filepath = os.path.join(self.output_dir, filename)
             
             width, height = self.current_camera.get_resolution()
-            fourcc = cv2.VideoWriter_fourcc(*'XVID')
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
             self.video_writer = cv2.VideoWriter(filepath, fourcc, 20.0, (width, height))
             
             # Store video start info
@@ -533,9 +531,10 @@ class Mode1CaptureScreen(QWidget):
                 self.video_writer.release()
                 self.video_writer = None
             
-            # Get notes and camera info for video
+            # Get notes, camera info, and markers for video
             notes = self.notes_input.text().strip()
             camera_name = self.current_camera.name if self.current_camera else "Unknown"
+            markers = self.preview_label.get_markers_data()
             
             # Store video with metadata
             video_data = {
@@ -543,15 +542,17 @@ class Mode1CaptureScreen(QWidget):
                 'camera': camera_name,
                 'notes': notes,
                 'timestamp': self.current_video_timestamp,
-                'type': 'video'
+                'type': 'video',
+                'markers': markers
             }
             self.captured_images.append(video_data)
             
             # Save metadata to JSON file alongside video
             self._save_metadata_file(self.current_video_path, video_data)
             
-            # Clear notes field
+            # Clear notes and markers
             self.notes_input.clear()
+            self.preview_label.clear_markers()
             
             self.record_button.setText("Start Recording")
             self.capture_button.setEnabled(True)
