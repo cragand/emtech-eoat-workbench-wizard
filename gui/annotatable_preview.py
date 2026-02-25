@@ -124,8 +124,8 @@ class AnnotatablePreview(QLabel):
             # After Z, use AA, AB, etc.
             label = string.ascii_uppercase[(len(self.markers) // 26) - 1] + label
         
-        # Create marker with relative coordinates
-        new_marker = {'x': rel_pos[0], 'y': rel_pos[1], 'label': label, 'angle': 45, 'note': ''}
+        # Create marker with relative coordinates and default length
+        new_marker = {'x': rel_pos[0], 'y': rel_pos[1], 'label': label, 'angle': 45, 'length': 30, 'note': ''}
         self.markers.append(new_marker)
         
         # Immediately open note dialog for the new marker
@@ -146,7 +146,8 @@ class AnnotatablePreview(QLabel):
     
     def get_markers_data(self):
         """Get marker data for saving with image."""
-        return [{'x': m['x'], 'y': m['y'], 'label': m['label'], 'angle': m['angle'], 'note': m.get('note', '')} 
+        return [{'x': m['x'], 'y': m['y'], 'label': m['label'], 'angle': m['angle'], 
+                 'length': m.get('length', 30), 'note': m.get('note', '')} 
                 for m in self.markers]
     
     def set_frame(self, pixmap):
@@ -155,11 +156,20 @@ class AnnotatablePreview(QLabel):
         self.update()
     
     def wheelEvent(self, event):
-        """Handle mouse wheel - rotate marker."""
+        """Handle mouse wheel - rotate marker or adjust length."""
         if self.hover_marker:
-            # Rotate by 15 degrees per wheel step
             delta = event.angleDelta().y() / 120  # Standard wheel step
-            self.hover_marker['angle'] = (self.hover_marker['angle'] + delta * 15) % 360
+            
+            # Shift+Scroll adjusts length, regular scroll rotates
+            if event.modifiers() & Qt.ShiftModifier:
+                # Adjust length (5 pixels per step, min 10, max 100)
+                current_length = self.hover_marker.get('length', 30)
+                new_length = current_length + (delta * 5)
+                self.hover_marker['length'] = max(10, min(100, new_length))
+            else:
+                # Rotate by 15 degrees per wheel step
+                self.hover_marker['angle'] = (self.hover_marker['angle'] + delta * 15) % 360
+            
             self.markers_changed.emit()
             self.update()
     
@@ -279,10 +289,8 @@ class AnnotatablePreview(QLabel):
         
         label = marker['label']
         angle = marker['angle']
+        arrow_length = marker.get('length', 30)
         has_note = bool(marker.get('note', '').strip())
-        
-        # Arrow parameters (smaller)
-        arrow_length = 30
         
         # Calculate arrow endpoint based on angle
         angle_rad = math.radians(angle)

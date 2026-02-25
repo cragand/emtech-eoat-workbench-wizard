@@ -319,10 +319,18 @@ class CombinedReferenceImage(QLabel):
                     return
     
     def wheelEvent(self, event):
-        """Rotate marker on scroll."""
+        """Rotate marker or adjust length on scroll."""
         if self.hover_marker:
             delta = event.angleDelta().y() / 120
-            self.hover_marker['angle'] = (self.hover_marker['angle'] + delta * 15) % 360
+            
+            # Shift+Scroll adjusts length, regular scroll rotates
+            if event.modifiers() & Qt.ShiftModifier:
+                current_length = self.hover_marker.get('length', 30)
+                new_length = current_length + (delta * 5)
+                self.hover_marker['length'] = max(10, min(100, new_length))
+            else:
+                self.hover_marker['angle'] = (self.hover_marker['angle'] + delta * 15) % 360
+            
             self.markers_changed.emit()
             self.update()
     
@@ -337,7 +345,7 @@ class CombinedReferenceImage(QLabel):
         if len(self.markers) >= 26:
             label = string.ascii_uppercase[(len(self.markers) // 26) - 1] + label
         
-        new_marker = {'x': rel_pos[0], 'y': rel_pos[1], 'label': label, 'angle': 45, 'note': ''}
+        new_marker = {'x': rel_pos[0], 'y': rel_pos[1], 'label': label, 'angle': 45, 'length': 30, 'note': ''}
         self.markers.append(new_marker)
         
         from gui.annotatable_preview import MarkerNoteDialog
@@ -432,6 +440,7 @@ class CombinedReferenceImage(QLabel):
         
         label = marker['label']
         angle = marker.get('angle', 45)
+        line_length = marker.get('length', 40)
         is_hover = (marker == self.hover_marker)
         
         # Marker colors
@@ -445,7 +454,6 @@ class CombinedReferenceImage(QLabel):
             text_bg = QColor(119, 194, 94)
         
         # Draw line from center
-        line_length = 40
         rad = math.radians(angle)
         end_x = pixel_pos.x() + int(line_length * math.cos(rad))
         end_y = pixel_pos.y() - int(line_length * math.sin(rad))
@@ -1468,8 +1476,8 @@ class WorkflowExecutionScreen(QWidget):
             y = int(marker['y'] * frame_h)
             label = marker['label']
             angle = marker.get('angle', 45)
+            arrow_length = marker.get('length', 30)
             
-            arrow_length = 30
             angle_rad = np.radians(angle)
             end_x = int(x + arrow_length * np.cos(angle_rad))
             end_y = int(y + arrow_length * np.sin(angle_rad))

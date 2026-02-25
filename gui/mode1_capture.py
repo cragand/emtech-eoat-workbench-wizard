@@ -406,9 +406,9 @@ class Mode1CaptureScreen(QWidget):
             y = int(marker['y'] * frame_h)
             label = marker['label']
             angle = marker.get('angle', 45)
+            arrow_length = marker.get('length', 30)
             
             # Draw arrow with rotation
-            arrow_length = 30
             angle_rad = np.radians(angle)
             end_x = int(x + arrow_length * np.cos(angle_rad))
             end_y = int(y + arrow_length * np.sin(angle_rad))
