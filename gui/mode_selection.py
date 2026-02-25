@@ -302,12 +302,46 @@ class ModeSelectionScreen(QWidget):
         scroll.setWidget(list_container)
         layout.addWidget(scroll)
         
-        # Buttons
+        # Buttons - Resume (left), Cancel (middle), Delete (right)
         button_layout = QHBoxLayout()
         
         resume_btn = QPushButton("Resume Selected")
+        resume_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #77C25E;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 8px 15px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #5FA84A;
+            }
+        """)
         resume_btn.clicked.connect(dialog.accept)
         button_layout.addWidget(resume_btn)
+        
+        button_layout.addStretch()
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 8px 15px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #F57C00;
+            }
+        """)
+        cancel_btn.clicked.connect(dialog.reject)
+        button_layout.addWidget(cancel_btn)
+        
+        button_layout.addStretch()
         
         delete_btn = QPushButton("Delete Selected")
         delete_btn.setStyleSheet("""
@@ -317,6 +351,7 @@ class ModeSelectionScreen(QWidget):
                 border: none;
                 border-radius: 3px;
                 padding: 8px 15px;
+                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #C82333;
@@ -358,10 +393,6 @@ class ModeSelectionScreen(QWidget):
         
         delete_btn.clicked.connect(delete_selected)
         button_layout.addWidget(delete_btn)
-        
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(dialog.reject)
-        button_layout.addWidget(cancel_btn)
         
         layout.addLayout(button_layout)
         
