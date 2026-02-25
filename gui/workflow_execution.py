@@ -508,6 +508,7 @@ class WorkflowExecutionScreen(QWidget):
         self.video_writer = None
         self.current_video_path = None
         self.recorded_videos = []  # List of recorded video paths
+        self.recording_start_time = None
         
         # Setup output directory - sanitize serial number for filesystem
         output_serial = self._sanitize_filename(serial_number) if serial_number else "unknown"
@@ -751,12 +752,35 @@ class WorkflowExecutionScreen(QWidget):
         right_layout.addLayout(camera_layout)
         
         # Camera preview - larger and expandable
+        preview_container = QWidget()
+        preview_container_layout = QVBoxLayout(preview_container)
+        preview_container_layout.setContentsMargins(0, 0, 0, 0)
+        preview_container_layout.setSpacing(0)
+        
         self.preview_label = AnnotatablePreview()
         self.preview_label.setStyleSheet("border: 2px solid #77C25E; background-color: #2b2b2b;")
         self.preview_label.setSizePolicy(
             QSizePolicy.Expanding, QSizePolicy.Expanding
         )
-        right_layout.addWidget(self.preview_label, 1)  # Stretch factor 1 to take available space
+        preview_container_layout.addWidget(self.preview_label, 1)
+        
+        # Recording indicator overlay
+        self.recording_indicator = QLabel("🔴 REC 00:00")
+        self.recording_indicator.setStyleSheet("""
+            QLabel {
+                background-color: rgba(220, 53, 69, 200);
+                color: white;
+                font-weight: bold;
+                font-size: 14px;
+                padding: 5px 10px;
+                border-radius: 3px;
+            }
+        """)
+        self.recording_indicator.setVisible(False)
+        self.recording_indicator.setAlignment(Qt.AlignCenter)
+        preview_container_layout.addWidget(self.recording_indicator)
+        
+        right_layout.addWidget(preview_container, 1)  # Stretch factor 1 to take available space
         
         # Annotation controls
         annotation_layout = QHBoxLayout()
@@ -1055,6 +1079,13 @@ class WorkflowExecutionScreen(QWidget):
                     if self.preview_label.markers:
                         annotated_frame = self._draw_markers_on_frame(annotated_frame, self.preview_label.markers)
                     self.video_writer.write(annotated_frame)
+                    
+                    # Update recording timer
+                    if self.recording_start_time:
+                        elapsed = (datetime.now() - self.recording_start_time).total_seconds()
+                        minutes = int(elapsed // 60)
+                        seconds = int(elapsed % 60)
+                        self.recording_indicator.setText(f"🔴 REC {minutes:02d}:{seconds:02d}")
                 
                 # Update preview
                 rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -1082,7 +1113,7 @@ class WorkflowExecutionScreen(QWidget):
             if not self.is_recording:
                 # Start recording
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                video_filename = f"video_{timestamp}.avi"
+                video_filename = f"video_{timestamp}.mp4"
                 self.current_video_path = os.path.join(self.output_dir, video_filename)
                 
                 # Get frame dimensions
@@ -1092,14 +1123,16 @@ class WorkflowExecutionScreen(QWidget):
                 
                 h, w = frame.shape[:2]
                 
-                # Initialize video writer (using XVID codec, 30 fps)
-                fourcc = cv2.VideoWriter_fourcc(*'XVID')
+                # Initialize video writer (using H.264 codec for MP4, 30 fps)
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
                 self.video_writer = cv2.VideoWriter(self.current_video_path, fourcc, 30.0, (w, h))
                 
                 if not self.video_writer.isOpened():
                     raise Exception("Failed to initialize video writer")
                 
                 self.is_recording = True
+                self.recording_start_time = datetime.now()
+                self.recording_indicator.setVisible(True)
                 self.record_button.setText("⏹ Stop Recording")
                 self.record_button.setStyleSheet("""
                     QPushButton {
@@ -1122,6 +1155,7 @@ class WorkflowExecutionScreen(QWidget):
                     self.video_writer = None
                 
                 self.is_recording = False
+                self.recording_indicator.setVisible(False)
                 self.record_button.setText("🔴 Start Recording")
                 self.record_button.setStyleSheet("""
                     QPushButton {
@@ -1517,6 +1551,7 @@ class WorkflowExecutionScreen(QWidget):
                 'step_results': self.step_results,
                 'step_checkbox_states': self.step_checkbox_states,
                 'captured_images': self.captured_images,
+                'recorded_videos': self.recorded_videos,
                 'serial_number': self.serial_number,
                 'technician': self.technician,
                 'description': self.description
@@ -1528,7 +1563,7 @@ class WorkflowExecutionScreen(QWidget):
             self.autosave_label.setText("✓ Progress saved")
             QTimer.singleShot(2000, lambda: self.autosave_label.setText(""))
         except Exception as e:
-            print(f"Error saving progress: {e}")
+            logger.error(f"Error saving progress: {e}", exc_info=True)
     
     def load_progress(self):
         """Load saved workflow progress if exists."""
@@ -1572,6 +1607,7 @@ class WorkflowExecutionScreen(QWidget):
                 self.step_checkbox_states = progress_data.get('step_checkbox_states', {})
                 self.step_checkbox_states = {int(k): v for k, v in self.step_checkbox_states.items()}
                 self.captured_images = progress_data.get('captured_images', [])
+                self.recorded_videos = progress_data.get('recorded_videos', [])
             elif msg.clickedButton() == report_btn:
                 # Generate partial report
                 logger.info("Generating partial report from progress")
@@ -1580,6 +1616,7 @@ class WorkflowExecutionScreen(QWidget):
                 self.step_checkbox_states = progress_data.get('step_checkbox_states', {})
                 self.step_checkbox_states = {int(k): v for k, v in self.step_checkbox_states.items()}
                 self.captured_images = progress_data.get('captured_images', [])
+                self.recorded_videos = progress_data.get('recorded_videos', [])
                 
                 # Generate report with partial data
                 self.generate_workflow_report()
