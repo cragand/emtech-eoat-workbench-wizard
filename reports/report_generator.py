@@ -30,7 +30,6 @@ def generate_reports(serial_number, technician, description, images, mode_name="
     
     docx_path = docx_gen.generate_report(
         serial_number, technician, description, images, mode_name, workflow_name, checklist_data, video_paths
-        serial_number, technician, description, images, mode_name, workflow_name, checklist_data
     )
     
     return pdf_path, docx_path
