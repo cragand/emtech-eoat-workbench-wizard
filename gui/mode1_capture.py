@@ -68,7 +68,7 @@ class Mode1CaptureScreen(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(20, 20, 20, 20)
         
-        # Header with green background
+        # Header with green background and back button
         header_widget = QWidget()
         header_widget.setStyleSheet("""
             background-color: #77C25E;
@@ -88,11 +88,32 @@ class Mode1CaptureScreen(QWidget):
         info_label.setStyleSheet("color: white; background: transparent;")
         header_layout.addWidget(info_label)
         
+        # Back button in header
+        self.back_button = QPushButton("Back to Menu")
+        self.back_button.setStyleSheet("""
+            QPushButton {
+                background-color: #333333;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-weight: bold;
+                padding: 5px 15px;
+            }
+            QPushButton:hover {
+                background-color: #555555;
+            }
+            QPushButton:pressed {
+                background-color: #222222;
+            }
+        """)
+        self.back_button.clicked.connect(self.on_back_clicked)
+        header_layout.addWidget(self.back_button)
+        
         layout.addWidget(header_widget)
         
         # QR Scanner status
         qr_layout = QHBoxLayout()
-        qr_label = QLabel("QR Scanner:")
+        qr_label = QLabel("Barcode Scanner:")
         qr_label.setFont(QFont("Arial", 10))
         self.qr_status_label = QLabel("Inactive")
         self.qr_status_label.setFont(QFont("Arial", 10))
@@ -126,47 +147,7 @@ class Mode1CaptureScreen(QWidget):
         )
         layout.addWidget(self.preview_label)
         
-        # Annotation controls
-        annotation_layout = QHBoxLayout()
-        annotation_label = QLabel("Annotations:")
-        annotation_label.setStyleSheet("font-weight: bold;")
-        
-        self.clear_markers_button = QPushButton("Clear Markers")
-        self.clear_markers_button.setStyleSheet("""
-            QPushButton {
-                background-color: #FF6B6B;
-                color: white;
-                border: none;
-                border-radius: 3px;
-                padding: 5px 15px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #FF5252;
-            }
-        """)
-        self.clear_markers_button.clicked.connect(self.preview_label.clear_markers)
-        
-        annotation_help = QLabel("Left-click: Add | Drag: Move | Scroll: Rotate | Right-click: Remove")
-        annotation_help.setStyleSheet("color: #666666; font-size: 10px;")
-        
-        annotation_layout.addWidget(annotation_label)
-        annotation_layout.addWidget(self.clear_markers_button)
-        annotation_layout.addWidget(annotation_help)
-        annotation_layout.addStretch()
-        layout.addLayout(annotation_layout)
-        
-        # Image notes input (optional)
-        notes_layout = QHBoxLayout()
-        notes_label = QLabel("Image Notes (optional):")
-        notes_label.setStyleSheet("font-weight: bold;")
-        self.notes_input = QLineEdit()
-        self.notes_input.setPlaceholderText("Add notes for the next captured image...")
-        notes_layout.addWidget(notes_label)
-        notes_layout.addWidget(self.notes_input)
-        layout.addLayout(notes_layout)
-        
-        # Control buttons
+        # Capture/Scan/Record buttons directly below camera
         button_layout = QHBoxLayout()
         
         # Button stylesheet
@@ -190,22 +171,6 @@ class Mode1CaptureScreen(QWidget):
             }
         """
         
-        back_button_style = """
-            QPushButton {
-                background-color: #333333;
-                color: white;
-                border: none;
-                border-radius: 3px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #555555;
-            }
-            QPushButton:pressed {
-                background-color: #222222;
-            }
-        """
-        
         self.capture_button = QPushButton("Capture Image")
         self.capture_button.setMinimumHeight(40)
         self.capture_button.setStyleSheet(button_style)
@@ -215,7 +180,7 @@ class Mode1CaptureScreen(QWidget):
         
         self.scan_button = QPushButton("Scan Barcode/QR")
         self.scan_button.setMinimumHeight(40)
-        self.scan_button.setMaximumWidth(150)  # Half width of other buttons
+        self.scan_button.setMaximumWidth(150)
         self.scan_button.setStyleSheet(button_style)
         self.scan_button.clicked.connect(self.scan_barcode)
         self.scan_button.setEnabled(False)
@@ -228,19 +193,47 @@ class Mode1CaptureScreen(QWidget):
         self.record_button.setEnabled(False)
         button_layout.addWidget(self.record_button)
         
-        self.report_button = QPushButton("Generate Report")
-        self.report_button.setMinimumHeight(40)
-        self.report_button.setStyleSheet(button_style)
-        self.report_button.clicked.connect(self.generate_report)
-        button_layout.addWidget(self.report_button)
-        
-        self.back_button = QPushButton("Back to Menu")
-        self.back_button.setMinimumHeight(40)
-        self.back_button.setStyleSheet(back_button_style)
-        self.back_button.clicked.connect(self.on_back_clicked)
-        button_layout.addWidget(self.back_button)
-        
         layout.addLayout(button_layout)
+        
+        # Annotation controls
+        annotation_layout = QHBoxLayout()
+        annotation_label = QLabel("Annotations:")
+        annotation_label.setStyleSheet("font-weight: bold;")
+        
+        self.clear_markers_button = QPushButton("Clear Markers")
+        self.clear_markers_button.setStyleSheet("""
+            QPushButton {
+                background-color: #FF6B6B;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 5px 15px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #FF5252;
+            }
+        """)
+        self.clear_markers_button.clicked.connect(self.preview_label.clear_markers)
+        
+        annotation_help = QLabel("Left-click: Add | Drag: Move | Scroll: Rotate | Shift+Scroll: Length | Right-click: Remove")
+        annotation_help.setStyleSheet("color: #666666; font-size: 10px;")
+        
+        annotation_layout.addWidget(annotation_label)
+        annotation_layout.addWidget(self.clear_markers_button)
+        annotation_layout.addWidget(annotation_help)
+        annotation_layout.addStretch()
+        layout.addLayout(annotation_layout)
+        
+        # Image notes input (optional)
+        notes_layout = QHBoxLayout()
+        notes_label = QLabel("Image Notes (optional):")
+        notes_label.setStyleSheet("font-weight: bold;")
+        self.notes_input = QLineEdit()
+        self.notes_input.setPlaceholderText("Add notes for the next captured image...")
+        notes_layout.addWidget(notes_label)
+        notes_layout.addWidget(self.notes_input)
+        layout.addLayout(notes_layout)
         
         # Status label
         self.status_label = QLabel("Ready")
@@ -503,63 +496,6 @@ class Mode1CaptureScreen(QWidget):
         except Exception as e:
             print(f"Failed to save metadata: {e}")
     
-    def generate_report(self):
-        """Generate PDF report from captured images."""
-        if not self.captured_images:
-            QMessageBox.information(self, "No Images", 
-                                   "No images have been captured yet. Capture some images first.")
-            return
-        
-        # Show generating status
-        self.status_label.setText("Generating reports...")
-        self.report_button.setEnabled(False)
-        
-        try:
-            pdf_path, docx_path = generate_reports(
-                self.serial_number,
-                self.technician,
-                self.description,
-                self.captured_images,
-                barcode_scans=self.barcode_scans
-            )
-            
-            # Mark report as generated
-            self.report_generated = True
-            
-            # Update status
-            self.status_label.setText(f"✓ Reports saved: {os.path.basename(pdf_path)}")
-            self.status_label.setStyleSheet("color: green; font-weight: bold;")
-            
-            # Show success dialog
-            msg = QMessageBox(self)
-            msg.setIcon(QMessageBox.Information)
-            msg.setWindowTitle("Reports Generated")
-            msg.setText("PDF and DOCX reports generated successfully!")
-            msg.setInformativeText(f"PDF: {pdf_path}\n\nDOCX: {docx_path}\n\nImages included: {len(self.captured_images)}")
-            msg.setStandardButtons(QMessageBox.Ok)
-            msg.exec_()
-            
-            # Reset status style after a moment
-            self.status_label.setStyleSheet("")
-            
-        except Exception as e:
-            self.status_label.setText(f"✗ Report failed: {str(e)}")
-            self.status_label.setStyleSheet("color: red; font-weight: bold;")
-            
-            # Show error dialog
-            msg = QMessageBox(self)
-            msg.setIcon(QMessageBox.Critical)
-            msg.setWindowTitle("Report Error")
-            msg.setText("Failed to generate report")
-            msg.setInformativeText(str(e))
-            msg.setStandardButtons(QMessageBox.Ok)
-            msg.exec_()
-            
-            self.status_label.setStyleSheet("")
-        
-        finally:
-            self.report_button.setEnabled(True)
-    
     def toggle_recording(self):
         """Start or stop video recording."""
         if not self.is_recording:
@@ -617,25 +553,23 @@ class Mode1CaptureScreen(QWidget):
     
     def on_back_clicked(self):
         """Handle back button click."""
-        # Check if user has unsaved work
+        # Auto-generate report if images were captured
         if self.captured_images and not self.report_generated:
-            reply = QMessageBox.question(
-                self,
-                "Generate Report?",
-                f"You have {len(self.captured_images)} captured item(s) without a report.\n\n"
-                "Would you like to generate a report before leaving?",
-                QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
-                QMessageBox.Yes
-            )
-            
-            if reply == QMessageBox.Yes:
-                self.generate_report()
-                # Only proceed if report was successfully generated
-                if not self.report_generated:
-                    return
-            elif reply == QMessageBox.Cancel:
-                return
-            # If No, continue to cleanup
+            try:
+                self.status_label.setText("Generating reports...")
+                pdf_path, docx_path = generate_reports(
+                    self.serial_number,
+                    self.technician,
+                    self.description,
+                    self.captured_images,
+                    barcode_scans=self.barcode_scans
+                )
+                self.report_generated = True
+                self.status_label.setText(f"✓ Reports saved")
+            except Exception as e:
+                # Log error but don't block exit
+                print(f"Report generation error: {e}")
+                self.status_label.setText(f"✗ Report failed: {str(e)}")
         
         self.cleanup_resources()
         self.back_requested.emit()
@@ -667,27 +601,20 @@ class Mode1CaptureScreen(QWidget):
     
     def closeEvent(self, event):
         """Clean up when closing."""
-        # Check if user has unsaved work
+        # Auto-generate report if images were captured
         if self.captured_images and not self.report_generated:
-            reply = QMessageBox.question(
-                self,
-                "Generate Report?",
-                f"You have {len(self.captured_images)} captured item(s) without a report.\n\n"
-                "Would you like to generate a report before closing?",
-                QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
-                QMessageBox.Yes
-            )
-            
-            if reply == QMessageBox.Yes:
-                self.generate_report()
-                # Only proceed if report was successfully generated
-                if not self.report_generated:
-                    event.ignore()
-                    return
-            elif reply == QMessageBox.Cancel:
-                event.ignore()
-                return
-            # If No, continue to cleanup
+            try:
+                pdf_path, docx_path = generate_reports(
+                    self.serial_number,
+                    self.technician,
+                    self.description,
+                    self.captured_images,
+                    barcode_scans=self.barcode_scans
+                )
+                self.report_generated = True
+            except Exception as e:
+                # Log error but don't block exit
+                print(f"Report generation error: {e}")
         
         self.cleanup_resources()
         event.accept()

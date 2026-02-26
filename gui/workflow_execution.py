@@ -1824,14 +1824,8 @@ class WorkflowExecutionScreen(QWidget):
         if not self.validate_step():
             return
         
-        reply = QMessageBox.question(self, "Finish Workflow", 
-                                    f"Workflow complete!\n\n"
-                                    f"Total images captured: {len(self.captured_images)}\n\n"
-                                    f"Generate report?",
-                                    QMessageBox.Yes | QMessageBox.No)
-        
-        if reply == QMessageBox.Yes:
-            self.generate_workflow_report()
+        # Auto-generate report
+        self.generate_workflow_report()
         
         self.clear_progress()  # Clear saved progress
         self.cleanup_resources()
