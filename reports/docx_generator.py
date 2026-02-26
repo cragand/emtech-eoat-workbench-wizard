@@ -125,7 +125,7 @@ class DOCXReportGenerator:
             doc.add_paragraph()
         
         # Barcode Scans Section (if any)
-        if barcode_scans:
+        if barcode_scans and len(barcode_scans) > 0:
             doc.add_heading('Barcode Scans', level=2)
             
             scan_table = doc.add_table(rows=len(barcode_scans) + 1, cols=4)

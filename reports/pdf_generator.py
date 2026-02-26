@@ -130,7 +130,7 @@ class PDFReportGenerator:
         story.append(Spacer(1, 0.3*inch))
         
         # Barcode Scans Section (if any)
-        if barcode_scans:
+        if barcode_scans and len(barcode_scans) > 0:
             story.append(Paragraph("Barcode Scans", self.styles['SectionHeader']))
             story.append(Spacer(1, 0.1*inch))
             
@@ -144,7 +144,7 @@ class PDFReportGenerator:
                 ])
             
             scan_table = Table(scan_data, colWidths=[0.5*inch, 1.2*inch, 3*inch, 1.8*inch])
-            scan_table.setStyle(TableStyle([
+            table_style = [
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#77C25E')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
@@ -153,8 +153,11 @@ class PDFReportGenerator:
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
                 ('TOPPADDING', (0, 0), (-1, -1), 6),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f9f9f9')])
-            ]))
+            ]
+            # Only add row backgrounds if there are data rows
+            if len(scan_data) > 1:
+                table_style.append(('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f9f9f9')]))
+            scan_table.setStyle(TableStyle(table_style))
             story.append(scan_table)
             story.append(Spacer(1, 0.3*inch))
         
