@@ -536,10 +536,14 @@ class SerialScanDialog(QDialog):
     def init_camera(self):
         """Initialize camera and scanner."""
         try:
-            cameras = CameraManager.discover_cameras()
-            if cameras:
-                self.camera = cameras[0]
-                if self.camera.open():
+            # Discover cameras fresh for this dialog
+            from camera.opencv_camera import OpenCVCamera
+            
+            # Try camera indices 0-4
+            for idx in range(5):
+                test_camera = OpenCVCamera(idx)
+                if test_camera.open():
+                    self.camera = test_camera
                     self.timer.start(30)
                     self.status_label.setText("Camera ready - waiting for barcode...")
                     
@@ -552,10 +556,12 @@ class SerialScanDialog(QDialog):
                     self.scan_check_timer = QTimer()
                     self.scan_check_timer.timeout.connect(self.update_scan_button)
                     self.scan_check_timer.start(100)
+                    return
                 else:
-                    self.status_label.setText("Failed to open camera")
-            else:
-                self.status_label.setText("No camera found")
+                    test_camera.close()
+            
+            # No camera found
+            self.status_label.setText("No camera found")
         except Exception as e:
             self.status_label.setText(f"Camera error: {str(e)}")
     
