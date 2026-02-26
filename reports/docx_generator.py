@@ -112,9 +112,14 @@ class DOCXReportGenerator:
             table.rows[row_idx].cells[1].text = f"{len(barcode_scans)} scan(s)"
             row_idx += 1
         
-        # Make first column bold
+        # Make first column bold - safely
         for row in table.rows:
-            row.cells[0].paragraphs[0].runs[0].font.bold = True
+            cell = row.cells[0]
+            # Get the text, clear it, and re-add with bold
+            text = cell.text
+            cell.text = ''
+            run = cell.paragraphs[0].add_run(text)
+            run.font.bold = True
         
         doc.add_paragraph()
         
