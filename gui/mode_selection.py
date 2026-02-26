@@ -1,11 +1,21 @@
 """Mode selection screen - initial application screen."""
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QLineEdit, QPushButton, QTextEdit, QButtonGroup, QRadioButton, QMessageBox, QDialog, QListWidget, QListWidgetItem)
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QFont, QPalette, QColor
+from PyQt5.QtCore import Qt, pyqtSignal, QTimer
+from PyQt5.QtGui import QFont, QPalette, QColor, QImage, QPixmap
 import os
 import json
+import cv2
 from datetime import datetime
+from camera import CameraManager
+
+# Optional barcode scanner support
+try:
+    from qr_scanner import QRScannerThread
+    QR_SCANNER_AVAILABLE = True
+except ImportError:
+    QR_SCANNER_AVAILABLE = False
+    QRScannerThread = None
 
 
 class ModeSelectionScreen(QWidget):
@@ -38,15 +48,36 @@ class ModeSelectionScreen(QWidget):
         
         layout.addSpacing(20)
         
-        # Serial number input
+        # Serial number input with scan button
         serial_layout = QHBoxLayout()
         serial_label = QLabel("Serial Number:")
         serial_label.setMinimumWidth(150)
         serial_label.setStyleSheet("font-weight: bold;")
         self.serial_input = QLineEdit()
         self.serial_input.setPlaceholderText("Serial number (or title)")
+        self.serial_input.setMaximumWidth(400)
+        
+        scan_serial_button = QPushButton("Scan Serial QR/Barcode")
+        scan_serial_button.setMaximumWidth(180)
+        scan_serial_button.setStyleSheet("""
+            QPushButton {
+                background-color: #77C25E;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 5px 10px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #5FA84A;
+            }
+        """)
+        scan_serial_button.clicked.connect(self.open_serial_scan_dialog)
+        
         serial_layout.addWidget(serial_label)
         serial_layout.addWidget(self.serial_input)
+        serial_layout.addWidget(scan_serial_button)
+        serial_layout.addStretch()
         layout.addLayout(serial_layout)
         
         # Technician name input
@@ -172,6 +203,19 @@ class ModeSelectionScreen(QWidget):
             return
         
         self.mode_selected.emit(selected_mode, serial, technician, description)
+    
+    def open_serial_scan_dialog(self):
+        """Open dialog to scan barcode for serial number."""
+        if not QR_SCANNER_AVAILABLE:
+            QMessageBox.information(self, "Scanner Unavailable",
+                                   "Barcode scanner not available. Please install pyzbar library.")
+            return
+        
+        dialog = SerialScanDialog(self)
+        if dialog.exec_() == QDialog.Accepted:
+            scanned_data = dialog.get_scanned_data()
+            if scanned_data:
+                self.serial_input.setText(scanned_data)
     
     def on_resume_clicked(self):
         """Show dialog to select incomplete workflow to resume."""
@@ -400,3 +444,175 @@ class ModeSelectionScreen(QWidget):
         if dialog.exec_() == QDialog.Accepted and selected_progress['data']:
             pf = selected_progress['data']
             self.resume_workflow.emit(pf['workflow_path'], pf['serial'], pf['technician'])
+
+
+
+class SerialScanDialog(QDialog):
+    """Dialog for scanning barcode to populate serial number."""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Scan Serial Number")
+        self.setModal(True)
+        self.resize(800, 650)
+        
+        self.camera = None
+        self.scanner = None
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_frame)
+        self.scanned_data = None
+        
+        self.init_ui()
+        self.init_camera()
+    
+    def init_ui(self):
+        """Initialize UI."""
+        layout = QVBoxLayout()
+        
+        # Instructions
+        instructions = QLabel("Point camera at barcode/QR code, then click Scan when button is enabled")
+        instructions.setStyleSheet("font-size: 12px; padding: 10px;")
+        instructions.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(instructions)
+        
+        # Camera preview
+        self.preview_label = QLabel()
+        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_label.setStyleSheet("border: 2px solid black; background-color: #2b2b2b;")
+        self.preview_label.setMinimumSize(640, 480)
+        layout.addWidget(self.preview_label)
+        
+        # Status label
+        self.status_label = QLabel("Initializing camera...")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_label.setStyleSheet("font-size: 11px; color: #666;")
+        layout.addWidget(self.status_label)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        self.scan_button = QPushButton("Scan")
+        self.scan_button.setMinimumHeight(40)
+        self.scan_button.setEnabled(False)
+        self.scan_button.setStyleSheet("""
+            QPushButton {
+                background-color: #77C25E;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #5FA84A;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #666666;
+            }
+        """)
+        self.scan_button.clicked.connect(self.on_scan_clicked)
+        button_layout.addWidget(self.scan_button)
+        
+        cancel_button = QPushButton("Cancel")
+        cancel_button.setMinimumHeight(40)
+        cancel_button.setStyleSheet("""
+            QPushButton {
+                background-color: #333333;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #555555;
+            }
+        """)
+        cancel_button.clicked.connect(self.reject)
+        button_layout.addWidget(cancel_button)
+        
+        layout.addLayout(button_layout)
+        self.setLayout(layout)
+    
+    def init_camera(self):
+        """Initialize camera and scanner."""
+        try:
+            cameras = CameraManager.discover_cameras()
+            if cameras:
+                self.camera = cameras[0]
+                if self.camera.open():
+                    self.timer.start(30)
+                    self.status_label.setText("Camera ready - waiting for barcode...")
+                    
+                    # Start scanner
+                    self.scanner = QRScannerThread(self.camera)
+                    self.scanner.barcode_detected.connect(self.on_barcode_detected)
+                    self.scanner.start()
+                    
+                    # Check scanner state
+                    self.scan_check_timer = QTimer()
+                    self.scan_check_timer.timeout.connect(self.update_scan_button)
+                    self.scan_check_timer.start(100)
+                else:
+                    self.status_label.setText("Failed to open camera")
+            else:
+                self.status_label.setText("No camera found")
+        except Exception as e:
+            self.status_label.setText(f"Camera error: {str(e)}")
+    
+    def update_frame(self):
+        """Update camera preview."""
+        if not self.camera:
+            return
+        
+        frame = self.camera.capture_frame()
+        if frame is not None:
+            # Convert to QImage
+            height, width, channel = frame.shape
+            bytes_per_line = 3 * width
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            q_img = QImage(rgb_frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
+            
+            # Scale to fit preview
+            pixmap = QPixmap.fromImage(q_img)
+            scaled_pixmap = pixmap.scaled(self.preview_label.size(), Qt.AspectRatioMode.KeepAspectRatio)
+            self.preview_label.setPixmap(scaled_pixmap)
+    
+    def on_barcode_detected(self, barcode_type, barcode_data):
+        """Handle barcode detection."""
+        self.status_label.setText(f"Detected: {barcode_type} - {barcode_data}")
+    
+    def update_scan_button(self):
+        """Enable/disable scan button based on detection."""
+        if self.scanner:
+            barcode_type, barcode_data = self.scanner.get_current_barcode()
+            self.scan_button.setEnabled(barcode_type is not None)
+    
+    def on_scan_clicked(self):
+        """Handle scan button click."""
+        if self.scanner:
+            barcode_type, barcode_data = self.scanner.get_current_barcode()
+            if barcode_data:
+                self.scanned_data = barcode_data
+                self.accept()
+    
+    def get_scanned_data(self):
+        """Get the scanned barcode data."""
+        return self.scanned_data
+    
+    def closeEvent(self, event):
+        """Clean up on close."""
+        if self.timer.isActive():
+            self.timer.stop()
+        
+        if hasattr(self, 'scan_check_timer') and self.scan_check_timer.isActive():
+            self.scan_check_timer.stop()
+        
+        if self.scanner:
+            self.scanner.stop()
+            self.scanner = None
+        
+        if self.camera:
+            self.camera.close()
+            self.camera = None
+        
+        event.accept()
