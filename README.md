@@ -58,8 +58,8 @@ Free-form capture mode for quick documentation.
 - Image and video capture
 - Annotation markers (rotatable arrows with labels)
 - Per-image notes
-- Optional QR code scanning
-- Generate PDF reports
+- Optional barcode/QR code scanning
+- Generate PDF and DOCX reports
 
 **How to use:**
 1. Enter serial number (optional) and description
@@ -69,10 +69,12 @@ Free-form capture mode for quick documentation.
    - Left-click: Add marker (A, B, C...)
    - Drag: Move marker
    - Scroll wheel: Rotate marker
+   - Shift+Scroll: Adjust arrow length (50-300px)
    - Right-click: Remove marker
 5. Add notes for each image (optional)
-6. Click "Capture Image" to save
-7. Click "Generate Report" when done
+6. Scan barcodes/QR codes when needed (button enabled when detected)
+7. Click "Capture Image" to save
+8. Click "Generate Report" when done
 
 **Annotations:**
 - Click on camera preview to place markers
@@ -107,6 +109,7 @@ Guided quality control workflows with step-by-step instructions.
 **Step Requirements:**
 - Some steps require photo capture before proceeding
 - Some steps require annotations on photos
+- Some steps require barcode/QR code scanning
 - Some steps require pass/fail marking
 - Steps with inspection checkboxes automatically fail if not all checked
 - System validates requirements before allowing next step
@@ -160,6 +163,7 @@ Create and customize workflows for Mode 2 and Mode 3.
    - Inspection checkboxes (optional - click "Place Checkboxes" after selecting reference image)
    - Require photo capture (checkbox)
    - Require annotations (checkbox)
+   - Require barcode scan (checkbox)
    - Require pass/fail marking (checkbox)
 5. Use ↑↓ buttons to reorder steps
 6. Click "Save Workflow"
@@ -176,6 +180,7 @@ Create and customize workflows for Mode 2 and Mode 3.
 - **Place Checkboxes**: Add inspection points on reference image (bright amber/yellow boxes)
 - **Require Photo**: User must capture at least one photo
 - **Require Annotations**: User must add markers to photos
+- **Require Barcode Scan**: User must scan at least one barcode/QR code
 - **Require Pass/Fail**: User must explicitly mark step as pass or fail
 
 **Inspection Checkboxes:**
@@ -322,18 +327,42 @@ Workflows are stored as JSON files in the `workflows/` directory.
 
 ## Optional Features
 
-### QR Code Scanning
+### Barcode/QR Code Scanning
 
-Automatically scans QR codes from camera feed (if zbar library installed).
+Scan barcodes and QR codes during any workflow step or general capture (if pyzbar library installed).
 
 **Installation:**
 - Linux: `sudo apt-get install libzbar0`
-- Windows: Not available in standard repos
+- Windows: Not available in standard repos (optional feature)
+
+**Supported Formats:**
+- QR Code
+- EAN/UPC barcodes
+- Code 128, Code 39
+- DataMatrix, PDF417
+- And many others supported by pyzbar
+
+**How to Use:**
+1. Point camera at barcode/QR code
+2. "Scan Barcode/QR" button becomes enabled when code is detected
+3. Click button to capture scan
+4. Dialog shows barcode type, data, and scan count
+5. Current camera frame is automatically captured
+6. Scan data appears in generated reports
 
 **Behavior:**
-- Runs in background when camera active
-- Automatically populates serial number field
-- Multiple scans append with underscore separator
+- Button is always visible but grayed out when no barcode detected
+- Runs passively in background when camera is active
+- Does NOT auto-populate serial number field
+- Scans are optional unless required by workflow step
+- Multiple scans can be captured per step/session
+- All scans appear in report summary table and with captured images
+
+**In Reports:**
+- Session info shows total scan count
+- Dedicated "Barcode Scans" section with table (Type, Data, Timestamp)
+- Each scanned image shows barcode type and data
+- Available in both PDF and DOCX formats
 
 ## Keyboard Shortcuts
 
@@ -389,7 +418,8 @@ Automatically scans QR codes from camera feed (if zbar library installed).
 - OpenCV: Camera capture and image processing
 - Pillow: Image manipulation
 - reportlab: PDF generation
-- pyzbar: QR code scanning (optional)
+- python-docx: DOCX generation
+- pyzbar: Barcode/QR code scanning (optional - supports QR, EAN, Code128, DataMatrix, etc.)
 - numpy: Array operations
 
 ## Project Structure
