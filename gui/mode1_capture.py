@@ -558,12 +558,18 @@ class Mode1CaptureScreen(QWidget):
         if self.captured_images and not self.report_generated:
             try:
                 self.status_label.setText("Generating reports...")
+                
+                # Debug: Print barcode_scans info
+                print(f"DEBUG: barcode_scans type: {type(self.barcode_scans)}")
+                print(f"DEBUG: barcode_scans length: {len(self.barcode_scans) if self.barcode_scans else 0}")
+                print(f"DEBUG: barcode_scans content: {self.barcode_scans}")
+                
                 pdf_path, docx_path = generate_reports(
                     self.serial_number,
                     self.technician,
                     self.description,
                     self.captured_images,
-                    barcode_scans=self.barcode_scans
+                    barcode_scans=self.barcode_scans if self.barcode_scans else None
                 )
                 self.report_generated = True
                 self.status_label.setText(f"✓ Reports saved")
@@ -578,13 +584,15 @@ class Mode1CaptureScreen(QWidget):
                     f"Images included: {len(self.captured_images)}"
                 )
             except Exception as e:
-                # Show error but don't block exit
+                # Show full error with traceback
+                import traceback
+                error_details = traceback.format_exc()
+                print(f"FULL ERROR:\n{error_details}")
                 QMessageBox.warning(
                     self,
                     "Report Error",
-                    f"Failed to generate report:\n{str(e)}"
+                    f"Failed to generate report:\n{str(e)}\n\nCheck console for full error."
                 )
-                print(f"Report generation error: {e}")
         
         self.cleanup_resources()
         self.back_requested.emit()
