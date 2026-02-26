@@ -99,9 +99,16 @@ class PDFReportGenerator:
         if workflow_name:
             info_data.append(["Workflow:", workflow_name])
         
-        # Add barcode scans summary if any
+        # Add barcode scans summary if any - show unique scans
         if barcode_scans:
-            scan_summary = f"{len(barcode_scans)} scan(s)"
+            # Get unique barcode data (type + data combination)
+            unique_scans = {}
+            for scan in barcode_scans:
+                key = f"{scan.get('type', 'Unknown')}: {scan.get('data', '')}"
+                unique_scans[key] = True
+            
+            # Join unique scans with line breaks
+            scan_summary = "\n".join(unique_scans.keys())
             info_data.append(["Scan Info:", scan_summary])
         
         info_table = Table(info_data, colWidths=[2*inch, 4*inch])

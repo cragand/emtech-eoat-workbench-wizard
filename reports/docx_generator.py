@@ -106,10 +106,16 @@ class DOCXReportGenerator:
             table.rows[row_idx].cells[1].text = workflow_name
             row_idx += 1
         
-        # Barcode Scans (if any)
+        # Barcode Scans (if any) - show unique scans
         if barcode_scans:
+            # Get unique barcode data (type + data combination)
+            unique_scans = {}
+            for scan in barcode_scans:
+                key = f"{scan.get('type', 'Unknown')}: {scan.get('data', '')}"
+                unique_scans[key] = True
+            
             table.rows[row_idx].cells[0].text = 'Scan Info:'
-            table.rows[row_idx].cells[1].text = f"{len(barcode_scans)} scan(s)"
+            table.rows[row_idx].cells[1].text = "\n".join(unique_scans.keys())
             row_idx += 1
         
         # Make first column bold - safely
