@@ -1,6 +1,6 @@
 """Mode selection screen - initial application screen."""
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QLineEdit, QPushButton, QTextEdit, QButtonGroup, QRadioButton, QMessageBox, QDialog, QListWidget, QListWidgetItem)
+                             QLineEdit, QPushButton, QTextEdit, QButtonGroup, QRadioButton, QMessageBox, QDialog, QListWidget, QListWidgetItem, QComboBox)
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
 from PyQt5.QtGui import QFont, QPalette, QColor, QImage, QPixmap
 import os
@@ -501,22 +501,33 @@ class SerialScanDialog(QDialog):
         
         self.camera = None
         self.scanner = None
+        self.available_cameras = []
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_frame)
         self.scanned_data = None
         
         self.init_ui()
-        self.init_camera()
+        self.discover_cameras()
     
     def init_ui(self):
         """Initialize UI."""
         layout = QVBoxLayout()
         
         # Instructions
-        instructions = QLabel("Point camera at barcode/QR code, then click Scan when button is enabled")
+        instructions = QLabel("Select camera and point at barcode/QR code, then click Scan when button is enabled")
         instructions.setStyleSheet("font-size: 12px; padding: 10px;")
         instructions.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(instructions)
+        
+        # Camera selection
+        camera_layout = QHBoxLayout()
+        camera_label = QLabel("Camera:")
+        self.camera_combo = QComboBox()
+        self.camera_combo.currentIndexChanged.connect(self.on_camera_changed)
+        camera_layout.addWidget(camera_label)
+        camera_layout.addWidget(self.camera_combo)
+        camera_layout.addStretch()
+        layout.addLayout(camera_layout)
         
         # Camera preview
         self.preview_label = QLabel()
@@ -526,7 +537,7 @@ class SerialScanDialog(QDialog):
         layout.addWidget(self.preview_label)
         
         # Status label
-        self.status_label = QLabel("Initializing camera...")
+        self.status_label = QLabel("Select a camera to begin...")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_label.setStyleSheet("font-size: 11px; color: #666;")
         layout.addWidget(self.status_label)
@@ -576,19 +587,51 @@ class SerialScanDialog(QDialog):
         layout.addLayout(button_layout)
         self.setLayout(layout)
     
-    def init_camera(self):
-        """Initialize camera and scanner."""
+    def discover_cameras(self):
+        """Discover available cameras."""
+        self.status_label.setText("Discovering cameras...")
         try:
-            # Discover cameras fresh for this dialog
-            from camera.opencv_camera import OpenCVCamera
+            cameras = CameraManager.discover_cameras()
             
-            # Try camera indices 0-4
-            for idx in range(5):
-                test_camera = OpenCVCamera(idx)
-                if test_camera.open():
-                    self.camera = test_camera
+            # Close all cameras after discovery
+            for cam in cameras:
+                cam.close()
+            
+            self.available_cameras = cameras
+            
+            if cameras:
+                for cam in cameras:
+                    self.camera_combo.addItem(cam.name)
+                self.status_label.setText(f"Found {len(cameras)} camera(s)")
+            else:
+                self.status_label.setText("No cameras found")
+                self.camera_combo.addItem("No cameras available")
+        except Exception as e:
+            self.status_label.setText(f"Error discovering cameras: {str(e)}")
+    
+    def on_camera_changed(self, index):
+        """Handle camera selection change."""
+        try:
+            self.timer.stop()
+            
+            if self.scanner:
+                self.scanner.stop()
+                self.scanner = None
+            
+            if hasattr(self, 'scan_check_timer') and self.scan_check_timer:
+                self.scan_check_timer.stop()
+            
+            if self.camera:
+                self.camera.close()
+                self.camera = None
+            
+            if index >= 0 and index < len(self.available_cameras):
+                self.camera = self.available_cameras[index]
+                
+                if self.camera.open():
                     self.timer.start(30)
                     self.status_label.setText("Camera ready - waiting for barcode...")
+                    self.scan_button.setEnabled(False)
                     
                     # Start scanner
                     self.scanner = QRScannerThread(self.camera)
@@ -599,12 +642,8 @@ class SerialScanDialog(QDialog):
                     self.scan_check_timer = QTimer()
                     self.scan_check_timer.timeout.connect(self.update_scan_button)
                     self.scan_check_timer.start(100)
-                    return
                 else:
-                    test_camera.close()
-            
-            # No camera found
-            self.status_label.setText("No camera found")
+                    self.status_label.setText("Failed to open camera")
         except Exception as e:
             self.status_label.setText(f"Camera error: {str(e)}")
     
