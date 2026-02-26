@@ -151,6 +151,27 @@ class ModeSelectionScreen(QWidget):
         self.start_button.clicked.connect(self.on_start_clicked)
         layout.addWidget(self.start_button)
         
+        # View Reports button
+        self.view_reports_button = QPushButton("📁 View Reports")
+        self.view_reports_button.setMaximumHeight(30)
+        self.view_reports_button.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #888888;
+                border: 1px solid #888888;
+                border-radius: 3px;
+                padding: 5px 10px;
+                font-size: 10px;
+            }
+            QPushButton:hover {
+                background-color: #f0f0f0;
+                color: #555555;
+                border-color: #555555;
+            }
+        """)
+        self.view_reports_button.clicked.connect(self.on_view_reports_clicked)
+        layout.addWidget(self.view_reports_button)
+        
         # Resume button - small and unobtrusive
         self.resume_button = QPushButton("📂 Resume Incomplete Workflow")
         self.resume_button.setMaximumHeight(30)
@@ -203,6 +224,28 @@ class ModeSelectionScreen(QWidget):
             return
         
         self.mode_selected.emit(selected_mode, serial, technician, description)
+    
+    def on_view_reports_clicked(self):
+        """Open the reports folder in file explorer."""
+        reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
+                                   "output", "reports")
+        
+        # Create directory if it doesn't exist
+        os.makedirs(reports_dir, exist_ok=True)
+        
+        # Open in file explorer (cross-platform)
+        import subprocess
+        import platform
+        
+        try:
+            if platform.system() == "Windows":
+                os.startfile(reports_dir)
+            elif platform.system() == "Darwin":  # macOS
+                subprocess.Popen(["open", reports_dir])
+            else:  # Linux
+                subprocess.Popen(["xdg-open", reports_dir])
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Could not open reports folder:\n{str(e)}")
     
     def open_serial_scan_dialog(self):
         """Open dialog to scan barcode for serial number."""

@@ -1,12 +1,14 @@
 """Workflow execution screen for guided QC and maintenance procedures."""
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QPushButton, QTextEdit, QMessageBox, QLineEdit, QSplitter, QComboBox, QDialog, QSizePolicy, QCheckBox)
+                             QPushButton, QTextEdit, QMessageBox, QLineEdit, QSplitter, QComboBox, QDialog, QSizePolicy, QCheckBox, QRadioButton, QButtonGroup)
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QPoint
 from PyQt5.QtGui import QImage, QPixmap, QFont, QPainter, QColor, QPen
 import cv2
 import os
 import json
 import numpy as np
+import subprocess
+import platform
 from datetime import datetime
 from camera import CameraManager
 from reports import generate_reports
@@ -1824,15 +1826,8 @@ class WorkflowExecutionScreen(QWidget):
                     barcode_scans=all_barcode_scans if all_barcode_scans else None
                 )
                 
-                # Show success dialog
-                QMessageBox.information(
-                    self,
-                    "Reports Generated",
-                    f"Partial workflow progress saved to reports.\n\n"
-                    f"PDF: {pdf_path}\n\n"
-                    f"DOCX: {docx_path}\n\n"
-                    f"Images included: {len(self.captured_images)}"
-                )
+                # Show enhanced report dialog
+                self.show_report_dialog(pdf_path, docx_path, len(self.captured_images))
             except Exception as e:
                 # Show error but don't block exit
                 QMessageBox.warning(
@@ -1854,15 +1849,8 @@ class WorkflowExecutionScreen(QWidget):
         try:
             pdf_path, docx_path = self.generate_workflow_report()
             
-            # Show success dialog
-            QMessageBox.information(
-                self,
-                "Workflow Complete",
-                f"Workflow complete! Reports generated successfully.\n\n"
-                f"PDF: {pdf_path}\n\n"
-                f"DOCX: {docx_path}\n\n"
-                f"Total images: {len(self.captured_images)}"
-            )
+            # Show enhanced report dialog
+            self.show_report_dialog(pdf_path, docx_path, len(self.captured_images))
         except Exception as e:
             QMessageBox.warning(
                 self,
@@ -1873,6 +1861,110 @@ class WorkflowExecutionScreen(QWidget):
         self.clear_progress()  # Clear saved progress
         self.cleanup_resources()
         self.back_requested.emit()
+    
+    def show_report_dialog(self, pdf_path, docx_path, image_count):
+        """Show enhanced report dialog with view options."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Reports Generated")
+        dialog.setModal(True)
+        dialog.setMinimumWidth(500)
+        
+        layout = QVBoxLayout()
+        
+        # Success message
+        success_label = QLabel("✓ PDF and DOCX reports generated successfully!")
+        success_label.setStyleSheet("font-size: 14px; font-weight: bold; color: green;")
+        layout.addWidget(success_label)
+        
+        layout.addSpacing(10)
+        
+        # File paths
+        info_label = QLabel(
+            f"PDF: {pdf_path}\n\n"
+            f"DOCX: {docx_path}\n\n"
+            f"Images included: {image_count}"
+        )
+        info_label.setWordWrap(True)
+        info_label.setStyleSheet("font-size: 11px;")
+        layout.addWidget(info_label)
+        
+        layout.addSpacing(15)
+        
+        # Format selection
+        format_label = QLabel("Select format to view:")
+        format_label.setStyleSheet("font-weight: bold;")
+        layout.addWidget(format_label)
+        
+        format_group = QButtonGroup(dialog)
+        pdf_radio = QRadioButton("PDF")
+        pdf_radio.setChecked(True)
+        docx_radio = QRadioButton("DOCX")
+        
+        format_group.addButton(pdf_radio, 1)
+        format_group.addButton(docx_radio, 2)
+        
+        format_layout = QHBoxLayout()
+        format_layout.addWidget(pdf_radio)
+        format_layout.addWidget(docx_radio)
+        format_layout.addStretch()
+        layout.addLayout(format_layout)
+        
+        layout.addSpacing(15)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        view_button = QPushButton("View Report")
+        view_button.setStyleSheet("""
+            QPushButton {
+                background-color: #77C25E;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 8px 15px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #5FA84A;
+            }
+        """)
+        
+        def open_report():
+            file_path = pdf_path if pdf_radio.isChecked() else docx_path
+            try:
+                if platform.system() == "Windows":
+                    os.startfile(file_path)
+                elif platform.system() == "Darwin":
+                    subprocess.Popen(["open", file_path])
+                else:
+                    subprocess.Popen(["xdg-open", file_path])
+                dialog.accept()
+            except Exception as e:
+                QMessageBox.warning(dialog, "Error", f"Could not open file:\n{str(e)}")
+        
+        view_button.clicked.connect(open_report)
+        button_layout.addWidget(view_button)
+        
+        menu_button = QPushButton("Return to Menu")
+        menu_button.setStyleSheet("""
+            QPushButton {
+                background-color: #333333;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 8px 15px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #555555;
+            }
+        """)
+        menu_button.clicked.connect(dialog.accept)
+        button_layout.addWidget(menu_button)
+        
+        layout.addLayout(button_layout)
+        dialog.setLayout(layout)
+        dialog.exec_()
     
     def _generate_checkbox_image(self, ref_image_path, checkboxes, step_index):
         """Generate an image showing the reference with checkbox completion status.
