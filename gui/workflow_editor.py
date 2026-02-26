@@ -297,6 +297,8 @@ class WorkflowEditorScreen(QWidget):
         self.workflow_dir = workflow_dir
         self.current_workflow = None
         self.current_workflow_path = None
+        self.has_unsaved_changes = False
+        self.saved_state = None
         
         self.init_ui()
         self.load_workflows()
@@ -398,6 +400,7 @@ class WorkflowEditorScreen(QWidget):
         name_label.setStyleSheet("font-weight: bold;")
         self.workflow_name_input = QLineEdit()
         self.workflow_name_input.setPlaceholderText("Enter workflow name...")
+        self.workflow_name_input.textChanged.connect(self.mark_unsaved)
         name_layout.addWidget(name_label)
         name_layout.addWidget(self.workflow_name_input)
         right_layout.addLayout(name_layout)
@@ -410,6 +413,7 @@ class WorkflowEditorScreen(QWidget):
         self.workflow_desc_input = QTextEdit()
         self.workflow_desc_input.setPlaceholderText("Brief description of this workflow...")
         self.workflow_desc_input.setMaximumHeight(80)
+        self.workflow_desc_input.textChanged.connect(self.mark_unsaved)
         right_layout.addWidget(self.workflow_desc_input)
         
         # Steps
@@ -512,12 +516,56 @@ class WorkflowEditorScreen(QWidget):
                 background-color: #555555;
             }
         """)
-        self.back_btn.clicked.connect(self.back_requested.emit)
+        self.back_btn.clicked.connect(self.on_back_clicked)
         bottom_layout.addWidget(self.back_btn)
         
         layout.addLayout(bottom_layout)
         
         self.setLayout(layout)
+    
+    def mark_unsaved(self):
+        """Mark that there are unsaved changes."""
+        self.has_unsaved_changes = True
+    
+    def get_current_state(self):
+        """Get current editor state as JSON string for comparison."""
+        if not self.current_workflow:
+            return None
+        state = {
+            'name': self.workflow_name_input.text().strip(),
+            'description': self.workflow_desc_input.toPlainText().strip(),
+            'steps': self.current_workflow.get('steps', [])
+        }
+        return json.dumps(state, sort_keys=True)
+    
+    def check_unsaved_changes(self):
+        """Check if there are unsaved changes and prompt user."""
+        if not self.has_unsaved_changes:
+            return True
+        
+        current_state = self.get_current_state()
+        if current_state == self.saved_state:
+            return True
+        
+        reply = QMessageBox.question(
+            self, "Unsaved Changes",
+            "You have unsaved changes. Do you want to save before continuing?",
+            QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+            QMessageBox.Save
+        )
+        
+        if reply == QMessageBox.Save:
+            self.save_workflow()
+            return True
+        elif reply == QMessageBox.Discard:
+            return True
+        else:  # Cancel
+            return False
+    
+    def on_back_clicked(self):
+        """Handle back button with unsaved changes check."""
+        if self.check_unsaved_changes():
+            self.back_requested.emit()
     
     def load_workflows(self):
         """Load workflows from directory."""
@@ -533,6 +581,10 @@ class WorkflowEditorScreen(QWidget):
     
     def on_workflow_selected(self, item):
         """Load selected workflow for editing."""
+        # Check for unsaved changes before switching
+        if not self.check_unsaved_changes():
+            return
+        
         workflow_name = item.text()
         filepath = os.path.join(self.workflow_dir, f"{workflow_name}.json")
         
@@ -543,6 +595,8 @@ class WorkflowEditorScreen(QWidget):
             
             self.load_workflow_to_editor()
             self.delete_workflow_btn.setEnabled(True)
+            self.has_unsaved_changes = False
+            self.saved_state = self.get_current_state()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to load workflow: {e}")
     
@@ -561,6 +615,10 @@ class WorkflowEditorScreen(QWidget):
     
     def new_workflow(self):
         """Create a new workflow."""
+        # Check for unsaved changes before creating new
+        if not self.check_unsaved_changes():
+            return
+        
         self.current_workflow = {
             'name': '',
             'description': '',
@@ -572,6 +630,8 @@ class WorkflowEditorScreen(QWidget):
         self.workflow_desc_input.clear()
         self.steps_list.clear()
         self.delete_workflow_btn.setEnabled(False)
+        self.has_unsaved_changes = False
+        self.saved_state = self.get_current_state()
     
     def delete_workflow(self):
         """Delete the current workflow."""
@@ -605,6 +665,7 @@ class WorkflowEditorScreen(QWidget):
             
             self.current_workflow['steps'].append(step_data)
             self.load_workflow_to_editor()
+            self.mark_unsaved()
     
     def edit_step(self):
         """Edit selected step."""
@@ -619,6 +680,7 @@ class WorkflowEditorScreen(QWidget):
         if dialog.exec_() == QDialog.Accepted:
             self.current_workflow['steps'][current_row] = dialog.get_step_data()
             self.load_workflow_to_editor()
+            self.mark_unsaved()
     
     def delete_step(self):
         """Delete selected step."""
@@ -634,6 +696,7 @@ class WorkflowEditorScreen(QWidget):
         if reply == QMessageBox.Yes:
             self.current_workflow['steps'].pop(current_row)
             self.load_workflow_to_editor()
+            self.mark_unsaved()
     
     def move_step_up(self):
         """Move selected step up."""
@@ -645,6 +708,7 @@ class WorkflowEditorScreen(QWidget):
         steps[current_row], steps[current_row - 1] = steps[current_row - 1], steps[current_row]
         self.load_workflow_to_editor()
         self.steps_list.setCurrentRow(current_row - 1)
+        self.mark_unsaved()
     
     def move_step_down(self):
         """Move selected step down."""
@@ -656,6 +720,7 @@ class WorkflowEditorScreen(QWidget):
         steps[current_row], steps[current_row + 1] = steps[current_row + 1], steps[current_row]
         self.load_workflow_to_editor()
         self.steps_list.setCurrentRow(current_row + 1)
+        self.mark_unsaved()
     
     def save_workflow(self):
         """Save the current workflow."""
@@ -719,6 +784,8 @@ class WorkflowEditorScreen(QWidget):
                 json.dump(self.current_workflow, f, indent=2)
             
             self.current_workflow_path = new_filepath
+            self.has_unsaved_changes = False
+            self.saved_state = self.get_current_state()
             QMessageBox.information(self, "Success", f"Workflow saved: {new_filename}")
             self.load_workflows()
         except Exception as e:
