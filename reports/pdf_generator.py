@@ -44,7 +44,7 @@ class PDFReportGenerator:
         ))
     
     def generate_report(self, serial_number, technician, description, images, mode_name="General Capture", 
-                       workflow_name=None, checklist_data=None, video_paths=None):
+                       workflow_name=None, checklist_data=None, video_paths=None, barcode_scans=None):
         """Generate a PDF report.
         
         Args:
@@ -56,6 +56,7 @@ class PDFReportGenerator:
             workflow_name: Optional workflow name (for Mode 2/3)
             checklist_data: Optional list of checklist items with status
             video_paths: Optional list of video file paths
+            barcode_scans: Optional list of barcode scans {type, data, timestamp}
             
         Returns:
             Path to generated PDF file
@@ -98,6 +99,11 @@ class PDFReportGenerator:
         if workflow_name:
             info_data.append(["Workflow:", workflow_name])
         
+        # Add barcode scans summary if any
+        if barcode_scans:
+            scan_summary = f"{len(barcode_scans)} scan(s)"
+            info_data.append(["Scan Info:", scan_summary])
+        
         info_table = Table(info_data, colWidths=[2*inch, 4*inch])
         info_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f0f0f0')),
@@ -122,6 +128,35 @@ class PDFReportGenerator:
             story.append(desc_paragraph)
         
         story.append(Spacer(1, 0.3*inch))
+        
+        # Barcode Scans Section (if any)
+        if barcode_scans:
+            story.append(Paragraph("Barcode Scans", self.styles['SectionHeader']))
+            story.append(Spacer(1, 0.1*inch))
+            
+            scan_data = [["#", "Type", "Data", "Timestamp"]]
+            for idx, scan in enumerate(barcode_scans, 1):
+                scan_data.append([
+                    str(idx),
+                    scan.get('type', 'Unknown'),
+                    scan.get('data', ''),
+                    scan.get('timestamp', '')
+                ])
+            
+            scan_table = Table(scan_data, colWidths=[0.5*inch, 1.2*inch, 3*inch, 1.8*inch])
+            scan_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#77C25E')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f9f9f9')])
+            ]))
+            story.append(scan_table)
+            story.append(Spacer(1, 0.3*inch))
         
         # Procedure Summary (if provided)
         if checklist_data:
@@ -254,6 +289,7 @@ class PDFReportGenerator:
                     notes = img_data.get('notes', '')
                     media_type = img_data.get('type', 'image')
                     markers = img_data.get('markers', [])
+                    img_barcode_scans = img_data.get('barcode_scans', [])
                 else:
                     # Legacy format - just a path string
                     img_path = img_data
@@ -261,6 +297,7 @@ class PDFReportGenerator:
                     notes = ''
                     media_type = 'image'
                     markers = []
+                    img_barcode_scans = []
                 
                 if os.path.exists(img_path):
                     # Check if this is a video file
@@ -281,6 +318,12 @@ class PDFReportGenerator:
                             for m in marker_notes:
                                 caption_text += f"<br/>  • {m['label']}: {m['note']}"
                         
+                        # Add barcode scan info if present
+                        if img_barcode_scans:
+                            caption_text += "<br/><b>Barcode Scans:</b>"
+                            for scan in img_barcode_scans:
+                                caption_text += f"<br/>  • {scan.get('type', 'Unknown')}: {scan.get('data', '')}"
+                        
                         caption = Paragraph(caption_text, self.styles['Normal'])
                         story.append(caption)
                         story.append(Spacer(1, 0.3*inch))
@@ -297,6 +340,12 @@ class PDFReportGenerator:
                             caption_text += "<br/><b>Annotations:</b>"
                             for m in marker_notes:
                                 caption_text += f"<br/>  • {m['label']}: {m['note']}"
+                        
+                        # Add barcode scan info if present
+                        if img_barcode_scans:
+                            caption_text += "<br/><b>Barcode Scans:</b>"
+                            for scan in img_barcode_scans:
+                                caption_text += f"<br/>  • {scan.get('type', 'Unknown')}: {scan.get('data', '')}"
                         
                         caption = Paragraph(caption_text, self.styles['Normal'])
                         story.append(caption)

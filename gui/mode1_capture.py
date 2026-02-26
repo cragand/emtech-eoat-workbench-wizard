@@ -37,8 +37,10 @@ class Mode1CaptureScreen(QWidget):
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_frame)
         self.qr_scanner = None
-        self.captured_images = []  # List of dicts: {path, camera, notes}
+        self.barcode_check_timer = None
+        self.captured_images = []  # List of dicts: {path, camera, notes, barcode_scans}
         self.report_generated = False  # Track if report has been generated
+        self.barcode_scans = []  # List of dicts: {type, data, timestamp}
         
         # Use "unknown" if no serial number provided - sanitize for filesystem
         output_serial = self._sanitize_filename(serial_number) if serial_number else "unknown"
@@ -211,6 +213,14 @@ class Mode1CaptureScreen(QWidget):
         self.capture_button.setEnabled(False)
         button_layout.addWidget(self.capture_button)
         
+        self.scan_button = QPushButton("Scan Barcode/QR")
+        self.scan_button.setMinimumHeight(40)
+        self.scan_button.setMaximumWidth(150)  # Half width of other buttons
+        self.scan_button.setStyleSheet(button_style)
+        self.scan_button.clicked.connect(self.scan_barcode)
+        self.scan_button.setEnabled(False)
+        button_layout.addWidget(self.scan_button)
+        
         self.record_button = QPushButton("Start Recording")
         self.record_button.setMinimumHeight(40)
         self.record_button.setStyleSheet(button_style)
@@ -291,12 +301,16 @@ class Mode1CaptureScreen(QWidget):
                     
                     # Start QR scanner if available
                     if QR_SCANNER_AVAILABLE:
-                        print("Starting QR scanner...")
+                        print("Starting barcode scanner...")
                         self.qr_scanner = QRScannerThread(self.current_camera)
-                        self.qr_scanner.qr_detected.connect(self.on_qr_detected)
+                        self.qr_scanner.barcode_detected.connect(self.on_barcode_detected)
                         self.qr_scanner.start()
                         self.qr_status_label.setText("Active")
                         self.qr_status_label.setStyleSheet("color: #77C25E;")
+                        # Start timer to check barcode availability
+                        self.barcode_check_timer = QTimer()
+                        self.barcode_check_timer.timeout.connect(self.update_scan_button_state)
+                        self.barcode_check_timer.start(100)
                     else:
                         self.qr_status_label.setText("Unavailable")
                         self.qr_status_label.setStyleSheet("color: gray;")
@@ -309,19 +323,61 @@ class Mode1CaptureScreen(QWidget):
             self.capture_button.setEnabled(False)
             self.record_button.setEnabled(False)
     
-    def on_qr_detected(self, qr_data: str):
-        """Handle QR code detection."""
-        # Append to serial number if exists, otherwise set it
-        if self.serial_number:
-            self.serial_number = f"{self.serial_number}_{qr_data}"
-        else:
-            self.serial_number = qr_data
+    def on_barcode_detected(self, barcode_type: str, barcode_data: str):
+        """Handle barcode detection (just update status, don't auto-append)."""
+        self.qr_data_label.setText(f"Detected: {barcode_type}")
+        self.status_label.setText(f"Barcode detected: {barcode_data[:50]}...")
+    
+    def update_scan_button_state(self):
+        """Enable/disable scan button based on barcode detection."""
+        if self.qr_scanner:
+            barcode_type, barcode_data = self.qr_scanner.get_current_barcode()
+            self.scan_button.setEnabled(barcode_type is not None)
+    
+    def scan_barcode(self):
+        """Capture current barcode scan."""
+        if not self.qr_scanner:
+            return
         
-        self.qr_data_label.setText(f"Scanned: {qr_data}")
-        self.status_label.setText(f"QR Code detected: {qr_data}")
+        barcode_type, barcode_data = self.qr_scanner.get_current_barcode()
+        if not barcode_type or not barcode_data:
+            return
         
-        # Flash the QR data label
-        QTimer.singleShot(3000, lambda: self.qr_data_label.setText(""))
+        # Add to scans list
+        scan_info = {
+            'type': barcode_type,
+            'data': barcode_data,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        self.barcode_scans.append(scan_info)
+        
+        # Capture current frame
+        if self.current_camera:
+            frame = self.current_camera.capture_frame()
+            if frame is not None:
+                # Save image
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"barcode_scan_{timestamp}.jpg"
+                filepath = os.path.join(self.output_dir, filename)
+                cv2.imwrite(filepath, frame)
+                
+                # Add to captured images with barcode note
+                self.captured_images.append({
+                    'path': filepath,
+                    'camera': self.current_camera.name,
+                    'notes': f"Barcode scan capture ({barcode_type}): {barcode_data}",
+                    'barcode_scans': [scan_info]
+                })
+        
+        # Show dialog
+        scan_count = len(self.barcode_scans)
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Barcode Scanned")
+        msg.setText(f"Barcode Type: {barcode_type}\nData: {barcode_data}\n\nScan {scan_count} for this session")
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.exec()
+        
+        self.status_label.setText(f"Barcode scanned ({scan_count} total)")
     
     def update_frame(self):
         """Update camera preview."""
@@ -463,7 +519,8 @@ class Mode1CaptureScreen(QWidget):
                 self.serial_number,
                 self.technician,
                 self.description,
-                self.captured_images
+                self.captured_images,
+                barcode_scans=self.barcode_scans
             )
             
             # Mark report as generated
@@ -588,6 +645,10 @@ class Mode1CaptureScreen(QWidget):
         # Stop timer immediately
         if self.timer.isActive():
             self.timer.stop()
+        
+        # Stop barcode check timer
+        if self.barcode_check_timer and self.barcode_check_timer.isActive():
+            self.barcode_check_timer.stop()
         
         # Stop recording if active
         if self.is_recording and self.video_writer:

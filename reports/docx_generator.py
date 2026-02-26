@@ -19,18 +19,19 @@ class DOCXReportGenerator:
         os.makedirs(output_dir, exist_ok=True)
     
     def generate_report(self, serial_number, technician, description, images, mode_name="General Capture", 
-                       workflow_name=None, checklist_data=None, video_paths=None):
+                       workflow_name=None, checklist_data=None, video_paths=None, barcode_scans=None):
         """Generate a DOCX report.
         
         Args:
             serial_number: Serial number or identifier
             technician: Technician name
             description: Job description
-            images: List of image file paths OR list of dicts with {path, camera, notes}
+            images: List of image file paths OR list of dicts with {path, camera, notes, barcode_scans}
             mode_name: Name of the mode used
             workflow_name: Optional workflow name (for Mode 2/3)
             checklist_data: Optional list of checklist items with status
             video_paths: Optional list of video file paths
+            barcode_scans: Optional list of barcode scans {type, data, timestamp}
             
         Returns:
             Path to generated DOCX file
@@ -66,33 +67,50 @@ class DOCXReportGenerator:
         # Session Information
         doc.add_heading('Session Information', level=2)
         
+        # Calculate number of rows needed
+        num_rows = 5
+        if workflow_name:
+            num_rows += 1
+        if barcode_scans:
+            num_rows += 1
+        
         # Info table
-        table = doc.add_table(rows=5, cols=2)
+        table = doc.add_table(rows=num_rows, cols=2)
         table.style = 'Light Grid Accent 1'
         
+        row_idx = 0
+        
         # Serial Number
-        table.rows[0].cells[0].text = 'Serial Number:'
-        table.rows[0].cells[1].text = serial_number if serial_number else "N/A"
+        table.rows[row_idx].cells[0].text = 'Serial Number:'
+        table.rows[row_idx].cells[1].text = serial_number if serial_number else "N/A"
+        row_idx += 1
         
         # Technician
-        table.rows[1].cells[0].text = 'Technician:'
-        table.rows[1].cells[1].text = technician if technician else "N/A"
+        table.rows[row_idx].cells[0].text = 'Technician:'
+        table.rows[row_idx].cells[1].text = technician if technician else "N/A"
+        row_idx += 1
         
         # Mode
-        table.rows[2].cells[0].text = 'Mode:'
-        table.rows[2].cells[1].text = mode_name
+        table.rows[row_idx].cells[0].text = 'Mode:'
+        table.rows[row_idx].cells[1].text = mode_name
+        row_idx += 1
         
         # Date/Time
-        table.rows[3].cells[0].text = 'Date/Time:'
-        table.rows[3].cells[1].text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        table.rows[row_idx].cells[0].text = 'Date/Time:'
+        table.rows[row_idx].cells[1].text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        row_idx += 1
         
         # Workflow (if applicable)
         if workflow_name:
-            table.rows[4].cells[0].text = 'Workflow:'
-            table.rows[4].cells[1].text = workflow_name
-        else:
-            # Remove the extra row if no workflow
-            table._element.remove(table.rows[4]._element)
+            table.rows[row_idx].cells[0].text = 'Workflow:'
+            table.rows[row_idx].cells[1].text = workflow_name
+            row_idx += 1
+        
+        # Barcode Scans (if any)
+        if barcode_scans:
+            table.rows[row_idx].cells[0].text = 'Scan Info:'
+            table.rows[row_idx].cells[1].text = f"{len(barcode_scans)} scan(s)"
+            row_idx += 1
         
         # Make first column bold
         for row in table.rows:
@@ -104,6 +122,30 @@ class DOCXReportGenerator:
         if description:
             doc.add_heading('Description', level=3)
             doc.add_paragraph(description)
+            doc.add_paragraph()
+        
+        # Barcode Scans Section (if any)
+        if barcode_scans:
+            doc.add_heading('Barcode Scans', level=2)
+            
+            scan_table = doc.add_table(rows=len(barcode_scans) + 1, cols=4)
+            scan_table.style = 'Light Grid Accent 1'
+            
+            # Header row
+            scan_table.rows[0].cells[0].text = '#'
+            scan_table.rows[0].cells[1].text = 'Type'
+            scan_table.rows[0].cells[2].text = 'Data'
+            scan_table.rows[0].cells[3].text = 'Timestamp'
+            for cell in scan_table.rows[0].cells:
+                cell.paragraphs[0].runs[0].font.bold = True
+            
+            # Data rows
+            for idx, scan in enumerate(barcode_scans, 1):
+                scan_table.rows[idx].cells[0].text = str(idx)
+                scan_table.rows[idx].cells[1].text = scan.get('type', 'Unknown')
+                scan_table.rows[idx].cells[2].text = scan.get('data', '')
+                scan_table.rows[idx].cells[3].text = scan.get('timestamp', '')
+            
             doc.add_paragraph()
         
         # Procedure Summary (if provided)
@@ -237,6 +279,7 @@ class DOCXReportGenerator:
                     media_type = img_data.get('type', 'image')
                     step_info = img_data.get('step_info', '')
                     markers = img_data.get('markers', [])
+                    img_barcode_scans = img_data.get('barcode_scans', [])
                 else:
                     # Legacy format - just a path string
                     img_path = img_data
@@ -245,6 +288,7 @@ class DOCXReportGenerator:
                     media_type = 'image'
                     step_info = ''
                     markers = []
+                    img_barcode_scans = []
                 
                 if os.path.exists(img_path):
                     # Check if this is a video file
@@ -277,6 +321,14 @@ class DOCXReportGenerator:
                                 p = doc.add_paragraph(style='List Bullet')
                                 p.add_run(f"{m['label']}: {m['note']}")
                         
+                        # Add barcode scan info if present
+                        if img_barcode_scans:
+                            p = doc.add_paragraph()
+                            p.add_run('Barcode Scans:').bold = True
+                            for scan in img_barcode_scans:
+                                p = doc.add_paragraph(style='List Bullet')
+                                p.add_run(f"{scan.get('type', 'Unknown')}: {scan.get('data', '')}")
+                        
                         if step_info:
                             p = doc.add_paragraph()
                             p.add_run('Step: ').italic = True
@@ -306,6 +358,14 @@ class DOCXReportGenerator:
                             for m in marker_notes:
                                 p = doc.add_paragraph(style='List Bullet')
                                 p.add_run(f"{m['label']}: {m['note']}")
+                        
+                        # Add barcode scan info if present
+                        if img_barcode_scans:
+                            p = doc.add_paragraph()
+                            p.add_run('Barcode Scans:').bold = True
+                            for scan in img_barcode_scans:
+                                p = doc.add_paragraph(style='List Bullet')
+                                p.add_run(f"{scan.get('type', 'Unknown')}: {scan.get('data', '')}")
                         
                         if step_info:
                             p = doc.add_paragraph()

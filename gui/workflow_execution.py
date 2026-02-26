@@ -506,8 +506,10 @@ class WorkflowExecutionScreen(QWidget):
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_frame)
         self.qr_scanner = None
+        self.barcode_check_timer = None
         self.captured_images = []  # All images from workflow
         self.step_images = []  # Images for current step
+        self.step_barcode_scans = []  # Barcode scans for current step
         self.step_results = {}  # Track pass/fail for each step: {step_index: bool}
         self.step_checkbox_states = {}  # Track checkbox states: {step_index: [{'x', 'y', 'checked'}]}
         
@@ -835,6 +837,14 @@ class WorkflowExecutionScreen(QWidget):
         self.capture_button.setEnabled(False)
         capture_layout.addWidget(self.capture_button)
         
+        # Scan barcode button
+        self.scan_button = QPushButton("Scan Barcode/QR")
+        self.scan_button.setMinimumHeight(40)
+        self.scan_button.setMaximumWidth(150)
+        self.scan_button.clicked.connect(self.scan_barcode)
+        self.scan_button.setEnabled(False)
+        capture_layout.addWidget(self.scan_button)
+        
         # Record button
         self.record_button = QPushButton("🔴 Start Recording")
         self.record_button.setMinimumHeight(40)
@@ -1064,6 +1074,17 @@ class WorkflowExecutionScreen(QWidget):
                     self.capture_button.setEnabled(True)
                     self.record_button.setEnabled(True)
                     logger.info("Camera opened successfully")
+                    
+                    # Start barcode scanner if available
+                    if QR_SCANNER_AVAILABLE:
+                        logger.info("Starting barcode scanner...")
+                        self.qr_scanner = QRScannerThread(self.current_camera)
+                        self.qr_scanner.barcode_detected.connect(self.on_barcode_detected)
+                        self.qr_scanner.start()
+                        # Start timer to check barcode availability
+                        self.barcode_check_timer = QTimer()
+                        self.barcode_check_timer.timeout.connect(self.update_scan_button_state)
+                        self.barcode_check_timer.start(100)
                 else:
                     raise Exception(f"Failed to open camera: {self.current_camera.name}")
         except Exception as e:
@@ -1466,6 +1487,72 @@ class WorkflowExecutionScreen(QWidget):
             QMessageBox.information(self, "Image Captured", 
                                    f"Image saved for step {self.current_step + 1}")
     
+    def on_barcode_detected(self, barcode_type: str, barcode_data: str):
+        """Handle barcode detection (just update status, don't auto-append)."""
+        logger.info(f"Barcode detected: {barcode_type} - {barcode_data}")
+    
+    def update_scan_button_state(self):
+        """Enable/disable scan button based on barcode detection."""
+        if self.qr_scanner:
+            barcode_type, barcode_data = self.qr_scanner.get_current_barcode()
+            self.scan_button.setEnabled(barcode_type is not None)
+    
+    def scan_barcode(self):
+        """Capture current barcode scan."""
+        if not self.qr_scanner:
+            return
+        
+        barcode_type, barcode_data = self.qr_scanner.get_current_barcode()
+        if not barcode_type or not barcode_data:
+            return
+        
+        # Add to scans list for current step
+        scan_info = {
+            'type': barcode_type,
+            'data': barcode_data,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'step': self.current_step + 1
+        }
+        self.step_barcode_scans.append(scan_info)
+        
+        # Capture current frame
+        if self.current_camera:
+            frame = self.current_camera.capture_frame()
+            if frame is not None:
+                # Save image
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                serial_prefix = self.serial_number if self.serial_number else "unknown"
+                step_name = self.workflow['steps'][self.current_step].get('title', f'step{self.current_step + 1}')
+                filename = f"{serial_prefix}_{step_name}_barcode_{timestamp}.jpg"
+                filepath = os.path.join(self.output_dir, filename)
+                cv2.imwrite(filepath, frame)
+                
+                # Add to captured images with barcode note
+                image_data = {
+                    'path': filepath,
+                    'camera': self.current_camera.name,
+                    'notes': f"Barcode scan capture ({barcode_type}): {barcode_data}",
+                    'timestamp': timestamp,
+                    'type': 'image',
+                    'markers': [],
+                    'barcode_scans': [scan_info],
+                    'step': self.current_step + 1,
+                    'step_title': step_name
+                }
+                self.captured_images.append(image_data)
+                self.step_images.append(image_data)
+        
+        # Show dialog
+        step_scan_count = len(self.step_barcode_scans)
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Barcode Scanned")
+        msg.setText(f"Barcode Type: {barcode_type}\nData: {barcode_data}\n\nScan {step_scan_count} for this step")
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.exec()
+        
+        self.update_step_status()
+        logger.info(f"Barcode scanned ({step_scan_count} total for step)")
+    
     def _draw_markers_on_frame(self, frame, markers):
         """Draw annotation markers on frame."""
         frame_h, frame_w = frame.shape[:2]
@@ -1527,6 +1614,7 @@ class WorkflowExecutionScreen(QWidget):
         if self.current_step < len(self.workflow['steps']) - 1:
             self.current_step += 1
             self.step_images = []  # Clear images for new step
+            self.step_barcode_scans = []  # Clear barcode scans for new step
             self.show_current_step()
     
     def next_step(self):
@@ -1698,6 +1786,12 @@ class WorkflowExecutionScreen(QWidget):
                                    "This step requires annotations (markers) on captured images.\n\n"
                                    "Click on the camera preview to add markers (A, B, C...) before capturing.")
                 return False
+        
+        if step.get('require_barcode_scan', False) and len(self.step_barcode_scans) == 0:
+            QMessageBox.warning(self, "Barcode Scan Required", 
+                               "This step requires at least one barcode scan before proceeding.\n\n"
+                               "Use the 'Scan Barcode/QR' button when a barcode is detected.")
+            return False
         
         if step.get('require_pass_fail', False) and self.current_step not in self.step_results:
             QMessageBox.warning(self, "Pass/Fail Required", 
@@ -1871,6 +1965,12 @@ class WorkflowExecutionScreen(QWidget):
                     'step_number': i + 1
                 })
             
+            # Collect all barcode scans from images
+            all_barcode_scans = []
+            for img in self.captured_images:
+                if 'barcode_scans' in img:
+                    all_barcode_scans.extend(img['barcode_scans'])
+            
             # Generate both PDF and DOCX reports
             pdf_path, docx_path = generate_reports(
                 serial_number=self.serial_number,
@@ -1880,7 +1980,8 @@ class WorkflowExecutionScreen(QWidget):
                 mode_name=workflow_name,
                 workflow_name=workflow_name,
                 checklist_data=checklist_data,
-                video_paths=self.recorded_videos
+                video_paths=self.recorded_videos,
+                barcode_scans=all_barcode_scans if all_barcode_scans else None
             )
             
             video_info = f"\nVideos: {len(self.recorded_videos)}" if self.recorded_videos else ""
@@ -2301,6 +2402,9 @@ class WorkflowExecutionScreen(QWidget):
         """Clean up camera resources."""
         if self.timer.isActive():
             self.timer.stop()
+        
+        if self.barcode_check_timer and self.barcode_check_timer.isActive():
+            self.barcode_check_timer.stop()
         
         if self.qr_scanner:
             self.qr_scanner.stop()
