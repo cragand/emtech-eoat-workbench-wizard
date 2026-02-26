@@ -296,8 +296,11 @@ class DOCXReportGenerator:
                         
                         if notes:
                             p = doc.add_paragraph()
-                            p.add_run('Notes: ').bold = True
-                            p.add_run(notes)
+                            p.add_run('Notes:').bold = True
+                            # Handle multi-line notes by splitting on newlines
+                            for line in notes.split('\n'):
+                                p = doc.add_paragraph(line)
+                                p.paragraph_format.left_indent = Inches(0.25)
                         
                         # Add marker notes if present
                         marker_notes = [m for m in markers if m.get('note', '').strip()]
@@ -326,8 +329,11 @@ class DOCXReportGenerator:
                         
                         if notes:
                             p = doc.add_paragraph()
-                            p.add_run('Notes: ').bold = True
-                            p.add_run(notes)
+                            p.add_run('Notes:').bold = True
+                            # Handle multi-line notes by splitting on newlines
+                            for line in notes.split('\n'):
+                                p = doc.add_paragraph(line)
+                                p.paragraph_format.left_indent = Inches(0.25)
                         
                         # Add marker notes if present
                         marker_notes = [m for m in markers if m.get('note', '').strip()]

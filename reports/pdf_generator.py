@@ -287,7 +287,9 @@ class PDFReportGenerator:
                         caption_text += f"<i>Camera: {camera}</i><br/>"
                         caption_text += "<i>(Video file - not embedded in report)</i>"
                         if notes:
-                            caption_text += f"<br/><b>Notes:</b> {notes}"
+                            # Replace newlines with <br/> for proper formatting
+                            formatted_notes = notes.replace('\n', '<br/>')
+                            caption_text += f"<br/><b>Notes:</b><br/>{formatted_notes}"
                         
                         # Add marker notes if present
                         marker_notes = [m for m in markers if m.get('note', '').strip()]
@@ -304,7 +306,9 @@ class PDFReportGenerator:
                         caption_text = f"<b>Image {idx}</b>: {os.path.basename(img_path)}<br/>"
                         caption_text += f"<i>Camera: {camera}</i>"
                         if notes:
-                            caption_text += f"<br/><b>Notes:</b> {notes}"
+                            # Replace newlines with <br/> for proper formatting
+                            formatted_notes = notes.replace('\n', '<br/>')
+                            caption_text += f"<br/><b>Notes:</b><br/>{formatted_notes}"
                         
                         # Add marker notes if present
                         marker_notes = [m for m in markers if m.get('note', '').strip()]
