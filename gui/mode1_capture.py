@@ -81,14 +81,15 @@ class Mode1CaptureScreen(QWidget):
         title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         title.setStyleSheet("color: white; background: transparent;")
         header_layout.addWidget(title)
-        header_layout.addStretch()
         
+        # Serial number in center
         info_label = QLabel(f"Serial: {self.serial_number if self.serial_number else 'Not Set'}")
-        info_label.setFont(QFont("Arial", 10))
+        info_label.setFont(QFont("Arial", 12))
         info_label.setStyleSheet("color: white; background: transparent;")
+        info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header_layout.addWidget(info_label)
         
-        # Back button in header
+        # Back button on right
         self.back_button = QPushButton("Back to Menu")
         self.back_button.setStyleSheet("""
             QPushButton {
