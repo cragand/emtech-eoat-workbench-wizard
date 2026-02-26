@@ -135,30 +135,6 @@ class DOCXReportGenerator:
             doc.add_paragraph(description)
             doc.add_paragraph()
         
-        # Barcode Scans Section (if any)
-        if barcode_scans and len(barcode_scans) > 0:
-            doc.add_heading('Barcode Scans', level=2)
-            
-            scan_table = doc.add_table(rows=len(barcode_scans) + 1, cols=4)
-            scan_table.style = 'Light Grid Accent 1'
-            
-            # Header row
-            scan_table.rows[0].cells[0].text = '#'
-            scan_table.rows[0].cells[1].text = 'Type'
-            scan_table.rows[0].cells[2].text = 'Data'
-            scan_table.rows[0].cells[3].text = 'Timestamp'
-            for cell in scan_table.rows[0].cells:
-                cell.paragraphs[0].runs[0].font.bold = True
-            
-            # Data rows
-            for idx, scan in enumerate(barcode_scans, 1):
-                scan_table.rows[idx].cells[0].text = str(idx)
-                scan_table.rows[idx].cells[1].text = scan.get('type', 'Unknown')
-                scan_table.rows[idx].cells[2].text = scan.get('data', '')
-                scan_table.rows[idx].cells[3].text = scan.get('timestamp', '')
-            
-            doc.add_paragraph()
-        
         # Procedure Summary (if provided)
         if checklist_data:
             doc.add_heading('Procedure Summary', level=2)
@@ -332,14 +308,6 @@ class DOCXReportGenerator:
                                 p = doc.add_paragraph(style='List Bullet')
                                 p.add_run(f"{m['label']}: {m['note']}")
                         
-                        # Add barcode scan info if present
-                        if img_barcode_scans:
-                            p = doc.add_paragraph()
-                            p.add_run('Barcode Scans:').bold = True
-                            for scan in img_barcode_scans:
-                                p = doc.add_paragraph(style='List Bullet')
-                                p.add_run(f"{scan.get('type', 'Unknown')}: {scan.get('data', '')}")
-                        
                         if step_info:
                             p = doc.add_paragraph()
                             p.add_run('Step: ').italic = True
@@ -370,13 +338,6 @@ class DOCXReportGenerator:
                                 p = doc.add_paragraph(style='List Bullet')
                                 p.add_run(f"{m['label']}: {m['note']}")
                         
-                        # Add barcode scan info if present
-                        if img_barcode_scans:
-                            p = doc.add_paragraph()
-                            p.add_run('Barcode Scans:').bold = True
-                            for scan in img_barcode_scans:
-                                p = doc.add_paragraph(style='List Bullet')
-                                p.add_run(f"{scan.get('type', 'Unknown')}: {scan.get('data', '')}")
                         
                         if step_info:
                             p = doc.add_paragraph()
