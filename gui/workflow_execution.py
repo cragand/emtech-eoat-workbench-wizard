@@ -1802,19 +1802,30 @@ class WorkflowExecutionScreen(QWidget):
     
     def on_back_clicked(self):
         """Handle back to menu button click."""
-        # Check if user has unsaved work
+        # Auto-generate report if images were captured
         if self.captured_images:
-            reply = QMessageBox.question(
-                self,
-                "Return to Menu?",
-                f"You have {len(self.captured_images)} captured image(s) in this workflow.\n\n"
-                "Are you sure you want to return to the menu without finishing?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
-            )
-            
-            if reply == QMessageBox.No:
-                return
+            try:
+                # Collect all barcode scans from images
+                all_barcode_scans = []
+                for img in self.captured_images:
+                    if 'barcode_scans' in img:
+                        all_barcode_scans.extend(img['barcode_scans'])
+                
+                # Generate report with current progress
+                workflow_name = self.workflow.get('name', 'Workflow')
+                generate_reports(
+                    serial_number=self.serial_number,
+                    technician=self.technician,
+                    description=self.description,
+                    images=self.captured_images,
+                    mode_name=workflow_name,
+                    workflow_name=workflow_name,
+                    video_paths=self.recorded_videos,
+                    barcode_scans=all_barcode_scans if all_barcode_scans else None
+                )
+            except Exception as e:
+                # Log error but don't block exit
+                print(f"Report generation error: {e}")
         
         self.cleanup_resources()
         self.back_requested.emit()
