@@ -1813,7 +1813,7 @@ class WorkflowExecutionScreen(QWidget):
                 
                 # Generate report with current progress
                 workflow_name = self.workflow.get('name', 'Workflow')
-                generate_reports(
+                pdf_path, docx_path = generate_reports(
                     serial_number=self.serial_number,
                     technician=self.technician,
                     description=self.description,
@@ -1823,8 +1823,23 @@ class WorkflowExecutionScreen(QWidget):
                     video_paths=self.recorded_videos,
                     barcode_scans=all_barcode_scans if all_barcode_scans else None
                 )
+                
+                # Show success dialog
+                QMessageBox.information(
+                    self,
+                    "Reports Generated",
+                    f"Partial workflow progress saved to reports.\n\n"
+                    f"PDF: {pdf_path}\n\n"
+                    f"DOCX: {docx_path}\n\n"
+                    f"Images included: {len(self.captured_images)}"
+                )
             except Exception as e:
-                # Log error but don't block exit
+                # Show error but don't block exit
+                QMessageBox.warning(
+                    self,
+                    "Report Error",
+                    f"Failed to generate report:\n{str(e)}"
+                )
                 print(f"Report generation error: {e}")
         
         self.cleanup_resources()
@@ -1836,7 +1851,24 @@ class WorkflowExecutionScreen(QWidget):
             return
         
         # Auto-generate report
-        self.generate_workflow_report()
+        try:
+            pdf_path, docx_path = self.generate_workflow_report()
+            
+            # Show success dialog
+            QMessageBox.information(
+                self,
+                "Workflow Complete",
+                f"Workflow complete! Reports generated successfully.\n\n"
+                f"PDF: {pdf_path}\n\n"
+                f"DOCX: {docx_path}\n\n"
+                f"Total images: {len(self.captured_images)}"
+            )
+        except Exception as e:
+            QMessageBox.warning(
+                self,
+                "Report Error",
+                f"Workflow complete but report generation failed:\n{str(e)}"
+            )
         
         self.clear_progress()  # Clear saved progress
         self.cleanup_resources()
@@ -1989,17 +2021,12 @@ class WorkflowExecutionScreen(QWidget):
                 barcode_scans=all_barcode_scans if all_barcode_scans else None
             )
             
-            video_info = f"\nVideos: {len(self.recorded_videos)}" if self.recorded_videos else ""
-            QMessageBox.information(self, "Reports Generated", 
-                                   f"PDF and DOCX reports generated successfully!\n\n"
-                                   f"PDF: {pdf_path}\n\n"
-                                   f"DOCX: {docx_path}\n\n"
-                                   f"Images: {len(self.captured_images)}\n"
-                                   f"Steps completed: {len(checklist_data)}{video_info}")
+            return pdf_path, docx_path
         
         except Exception as e:
             QMessageBox.critical(self, "Report Error", 
                                f"Failed to generate report:\n{str(e)}")
+            raise
     
     def show_reference_fullsize(self):
         """Show reference image in full size popup with interactive checkboxes."""

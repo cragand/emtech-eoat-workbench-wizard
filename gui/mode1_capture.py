@@ -566,10 +566,24 @@ class Mode1CaptureScreen(QWidget):
                 )
                 self.report_generated = True
                 self.status_label.setText(f"✓ Reports saved")
+                
+                # Show success dialog
+                QMessageBox.information(
+                    self,
+                    "Reports Generated",
+                    f"PDF and DOCX reports generated successfully!\n\n"
+                    f"PDF: {pdf_path}\n\n"
+                    f"DOCX: {docx_path}\n\n"
+                    f"Images included: {len(self.captured_images)}"
+                )
             except Exception as e:
-                # Log error but don't block exit
+                # Show error but don't block exit
+                QMessageBox.warning(
+                    self,
+                    "Report Error",
+                    f"Failed to generate report:\n{str(e)}"
+                )
                 print(f"Report generation error: {e}")
-                self.status_label.setText(f"✗ Report failed: {str(e)}")
         
         self.cleanup_resources()
         self.back_requested.emit()
@@ -612,8 +626,23 @@ class Mode1CaptureScreen(QWidget):
                     barcode_scans=self.barcode_scans
                 )
                 self.report_generated = True
+                
+                # Show success dialog
+                QMessageBox.information(
+                    self,
+                    "Reports Generated",
+                    f"PDF and DOCX reports generated successfully!\n\n"
+                    f"PDF: {pdf_path}\n\n"
+                    f"DOCX: {docx_path}\n\n"
+                    f"Images included: {len(self.captured_images)}"
+                )
             except Exception as e:
-                # Log error but don't block exit
+                # Show error but don't block exit
+                QMessageBox.warning(
+                    self,
+                    "Report Error",
+                    f"Failed to generate report:\n{str(e)}"
+                )
                 print(f"Report generation error: {e}")
         
         self.cleanup_resources()
