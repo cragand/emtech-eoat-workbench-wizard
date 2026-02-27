@@ -697,31 +697,8 @@ class WorkflowExecutionScreen(QWidget):
         ref_header_layout.addWidget(ref_label)
         ref_header_layout.addStretch()
         
-        self.view_fullsize_button = QPushButton("🔍 View Full Size")
-        self.view_fullsize_button.setFocusPolicy(Qt.NoFocus)
-        self.view_fullsize_button.setStyleSheet("""
-            QPushButton {
-                background-color: #77C25E;
-                color: white;
-                border: none;
-                border-radius: 3px;
-                padding: 4px 8px;
-                font-size: 9pt;
-            }
-            QPushButton:hover {
-                background-color: #5FA84A;
-            }
-            QPushButton:disabled {
-                background-color: #CCCCCC;
-                color: #666666;
-            }
-        """)
-        self.view_fullsize_button.clicked.connect(self.show_reference_fullsize)
-        self.view_fullsize_button.setEnabled(False)
-        ref_header_layout.addWidget(self.view_fullsize_button)
-        
-        # Compare/Overlay button (replaces separate compare button)
-        self.compare_button = QPushButton("📷 Compare/Overlay")
+        # Compare & Overlay button
+        self.compare_button = QPushButton("🔍 Compare & Overlay")
         self.compare_button.setFocusPolicy(Qt.NoFocus)
         self.compare_button.setStyleSheet("""
             QPushButton {
@@ -1265,7 +1242,6 @@ class WorkflowExecutionScreen(QWidget):
         if ref_image_path and os.path.exists(ref_image_path):
             self.reference_image_path = ref_image_path
             self.reference_image.set_image_and_checkboxes(ref_image_path, checkbox_data)
-            self.view_fullsize_button.setEnabled(True)
             self.compare_button.setEnabled(True)
         else:
             # Clear reference image completely
@@ -1274,7 +1250,6 @@ class WorkflowExecutionScreen(QWidget):
             self.reference_image.checkboxes = []
             self.reference_image.clear()
             self.reference_image.setText("No reference image")
-            self.view_fullsize_button.setEnabled(False)
             self.compare_button.setEnabled(False)
         
         # Show/hide pass/fail buttons based on step requirement
