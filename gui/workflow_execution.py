@@ -2379,6 +2379,25 @@ class WorkflowExecutionScreen(QWidget):
         capture_btn.clicked.connect(capture_from_comparison)
         action_layout.addWidget(capture_btn)
         
+        # Scan barcode button
+        scan_btn = QPushButton("📱 Scan Barcode/QR")
+        scan_btn.setMinimumHeight(35)
+        scan_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 8px 15px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #F57C00;
+            }
+        """)
+        scan_btn.clicked.connect(self.scan_barcode)
+        action_layout.addWidget(scan_btn)
+        
         # Record button
         record_btn = QPushButton("🔴 Start Recording")
         record_btn.setMinimumHeight(35)
