@@ -751,7 +751,7 @@ class WorkflowExecutionScreen(QWidget):
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
         
-        # Camera selection
+        # Camera selection with Review Captures button
         camera_layout = QHBoxLayout()
         camera_label = QLabel("Camera:")
         camera_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
@@ -762,6 +762,30 @@ class WorkflowExecutionScreen(QWidget):
         camera_layout.addWidget(camera_label)
         camera_layout.addWidget(self.camera_combo)
         camera_layout.addStretch()
+        
+        # Review captures button (right-aligned)
+        self.review_button = QPushButton("📋 Review Captures")
+        self.review_button.setMaximumWidth(180)
+        self.review_button.setStyleSheet("""
+            QPushButton {
+                background-color: #77C25E;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-weight: bold;
+                padding: 5px 10px;
+            }
+            QPushButton:hover {
+                background-color: #5FA84A;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #666666;
+            }
+        """)
+        self.review_button.clicked.connect(self.open_review_dialog)
+        camera_layout.addWidget(self.review_button)
+        
         right_layout.addLayout(camera_layout)
         
         # Camera preview - larger and expandable
@@ -870,29 +894,6 @@ class WorkflowExecutionScreen(QWidget):
             }
         """)
         capture_layout.addWidget(self.record_button)
-        
-        # Review captures button
-        self.review_button = QPushButton("📋 Review Captures")
-        self.review_button.setMinimumHeight(40)
-        self.review_button.setMaximumWidth(180)
-        self.review_button.setStyleSheet("""
-            QPushButton {
-                background-color: #77C25E;
-                color: white;
-                border: none;
-                border-radius: 3px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #5FA84A;
-            }
-            QPushButton:disabled {
-                background-color: #CCCCCC;
-                color: #666666;
-            }
-        """)
-        self.review_button.clicked.connect(self.open_review_dialog)
-        capture_layout.addWidget(self.review_button)
         
         right_layout.addLayout(capture_layout)
         
