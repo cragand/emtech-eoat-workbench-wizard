@@ -13,6 +13,7 @@ from datetime import datetime
 from camera import CameraManager
 from reports import generate_reports
 from gui.annotatable_preview import AnnotatablePreview
+from gui.review_captures_dialog import ReviewCapturesDialog
 from logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -870,6 +871,29 @@ class WorkflowExecutionScreen(QWidget):
         """)
         capture_layout.addWidget(self.record_button)
         
+        # Review captures button
+        self.review_button = QPushButton("📋 Review Captures")
+        self.review_button.setMinimumHeight(40)
+        self.review_button.setMaximumWidth(180)
+        self.review_button.setStyleSheet("""
+            QPushButton {
+                background-color: #77C25E;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #5FA84A;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #666666;
+            }
+        """)
+        self.review_button.clicked.connect(self.open_review_dialog)
+        capture_layout.addWidget(self.review_button)
+        
         right_layout.addLayout(capture_layout)
         
         # Compare button
@@ -1554,6 +1578,30 @@ class WorkflowExecutionScreen(QWidget):
         
         self.update_step_status()
         logger.info(f"Barcode scanned ({step_scan_count} total for step)")
+    
+    def open_review_dialog(self):
+        """Open review captures dialog."""
+        if not self.captured_images:
+            QMessageBox.information(self, "No Captures", "No images or videos have been captured yet.")
+            return
+        
+        # Get current step requirements
+        step = self.workflow['steps'][self.current_step]
+        requirements = {
+            'require_photo': step.get('require_photo', False),
+            'require_annotations': step.get('require_annotations', False)
+        }
+        
+        dialog = ReviewCapturesDialog(
+            self.captured_images, 
+            self.step_images, 
+            requirements,
+            parent=self
+        )
+        dialog.exec_()
+        
+        # Update status after review
+        self.update_step_status()
     
     def _draw_markers_on_frame(self, frame, markers):
         """Draw annotation markers on frame."""

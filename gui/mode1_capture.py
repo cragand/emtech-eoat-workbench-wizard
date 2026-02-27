@@ -13,6 +13,7 @@ from datetime import datetime
 from camera import CameraManager
 from reports import generate_reports
 from gui.annotatable_preview import AnnotatablePreview
+from gui.review_captures_dialog import ReviewCapturesDialog
 
 # Optional QR scanner support
 try:
@@ -196,6 +197,13 @@ class Mode1CaptureScreen(QWidget):
         self.record_button.setEnabled(False)
         button_layout.addWidget(self.record_button)
         
+        self.review_button = QPushButton("📋 Review Captures")
+        self.review_button.setMinimumHeight(40)
+        self.review_button.setMaximumWidth(180)
+        self.review_button.setStyleSheet(button_style)
+        self.review_button.clicked.connect(self.open_review_dialog)
+        button_layout.addWidget(self.review_button)
+        
         layout.addLayout(button_layout)
         
         # Annotation controls
@@ -374,6 +382,15 @@ class Mode1CaptureScreen(QWidget):
         msg.exec()
         
         self.status_label.setText(f"Barcode scanned ({scan_count} total)")
+    
+    def open_review_dialog(self):
+        """Open review captures dialog."""
+        if not self.captured_images:
+            QMessageBox.information(self, "No Captures", "No images or videos have been captured yet.")
+            return
+        
+        dialog = ReviewCapturesDialog(self.captured_images, parent=self)
+        dialog.exec_()
     
     def update_frame(self):
         """Update camera preview."""
