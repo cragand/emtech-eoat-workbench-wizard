@@ -1,6 +1,6 @@
 """Workflow execution screen for guided QC and maintenance procedures."""
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QPushButton, QTextEdit, QMessageBox, QLineEdit, QSplitter, QComboBox, QDialog, QSizePolicy, QCheckBox, QRadioButton, QButtonGroup)
+                             QPushButton, QTextEdit, QMessageBox, QLineEdit, QSplitter, QComboBox, QDialog, QSizePolicy, QCheckBox, QRadioButton, QButtonGroup, QSlider)
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QPoint
 from PyQt5.QtGui import QImage, QPixmap, QFont, QPainter, QColor, QPen
 import cv2
@@ -737,6 +737,43 @@ class WorkflowExecutionScreen(QWidget):
         
         left_layout.addLayout(ref_header_layout)
         
+        # Overlay mode controls for main view
+        main_overlay_layout = QHBoxLayout()
+        
+        self.main_overlay_checkbox = QCheckBox("Overlay")
+        self.main_overlay_checkbox.setStyleSheet("font-weight: bold; font-size: 9px;")
+        self.main_overlay_checkbox.setEnabled(False)
+        main_overlay_layout.addWidget(self.main_overlay_checkbox)
+        
+        main_overlay_layout.addWidget(QLabel("Transparency:"))
+        
+        self.main_transparency_slider = QSlider(Qt.Horizontal)
+        self.main_transparency_slider.setMinimum(0)
+        self.main_transparency_slider.setMaximum(100)
+        self.main_transparency_slider.setValue(50)
+        self.main_transparency_slider.setMaximumWidth(150)
+        self.main_transparency_slider.setEnabled(False)
+        main_overlay_layout.addWidget(self.main_transparency_slider)
+        
+        self.main_transparency_label = QLabel("50%")
+        self.main_transparency_label.setMinimumWidth(35)
+        main_overlay_layout.addWidget(self.main_transparency_label)
+        
+        main_overlay_layout.addStretch()
+        left_layout.addLayout(main_overlay_layout)
+        
+        # Update transparency label
+        def update_main_transparency_label(value):
+            self.main_transparency_label.setText(f"{value}%")
+        
+        self.main_transparency_slider.valueChanged.connect(update_main_transparency_label)
+        
+        # Toggle transparency slider when overlay checkbox changes
+        def toggle_main_overlay(checked):
+            self.main_transparency_slider.setEnabled(checked)
+        
+        self.main_overlay_checkbox.toggled.connect(toggle_main_overlay)
+        
         self.reference_image = InteractiveReferenceImage()
         self.reference_image.setMinimumSize(300, 200)
         self.reference_image.setStyleSheet("border: 2px solid #CCCCCC;")
@@ -1147,7 +1184,25 @@ class WorkflowExecutionScreen(QWidget):
                 rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 h, w, ch = rgb_frame.shape
                 bytes_per_line = ch * w
-                qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+                
+                # Check if overlay mode is enabled and reference image exists
+                if self.main_overlay_checkbox.isChecked() and self.reference_image_path and os.path.exists(self.reference_image_path):
+                    # Overlay mode: blend reference and live camera
+                    ref_img = cv2.imread(self.reference_image_path)
+                    if ref_img is not None:
+                        # Resize reference to match camera frame
+                        ref_resized = cv2.resize(ref_img, (w, h))
+                        
+                        # Blend images based on transparency slider
+                        alpha = self.main_transparency_slider.value() / 100.0
+                        blended = cv2.addWeighted(ref_resized, alpha, frame, 1 - alpha, 0)
+                        
+                        # Convert to Qt image
+                        rgb_blended = cv2.cvtColor(blended, cv2.COLOR_BGR2RGB)
+                        qt_image = QImage(rgb_blended.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+                else:
+                    # Normal mode
+                    qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
                 
                 scaled_pixmap = QPixmap.fromImage(qt_image).scaled(
                     self.preview_label.size(), 
@@ -1277,6 +1332,9 @@ class WorkflowExecutionScreen(QWidget):
             self.reference_image_path = ref_image_path
             self.reference_image.set_image_and_checkboxes(ref_image_path, checkbox_data)
             self.view_fullsize_button.setEnabled(True)
+            # Enable overlay controls
+            self.main_overlay_checkbox.setEnabled(True)
+            self.main_transparency_slider.setEnabled(self.main_overlay_checkbox.isChecked())
         else:
             # Clear reference image completely
             self.reference_image_path = None
@@ -1285,6 +1343,10 @@ class WorkflowExecutionScreen(QWidget):
             self.reference_image.clear()
             self.reference_image.setText("No reference image")
             self.view_fullsize_button.setEnabled(False)
+            # Disable overlay controls
+            self.main_overlay_checkbox.setEnabled(False)
+            self.main_overlay_checkbox.setChecked(False)
+            self.main_transparency_slider.setEnabled(False)
         
         # Show/hide pass/fail buttons based on step requirement
         self.pass_fail_widget.setVisible(step.get('require_pass_fail', False))
@@ -2264,6 +2326,35 @@ class WorkflowExecutionScreen(QWidget):
         
         layout.addLayout(header_layout)
         
+        # Overlay mode controls
+        overlay_controls = QHBoxLayout()
+        
+        overlay_checkbox = QCheckBox("Overlay Mode")
+        overlay_checkbox.setStyleSheet("font-weight: bold;")
+        overlay_controls.addWidget(overlay_checkbox)
+        
+        overlay_controls.addWidget(QLabel("Transparency:"))
+        
+        transparency_slider = QSlider(Qt.Horizontal)
+        transparency_slider.setMinimum(0)
+        transparency_slider.setMaximum(100)
+        transparency_slider.setValue(50)
+        transparency_slider.setMaximumWidth(200)
+        transparency_slider.setEnabled(False)
+        overlay_controls.addWidget(transparency_slider)
+        
+        transparency_label = QLabel("50%")
+        transparency_label.setMinimumWidth(40)
+        overlay_controls.addWidget(transparency_label)
+        
+        overlay_controls.addStretch()
+        layout.addLayout(overlay_controls)
+        
+        # Container for either split view or overlay view
+        view_container = QWidget()
+        view_layout = QVBoxLayout(view_container)
+        view_layout.setContentsMargins(0, 0, 0, 0)
+        
         # Split view for images
         from PyQt5.QtWidgets import QSplitter
         splitter = QSplitter(Qt.Horizontal)
@@ -2482,7 +2573,46 @@ class WorkflowExecutionScreen(QWidget):
         # Add right container to splitter
         splitter.addWidget(right_container)
         
-        layout.addWidget(splitter, 1)
+        view_layout.addWidget(splitter, 1)
+        
+        # Overlay display (hidden by default)
+        overlay_display = AnnotatablePreview()
+        overlay_display.setStyleSheet("border: 2px solid #9C27B0; background-color: #2b2b2b;")
+        overlay_display.setMinimumSize(800, 600)
+        overlay_display.setVisible(False)
+        
+        # Copy markers to overlay display
+        if hasattr(self.preview_label, 'markers'):
+            overlay_display.markers = [m.copy() for m in self.preview_label.markers]
+        
+        # Sync markers from overlay back to main
+        def sync_overlay_markers():
+            if hasattr(self.preview_label, 'markers'):
+                self.preview_label.markers = [m.copy() for m in overlay_display.markers]
+                self.preview_label.update()
+        
+        overlay_display.markers_changed.connect(sync_overlay_markers)
+        view_layout.addWidget(overlay_display, 1)
+        
+        layout.addWidget(view_container, 1)
+        
+        # Toggle between split and overlay mode
+        def toggle_overlay_mode(checked):
+            splitter.setVisible(not checked)
+            overlay_display.setVisible(checked)
+            transparency_slider.setEnabled(checked)
+            if checked:
+                # Copy markers from live display to overlay
+                overlay_display.markers = [m.copy() for m in live_display.markers]
+                overlay_display.update()
+        
+        overlay_checkbox.toggled.connect(toggle_overlay_mode)
+        
+        # Update transparency label
+        def update_transparency_label(value):
+            transparency_label.setText(f"{value}%")
+        
+        transparency_slider.valueChanged.connect(update_transparency_label)
         
         # Update timer for live feed
         def update_comparison():
@@ -2492,8 +2622,9 @@ class WorkflowExecutionScreen(QWidget):
                     # If recording in comparison view, write frame with annotations
                     if comparison_recording['active'] and comparison_recording['writer']:
                         annotated_frame = frame.copy()
-                        if live_display.markers:
-                            annotated_frame = self._draw_markers_on_frame(annotated_frame, live_display.markers)
+                        markers_to_use = overlay_display.markers if overlay_checkbox.isChecked() else live_display.markers
+                        if markers_to_use:
+                            annotated_frame = self._draw_markers_on_frame(annotated_frame, markers_to_use)
                         comparison_recording['writer'].write(annotated_frame)
                     
                     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -2501,7 +2632,28 @@ class WorkflowExecutionScreen(QWidget):
                     bytes_per_line = ch * w
                     qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
                     live_pixmap = QPixmap.fromImage(qt_image)
-                    live_display.set_frame(live_pixmap)
+                    
+                    if overlay_checkbox.isChecked():
+                        # Overlay mode: blend reference and live camera
+                        # Load reference image
+                        ref_img = cv2.imread(self.reference_image_path)
+                        if ref_img is not None:
+                            # Resize reference to match camera frame
+                            ref_resized = cv2.resize(ref_img, (w, h))
+                            
+                            # Blend images based on transparency slider
+                            alpha = transparency_slider.value() / 100.0
+                            blended = cv2.addWeighted(ref_resized, alpha, frame, 1 - alpha, 0)
+                            
+                            # Convert to Qt image
+                            rgb_blended = cv2.cvtColor(blended, cv2.COLOR_BGR2RGB)
+                            qt_blended = QImage(rgb_blended.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+                            overlay_pixmap = QPixmap.fromImage(qt_blended)
+                            overlay_display.set_frame(overlay_pixmap)
+                    else:
+                        # Split mode: update live display
+                        live_display.set_frame(live_pixmap)
+                    # If recording in comparison view, write frame with annotations
         
         comparison_timer = QTimer()
         comparison_timer.timeout.connect(update_comparison)
