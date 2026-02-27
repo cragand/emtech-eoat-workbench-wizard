@@ -2450,24 +2450,6 @@ class WorkflowExecutionScreen(QWidget):
                     if has_ref_markers:
                         msg += "\n(Reference image with annotations also saved)"
                     QMessageBox.information(dialog, "Image Captured", msg)
-                    self.step_images.append(image_data)
-                    
-                    # Clear markers after capture
-                    live_display.clear_markers()
-                    ref_display.markers = []
-                    ref_display.update()
-                    
-                    # Sync cleared markers back to main view
-                    if hasattr(self.preview_label, 'markers'):
-                        self.preview_label.markers = []
-                        self.preview_label.update()
-                    
-                    self.update_step_status()
-                    
-                    msg = f"Image saved for step {self.current_step + 1}"
-                    if ref_display.markers:
-                        msg += "\n(Reference image with annotations also saved)"
-                    QMessageBox.information(dialog, "Image Captured", msg)
         
         capture_btn.clicked.connect(capture_from_comparison)
         action_layout.addWidget(capture_btn)
