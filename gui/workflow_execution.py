@@ -1577,7 +1577,9 @@ class WorkflowExecutionScreen(QWidget):
             end_x = int(x + arrow_length * np.cos(angle_rad))
             end_y = int(y + arrow_length * np.sin(angle_rad))
             
-            cv2.arrowedLine(frame, (x, y), (end_x, end_y), (0, 0, 255), 2, tipLength=0.3)
+            # Simple line instead of arrow
+            cv2.line(frame, (x, y), (end_x, end_y), (0, 0, 255), 2)
+            cv2.circle(frame, (x, y), 4, (0, 0, 255), -1)  # Small dot at point
             cv2.circle(frame, (end_x, end_y), 12, (255, 255, 255), -1)
             cv2.circle(frame, (end_x, end_y), 12, (0, 0, 255), 2)
             
@@ -1621,8 +1623,9 @@ class WorkflowExecutionScreen(QWidget):
             end_x = int(x + arrow_length * np.cos(angle_rad))
             end_y = int(y + arrow_length * np.sin(angle_rad))
             
-            # Green markers for reference (BGR: 94, 194, 119)
-            cv2.arrowedLine(img, (x, y), (end_x, end_y), (94, 194, 119), 2, tipLength=0.3)
+            # Simple line instead of arrow (green for reference - BGR: 94, 194, 119)
+            cv2.line(img, (x, y), (end_x, end_y), (94, 194, 119), 2)
+            cv2.circle(img, (x, y), 4, (94, 194, 119), -1)  # Small dot at point
             cv2.circle(img, (end_x, end_y), 12, (255, 255, 255), -1)
             cv2.circle(img, (end_x, end_y), 12, (94, 194, 119), 2)
             
