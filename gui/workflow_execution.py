@@ -235,6 +235,14 @@ class CombinedReferenceImage(QLabel):
         if not self.image_pixmap:
             return None
         
+        widget_rect = self.rect()
+        scaled_pixmap = self.image_pixmap.scaled(
+            widget_rect.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+        )
+        
+        x_offset = (widget_rect.width() - scaled_pixmap.width()) // 2
+        y_offset = (widget_rect.height() - scaled_pixmap.height()) // 2
+        
         pixel_x = x_offset + int(rel_x * scaled_pixmap.width())
         pixel_y = y_offset + int(rel_y * scaled_pixmap.height())
         
