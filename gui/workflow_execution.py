@@ -712,11 +712,12 @@ class WorkflowExecutionScreen(QWidget):
         self.view_fullsize_button.setEnabled(False)
         ref_header_layout.addWidget(self.view_fullsize_button)
         
-        self.undo_checkbox_button = QPushButton("↶ Undo")
-        self.undo_checkbox_button.setFocusPolicy(Qt.NoFocus)
-        self.undo_checkbox_button.setStyleSheet("""
+        # Compare/Overlay button (replaces separate compare button)
+        self.compare_button = QPushButton("📷 Compare/Overlay")
+        self.compare_button.setFocusPolicy(Qt.NoFocus)
+        self.compare_button.setStyleSheet("""
             QPushButton {
-                background-color: #FF9800;
+                background-color: #2196F3;
                 color: white;
                 border: none;
                 border-radius: 3px;
@@ -724,58 +725,23 @@ class WorkflowExecutionScreen(QWidget):
                 font-size: 9pt;
             }
             QPushButton:hover {
-                background-color: #F57C00;
+                background-color: #1976D2;
             }
             QPushButton:disabled {
                 background-color: #CCCCCC;
                 color: #666666;
             }
         """)
-        self.undo_checkbox_button.clicked.connect(self.undo_checkbox_click)
-        self.undo_checkbox_button.setEnabled(False)
-        ref_header_layout.addWidget(self.undo_checkbox_button)
+        self.compare_button.clicked.connect(self.show_comparison)
+        self.compare_button.setEnabled(False)
+        ref_header_layout.addWidget(self.compare_button)
+        
+        ref_header_layout.addStretch()
         
         left_layout.addLayout(ref_header_layout)
         
-        # Overlay mode controls for main view
-        main_overlay_layout = QHBoxLayout()
-        
-        self.main_overlay_checkbox = QCheckBox("Overlay")
-        self.main_overlay_checkbox.setStyleSheet("font-weight: bold; font-size: 9px;")
-        self.main_overlay_checkbox.setEnabled(False)
-        main_overlay_layout.addWidget(self.main_overlay_checkbox)
-        
-        main_overlay_layout.addWidget(QLabel("Transparency:"))
-        
-        self.main_transparency_slider = QSlider(Qt.Horizontal)
-        self.main_transparency_slider.setMinimum(0)
-        self.main_transparency_slider.setMaximum(100)
-        self.main_transparency_slider.setValue(50)
-        self.main_transparency_slider.setMaximumWidth(150)
-        self.main_transparency_slider.setEnabled(False)
-        main_overlay_layout.addWidget(self.main_transparency_slider)
-        
-        self.main_transparency_label = QLabel("50%")
-        self.main_transparency_label.setMinimumWidth(35)
-        main_overlay_layout.addWidget(self.main_transparency_label)
-        
-        main_overlay_layout.addStretch()
-        left_layout.addLayout(main_overlay_layout)
-        
-        # Update transparency label
-        def update_main_transparency_label(value):
-            self.main_transparency_label.setText(f"{value}%")
-        
-        self.main_transparency_slider.valueChanged.connect(update_main_transparency_label)
-        
-        # Toggle transparency slider when overlay checkbox changes
-        def toggle_main_overlay(checked):
-            self.main_transparency_slider.setEnabled(checked)
-        
-        self.main_overlay_checkbox.toggled.connect(toggle_main_overlay)
-        
         self.reference_image = InteractiveReferenceImage()
-        self.reference_image.setMinimumSize(300, 200)
+        self.reference_image.setMinimumSize(400, 400)  # Increased from 300x200
         self.reference_image.setStyleSheet("border: 2px solid #CCCCCC;")
         self.reference_image.checkboxes_changed.connect(self.on_checkboxes_changed)
         self.reference_image_path = None  # Store current reference image path
@@ -933,30 +899,6 @@ class WorkflowExecutionScreen(QWidget):
         capture_layout.addWidget(self.record_button)
         
         right_layout.addLayout(capture_layout)
-        
-        # Compare button
-        self.compare_button = QPushButton("📷 Compare with Reference")
-        self.compare_button.setFocusPolicy(Qt.NoFocus)
-        self.compare_button.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                border: none;
-                border-radius: 3px;
-                padding: 8px 15px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-            QPushButton:disabled {
-                background-color: #CCCCCC;
-                color: #666666;
-            }
-        """)
-        self.compare_button.clicked.connect(self.show_comparison)
-        self.compare_button.setEnabled(False)
-        right_layout.addWidget(self.compare_button)
         
         # Pass/Fail buttons (only shown when step requires it)
         self.pass_fail_widget = QWidget()
@@ -1185,24 +1127,8 @@ class WorkflowExecutionScreen(QWidget):
                 h, w, ch = rgb_frame.shape
                 bytes_per_line = ch * w
                 
-                # Check if overlay mode is enabled and reference image exists
-                if self.main_overlay_checkbox.isChecked() and self.reference_image_path and os.path.exists(self.reference_image_path):
-                    # Overlay mode: blend reference and live camera
-                    ref_img = cv2.imread(self.reference_image_path)
-                    if ref_img is not None:
-                        # Resize reference to match camera frame
-                        ref_resized = cv2.resize(ref_img, (w, h))
-                        
-                        # Blend images based on transparency slider
-                        alpha = self.main_transparency_slider.value() / 100.0
-                        blended = cv2.addWeighted(ref_resized, alpha, frame, 1 - alpha, 0)
-                        
-                        # Convert to Qt image
-                        rgb_blended = cv2.cvtColor(blended, cv2.COLOR_BGR2RGB)
-                        qt_image = QImage(rgb_blended.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
-                else:
-                    # Normal mode
-                    qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+                # Normal mode (overlay removed from main view)
+                qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
                 
                 scaled_pixmap = QPixmap.fromImage(qt_image).scaled(
                     self.preview_label.size(), 
@@ -1332,9 +1258,7 @@ class WorkflowExecutionScreen(QWidget):
             self.reference_image_path = ref_image_path
             self.reference_image.set_image_and_checkboxes(ref_image_path, checkbox_data)
             self.view_fullsize_button.setEnabled(True)
-            # Enable overlay controls
-            self.main_overlay_checkbox.setEnabled(True)
-            self.main_transparency_slider.setEnabled(self.main_overlay_checkbox.isChecked())
+            self.compare_button.setEnabled(True)
         else:
             # Clear reference image completely
             self.reference_image_path = None
@@ -1343,10 +1267,7 @@ class WorkflowExecutionScreen(QWidget):
             self.reference_image.clear()
             self.reference_image.setText("No reference image")
             self.view_fullsize_button.setEnabled(False)
-            # Disable overlay controls
-            self.main_overlay_checkbox.setEnabled(False)
-            self.main_overlay_checkbox.setChecked(False)
-            self.main_transparency_slider.setEnabled(False)
+            self.compare_button.setEnabled(False)
         
         # Show/hide pass/fail buttons based on step requirement
         self.pass_fail_widget.setVisible(step.get('require_pass_fail', False))
@@ -1437,13 +1358,6 @@ class WorkflowExecutionScreen(QWidget):
     def on_checkboxes_changed(self, checked, total):
         """Handle checkbox status change."""
         self.update_step_status()
-        # Enable/disable undo button
-        self.undo_checkbox_button.setEnabled(len(self.reference_image.checkbox_history) > 0)
-    
-    def undo_checkbox_click(self):
-        """Handle undo button click."""
-        if self.reference_image.undo_checkbox():
-            self.undo_checkbox_button.setEnabled(len(self.reference_image.checkbox_history) > 0)
     
     def update_breadcrumb(self):
         """Update step breadcrumb navigation."""
