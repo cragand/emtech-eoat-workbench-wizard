@@ -346,15 +346,13 @@ class CombinedReferenceImage(QLabel):
             self.update()
     
     def add_marker(self, pos):
-        """Add a new annotation marker."""
+        """Add a new annotation marker with R prefix for reference images."""
         rel_pos = self._pixel_to_relative(pos)
         if not rel_pos:
             return
         
-        import string
-        label = string.ascii_uppercase[len(self.markers) % 26]
-        if len(self.markers) >= 26:
-            label = string.ascii_uppercase[(len(self.markers) // 26) - 1] + label
+        # Use R1, R2, R3... for reference image markers
+        label = f"R{len(self.markers) + 1}"
         
         new_marker = {'x': rel_pos[0], 'y': rel_pos[1], 'label': label, 'angle': 45, 'length': 30, 'note': ''}
         self.markers.append(new_marker)
@@ -1591,6 +1589,51 @@ class WorkflowExecutionScreen(QWidget):
         
         return frame
     
+    def _draw_reference_annotations(self, img, checkboxes, markers):
+        """Draw checkboxes and markers on reference image."""
+        img_h, img_w = img.shape[:2]
+        
+        # Draw checkboxes
+        for cb in checkboxes:
+            x = int(cb['x'] * img_w)
+            y = int(cb['y'] * img_h)
+            
+            if cb['checked']:
+                # Checked: filled yellow box with checkmark
+                cv2.rectangle(img, (x-16, y-16), (x+16, y+16), (0, 193, 255), -1)
+                cv2.rectangle(img, (x-16, y-16), (x+16, y+16), (0, 193, 255), 4)
+                cv2.line(img, (x-8, y), (x-3, y+8), (0, 0, 0), 4)
+                cv2.line(img, (x-3, y+8), (x+10, y-8), (0, 0, 0), 4)
+            else:
+                # Unchecked: white box with yellow border
+                cv2.rectangle(img, (x-16, y-16), (x+16, y+16), (255, 255, 255), -1)
+                cv2.rectangle(img, (x-16, y-16), (x+16, y+16), (0, 193, 255), 3)
+        
+        # Draw markers (green for reference)
+        for marker in markers:
+            x = int(marker['x'] * img_w)
+            y = int(marker['y'] * img_h)
+            label = marker['label']
+            angle = marker.get('angle', 45)
+            arrow_length = marker.get('length', 30)
+            
+            angle_rad = np.radians(angle)
+            end_x = int(x + arrow_length * np.cos(angle_rad))
+            end_y = int(y + arrow_length * np.sin(angle_rad))
+            
+            # Green markers for reference (BGR: 94, 194, 119)
+            cv2.arrowedLine(img, (x, y), (end_x, end_y), (94, 194, 119), 2, tipLength=0.3)
+            cv2.circle(img, (end_x, end_y), 12, (255, 255, 255), -1)
+            cv2.circle(img, (end_x, end_y), 12, (94, 194, 119), 2)
+            
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            text_size = cv2.getTextSize(label, font, 0.5, 2)[0]
+            text_x = end_x - text_size[0] // 2
+            text_y = end_y + text_size[1] // 2
+            cv2.putText(img, label, (text_x, text_y), font, 0.5, (94, 194, 119), 2)
+        
+        return img
+    
     def mark_step_result(self, passed):
         """Mark current step as pass or fail."""
         self.step_results[self.current_step] = passed
@@ -2340,18 +2383,43 @@ class WorkflowExecutionScreen(QWidget):
             if self.current_camera:
                 frame = self.current_camera.capture_frame()
                 if frame is not None:
-                    # Draw markers on frame
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    has_ref_markers = len(ref_display.markers) > 0
+                    
+                    # Capture reference image if it has markers
+                    if has_ref_markers:
+                        ref_img = cv2.imread(self.reference_image_path)
+                        if ref_img is not None:
+                            # Draw markers and checkboxes on reference
+                            ref_annotated = self._draw_reference_annotations(ref_img, ref_display.checkboxes, ref_display.markers)
+                            
+                            # Save annotated reference
+                            ref_filename = f"step{self.current_step + 1}_reference_annotated_{timestamp}.jpg"
+                            ref_filepath = os.path.join(self.output_dir, ref_filename)
+                            cv2.imwrite(ref_filepath, ref_annotated)
+                            
+                            # Store reference image data
+                            ref_image_data = {
+                                'path': ref_filepath,
+                                'camera': 'Reference Image',
+                                'notes': 'Annotated reference image',
+                                'markers': [{'label': m['label'], 'note': m['note']} for m in ref_display.markers],
+                                'step': self.current_step + 1
+                            }
+                            self.captured_images.append(ref_image_data)
+                            self.step_images.append(ref_image_data)
+                    
+                    # Draw markers on camera frame
                     if live_display.markers:
                         frame = self._draw_markers_on_frame(frame, live_display.markers)
                     
-                    # Save image
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    # Save camera image
                     camera_name = self.current_camera.name.replace(" ", "_")
                     filename = f"step{self.current_step + 1}_{camera_name}_{timestamp}.jpg"
                     filepath = os.path.join(self.output_dir, filename)
                     cv2.imwrite(filepath, frame)
                     
-                    # Store image data
+                    # Store camera image data
                     image_data = {
                         'path': filepath,
                         'camera': self.current_camera.name,
@@ -2363,8 +2431,10 @@ class WorkflowExecutionScreen(QWidget):
                     self.captured_images.append(image_data)
                     self.step_images.append(image_data)
                     
-                    # Clear markers after capture (consistent with main view behavior)
+                    # Clear markers after capture
                     live_display.clear_markers()
+                    ref_display.markers = []
+                    ref_display.update()
                     
                     # Sync cleared markers back to main view
                     if hasattr(self.preview_label, 'markers'):
@@ -2373,8 +2443,28 @@ class WorkflowExecutionScreen(QWidget):
                     
                     self.update_step_status()
                     
-                    QMessageBox.information(dialog, "Image Captured", 
-                                          f"Image saved for step {self.current_step + 1}")
+                    msg = f"Image saved for step {self.current_step + 1}"
+                    if has_ref_markers:
+                        msg += "\n(Reference image with annotations also saved)"
+                    QMessageBox.information(dialog, "Image Captured", msg)
+                    self.step_images.append(image_data)
+                    
+                    # Clear markers after capture
+                    live_display.clear_markers()
+                    ref_display.markers = []
+                    ref_display.update()
+                    
+                    # Sync cleared markers back to main view
+                    if hasattr(self.preview_label, 'markers'):
+                        self.preview_label.markers = []
+                        self.preview_label.update()
+                    
+                    self.update_step_status()
+                    
+                    msg = f"Image saved for step {self.current_step + 1}"
+                    if ref_display.markers:
+                        msg += "\n(Reference image with annotations also saved)"
+                    QMessageBox.information(dialog, "Image Captured", msg)
         
         capture_btn.clicked.connect(capture_from_comparison)
         action_layout.addWidget(capture_btn)
