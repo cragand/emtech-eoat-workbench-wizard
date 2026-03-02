@@ -1799,6 +1799,7 @@ class WorkflowExecutionScreen(QWidget):
             
             resume_btn = msg.addButton("Resume", QMessageBox.AcceptRole)
             report_btn = msg.addButton("Generate Partial Report", QMessageBox.ActionRole)
+            start_fresh_btn = msg.addButton("Start from Beginning", QMessageBox.DestructiveRole)
             back_btn = msg.addButton("Back to Menu", QMessageBox.RejectRole)
             
             msg.exec_()
@@ -1833,9 +1834,16 @@ class WorkflowExecutionScreen(QWidget):
                 self.cleanup_resources()
                 self.back_requested.emit()
                 return
+            elif msg.clickedButton() == start_fresh_btn:
+                # Start from beginning - delete progress file
+                logger.info("User chose to start from beginning, deleting progress file")
+                os.remove(progress_file)
+                QMessageBox.information(self, "Starting Fresh", 
+                                      "Progress file deleted. Starting workflow from the beginning.")
+                # Continue with workflow initialization (don't return)
             else:
-                # Back - return to menu without discarding progress
-                logger.info("User chose to go back, keeping progress file")
+                # Back to menu - keep progress file and return to menu
+                logger.info("User chose to go back to menu, keeping progress file")
                 self.cleanup_resources()
                 self.back_requested.emit()
                 return
