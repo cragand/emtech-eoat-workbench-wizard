@@ -14,6 +14,7 @@ from camera import CameraManager
 from reports import generate_reports
 from gui.annotatable_preview import AnnotatablePreview
 from gui.review_captures_dialog import ReviewCapturesDialog
+from gui.camera_settings_dialog import CameraSettingsDialog
 from logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -747,6 +748,31 @@ class WorkflowExecutionScreen(QWidget):
         self.camera_combo.currentIndexChanged.connect(self.on_camera_changed)
         camera_layout.addWidget(camera_label)
         camera_layout.addWidget(self.camera_combo)
+        
+        # Camera settings button
+        self.camera_settings_button = QPushButton("⚙️ Settings")
+        self.camera_settings_button.setMaximumWidth(100)
+        self.camera_settings_button.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-weight: bold;
+                padding: 5px 10px;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #666666;
+            }
+        """)
+        self.camera_settings_button.clicked.connect(self.open_camera_settings)
+        self.camera_settings_button.setEnabled(False)
+        camera_layout.addWidget(self.camera_settings_button)
+        
         camera_layout.addStretch()
         
         # Review captures button (right-aligned)
@@ -1078,6 +1104,7 @@ class WorkflowExecutionScreen(QWidget):
                     self.timer.start(30)
                     self.capture_button.setEnabled(True)
                     self.record_button.setEnabled(True)
+                    self.camera_settings_button.setEnabled(True)
                     logger.info("Camera opened successfully")
                     
                     # Start barcode scanner if available
@@ -1576,6 +1603,15 @@ class WorkflowExecutionScreen(QWidget):
         
         # Update status after review
         self.update_step_status()
+    
+    def open_camera_settings(self):
+        """Open camera settings dialog."""
+        if not self.current_camera:
+            QMessageBox.warning(self, "No Camera", "Please select a camera first.")
+            return
+        
+        dialog = CameraSettingsDialog(self.current_camera, parent=self)
+        dialog.exec_()
     
     def _draw_markers_on_frame(self, frame, markers):
         """Draw annotation markers on frame."""
