@@ -92,19 +92,7 @@ class OpenCVCamera(CameraInterface):
             return None
         
         ret, frame = self.capture.read()
-        if not ret or frame is None:
-            return None
-        
-        # Handle different color formats
-        if len(frame.shape) == 2:
-            # Grayscale image - convert to BGR for consistency
-            frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
-        elif len(frame.shape) == 3 and frame.shape[2] == 4:
-            # BGRA - convert to BGR
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
-        # Otherwise assume it's already BGR (most common case)
-        
-        return frame
+        return frame if ret else None
     
     def get_resolution(self) -> Tuple[int, int]:
         """Get current resolution."""
