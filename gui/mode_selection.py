@@ -152,6 +152,31 @@ class ModeSelectionScreen(QWidget):
         self.start_button.clicked.connect(self.on_start_clicked)
         layout.addWidget(self.start_button)
         
+        # Bottom buttons row
+        bottom_buttons_layout = QHBoxLayout()
+        
+        # Camera Settings button
+        self.camera_settings_button = QPushButton("⚙️ Camera Settings")
+        self.camera_settings_button.setMaximumHeight(30)
+        self.camera_settings_button.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 5px 15px;
+                font-size: 10px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+        """)
+        self.camera_settings_button.clicked.connect(self.open_camera_settings)
+        bottom_buttons_layout.addWidget(self.camera_settings_button)
+        
+        bottom_buttons_layout.addStretch()
+        
         # View Reports button
         self.view_reports_button = QPushButton("📁 View Reports")
         self.view_reports_button.setMaximumHeight(30)
@@ -171,7 +196,7 @@ class ModeSelectionScreen(QWidget):
             }
         """)
         self.view_reports_button.clicked.connect(self.on_view_reports_clicked)
-        layout.addWidget(self.view_reports_button)
+        bottom_buttons_layout.addWidget(self.view_reports_button)
         
         # Resume button - small and unobtrusive
         self.resume_button = QPushButton("📂 Resume Incomplete Workflow")
@@ -192,7 +217,9 @@ class ModeSelectionScreen(QWidget):
             }
         """)
         self.resume_button.clicked.connect(self.on_resume_clicked)
-        layout.addWidget(self.resume_button)
+        bottom_buttons_layout.addWidget(self.resume_button)
+        
+        layout.addLayout(bottom_buttons_layout)
         
         self.setLayout(layout)
     
@@ -247,6 +274,11 @@ class ModeSelectionScreen(QWidget):
                 subprocess.Popen(["xdg-open", reports_dir])
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Could not open reports folder:\n{str(e)}")
+    
+    def open_camera_settings(self):
+        """Open camera settings dialog."""
+        dialog = CameraSettingsDialog(parent=self)
+        dialog.exec_()
     
     def open_serial_scan_dialog(self):
         """Open dialog to scan barcode for serial number."""

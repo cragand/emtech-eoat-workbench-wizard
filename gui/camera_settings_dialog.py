@@ -58,11 +58,11 @@ class CameraSettingsDialog(QDialog):
         for name, prop in self.PROPERTIES.items():
             try:
                 # Try to read the property
-                value = self.current_camera._cap.get(prop)
+                value = self.current_camera.capture.get(prop)
                 # Try to set it back
-                self.current_camera._cap.set(prop, value)
+                self.current_camera.capture.set(prop, value)
                 # Verify it was set
-                new_value = self.current_camera._cap.get(prop)
+                new_value = self.current_camera.capture.get(prop)
                 # Consider supported if we can read it (even if set doesn't work perfectly)
                 self.supported_properties[name] = True
             except:
@@ -76,14 +76,14 @@ class CameraSettingsDialog(QDialog):
         for name, prop in self.PROPERTIES.items():
             if self.supported_properties.get(name):
                 try:
-                    self.original_settings[name] = self.current_camera._cap.get(prop)
+                    self.original_settings[name] = self.current_camera.capture.get(prop)
                 except:
                     pass
         
         # Save resolution
         try:
-            width = self.current_camera._cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-            height = self.current_camera._cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            width = self.current_camera.capture.get(cv2.CAP_PROP_FRAME_WIDTH)
+            height = self.current_camera.capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
             self.original_settings['resolution'] = (int(width), int(height))
         except:
             self.original_settings['resolution'] = (1280, 720)
@@ -116,7 +116,7 @@ class CameraSettingsDialog(QDialog):
         self.current_camera = self.available_cameras[index]
         
         # Open camera if not already open
-        if not self.current_camera._cap or not self.current_camera._cap.isOpened():
+        if not self.current_camera.capture or not self.current_camera.capture.isOpened():
             self.current_camera.open()
         
         # Update info label
@@ -472,8 +472,8 @@ class CameraSettingsDialog(QDialog):
         if res_text in res_map:
             width, height = res_map[res_text]
             try:
-                self.current_camera._cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-                self.current_camera._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                self.current_camera.capture.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                self.current_camera.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
             except:
                 pass
     
@@ -485,7 +485,7 @@ class CameraSettingsDialog(QDialog):
         if self.supported_properties.get('exposure'):
             try:
                 # 0.75 = auto, 0.25 = manual
-                self.current_camera._cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.75 if is_auto else 0.25)
+                self.current_camera.capture.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.75 if is_auto else 0.25)
             except:
                 pass
     
@@ -496,7 +496,7 @@ class CameraSettingsDialog(QDialog):
         
         if self.supported_properties.get('focus'):
             try:
-                self.current_camera._cap.set(cv2.CAP_PROP_AUTOFOCUS, 1 if is_auto else 0)
+                self.current_camera.capture.set(cv2.CAP_PROP_AUTOFOCUS, 1 if is_auto else 0)
             except:
                 pass
     
@@ -507,7 +507,7 @@ class CameraSettingsDialog(QDialog):
         
         if self.supported_properties.get('white_balance'):
             try:
-                self.current_camera._cap.set(cv2.CAP_PROP_AUTO_WB, 1 if is_auto else 0)
+                self.current_camera.capture.set(cv2.CAP_PROP_AUTO_WB, 1 if is_auto else 0)
             except:
                 pass
     
@@ -518,7 +518,7 @@ class CameraSettingsDialog(QDialog):
         
         if fps_text in fps_map and self.supported_properties.get('fps'):
             try:
-                self.current_camera._cap.set(cv2.CAP_PROP_FPS, fps_map[fps_text])
+                self.current_camera.capture.set(cv2.CAP_PROP_FPS, fps_map[fps_text])
             except:
                 pass
     
@@ -530,7 +530,7 @@ class CameraSettingsDialog(QDialog):
                 if self.supported_properties.get(prop_name):
                     value = control['slider'].value()
                     try:
-                        self.current_camera._cap.set(self.PROPERTIES[prop_name], value)
+                        self.current_camera.capture.set(self.PROPERTIES[prop_name], value)
                     except:
                         pass
             
@@ -553,13 +553,13 @@ class CameraSettingsDialog(QDialog):
                 if name == 'resolution':
                     width, height = value
                     try:
-                        self.current_camera._cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-                        self.current_camera._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                        self.current_camera.capture.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                        self.current_camera.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
                     except:
                         pass
                 elif name in self.PROPERTIES:
                     try:
-                        self.current_camera._cap.set(self.PROPERTIES[name], value)
+                        self.current_camera.capture.set(self.PROPERTIES[name], value)
                     except:
                         pass
             
@@ -573,7 +573,7 @@ class CameraSettingsDialog(QDialog):
         for prop_name, control in self.controls.items():
             if self.supported_properties.get(prop_name):
                 try:
-                    value = self.current_camera._cap.get(self.PROPERTIES[prop_name])
+                    value = self.current_camera.capture.get(self.PROPERTIES[prop_name])
                     control['slider'].setValue(int(value))
                 except:
                     pass
