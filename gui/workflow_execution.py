@@ -856,6 +856,22 @@ class WorkflowExecutionScreen(QWidget):
         self.scan_button.setMaximumWidth(150)
         self.scan_button.clicked.connect(self.scan_barcode)
         self.scan_button.setEnabled(False)
+        self.scan_button.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #F57C00;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #666666;
+            }
+        """)
         capture_layout.addWidget(self.scan_button)
         
         # Record button
@@ -2457,6 +2473,7 @@ class WorkflowExecutionScreen(QWidget):
         # Scan barcode button
         scan_btn = QPushButton("📱 Scan Barcode/QR")
         scan_btn.setMinimumHeight(35)
+        scan_btn.setEnabled(False)  # Disabled by default, enabled when barcode detected
         scan_btn.setStyleSheet("""
             QPushButton {
                 background-color: #FF9800;
@@ -2468,6 +2485,10 @@ class WorkflowExecutionScreen(QWidget):
             }
             QPushButton:hover {
                 background-color: #F57C00;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #666666;
             }
         """)
         scan_btn.clicked.connect(self.scan_barcode)
@@ -2610,6 +2631,11 @@ class WorkflowExecutionScreen(QWidget):
             if self.current_camera:
                 frame = self.current_camera.capture_frame()
                 if frame is not None:
+                    # Update scan button state based on barcode detection
+                    if self.qr_scanner:
+                        barcode_type, barcode_data = self.qr_scanner.get_current_barcode()
+                        scan_btn.setEnabled(barcode_type is not None)
+                    
                     # If recording in comparison view, write frame with annotations
                     if comparison_recording['active'] and comparison_recording['writer']:
                         annotated_frame = frame.copy()
