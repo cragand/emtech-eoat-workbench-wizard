@@ -278,6 +278,12 @@ class CameraSettingsDialog(QDialog):
         self.resolution_combo.currentIndexChanged.connect(self.on_resolution_changed)
         res_layout.addWidget(self.resolution_combo)
         
+        # Resolution note
+        res_note = QLabel("💡 If camera output is grayscale, try resetting to defaults or use a lower resolution.")
+        res_note.setStyleSheet("color: #FF9800; font-size: 9pt; padding: 5px; background-color: #FFF3E0; border-radius: 3px;")
+        res_note.setWordWrap(True)
+        res_layout.addWidget(res_note)
+        
         res_group.setLayout(res_layout)
         layout.addWidget(res_group)
         
