@@ -92,7 +92,24 @@ class OpenCVCamera(CameraInterface):
             return None
         
         ret, frame = self.capture.read()
-        return frame if ret else None
+        if not ret or frame is None:
+            return None
+        
+        # Ensure frame is in BGR color format (OpenCV standard)
+        # Some cameras output grayscale or other formats at certain resolutions
+        if len(frame.shape) == 2:
+            # Grayscale - convert to BGR
+            frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+        elif len(frame.shape) == 3:
+            if frame.shape[2] == 1:
+                # Single channel - convert to BGR
+                frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+            elif frame.shape[2] == 4:
+                # BGRA - convert to BGR
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+            # If shape[2] == 3, assume it's already BGR
+        
+        return frame
     
     def get_resolution(self) -> Tuple[int, int]:
         """Get current resolution."""
@@ -110,6 +127,16 @@ class OpenCVCamera(CameraInterface):
         
         self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        
+        # Try to ensure color format (some cameras default to grayscale at high res)
+        try:
+            # Set format to BGR if possible
+            self.capture.set(cv2.CAP_PROP_FORMAT, -1)  # Auto format
+            # Force color mode
+            self.capture.set(cv2.CAP_PROP_CONVERT_RGB, 1)
+        except:
+            pass
+        
         return True
     
     @property
