@@ -151,6 +151,14 @@ Create and customize workflows for Mode 2 and Mode 3.
 - Add/edit/delete steps
 - Reorder steps (up/down arrows)
 - Set step requirements
+- **Import/Export workflows** - Share workflows with all reference images packaged together
+
+**Import/Export:**
+- **Export**: Package workflow and all reference images into a single `.zip` file
+- **Import**: Extract workflow from `.zip` and automatically set up images
+- Reference images are copied from any location and bundled with the workflow
+- Paths are automatically updated on import
+- See [WORKFLOW_IMPORT_EXPORT.md](WORKFLOW_IMPORT_EXPORT.md) for detailed documentation
 
 **Creating a Workflow:**
 1. Click "New Workflow"
