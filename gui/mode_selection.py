@@ -8,6 +8,7 @@ import json
 import cv2
 from datetime import datetime
 from camera import CameraManager
+from gui.camera_settings_dialog import CameraSettingsDialog
 
 # Optional barcode scanner support
 try:
@@ -526,6 +527,31 @@ class SerialScanDialog(QDialog):
         self.camera_combo.currentIndexChanged.connect(self.on_camera_changed)
         camera_layout.addWidget(camera_label)
         camera_layout.addWidget(self.camera_combo)
+        
+        # Camera settings button
+        self.camera_settings_button = QPushButton("⚙️ Settings")
+        self.camera_settings_button.setMaximumWidth(100)
+        self.camera_settings_button.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-weight: bold;
+                padding: 5px 10px;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #666666;
+            }
+        """)
+        self.camera_settings_button.clicked.connect(self.open_camera_settings)
+        self.camera_settings_button.setEnabled(False)
+        camera_layout.addWidget(self.camera_settings_button)
+        
         camera_layout.addStretch()
         layout.addLayout(camera_layout)
         
@@ -632,6 +658,7 @@ class SerialScanDialog(QDialog):
                     self.timer.start(30)
                     self.status_label.setText("Camera ready - waiting for barcode...")
                     self.scan_button.setEnabled(False)
+                    self.camera_settings_button.setEnabled(True)
                     
                     # Start scanner
                     self.scanner = QRScannerThread(self.camera)
@@ -682,6 +709,15 @@ class SerialScanDialog(QDialog):
             if barcode_data:
                 self.scanned_data = barcode_data
                 self.accept()
+    
+    def open_camera_settings(self):
+        """Open camera settings dialog."""
+        if not self.camera:
+            QMessageBox.warning(self, "No Camera", "Please select a camera first.")
+            return
+        
+        dialog = CameraSettingsDialog(self.camera, parent=self)
+        dialog.exec_()
     
     def get_scanned_data(self):
         """Get the scanned barcode data."""
