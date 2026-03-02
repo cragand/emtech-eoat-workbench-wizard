@@ -161,7 +161,6 @@ class Mode1CaptureScreen(QWidget):
             }
         """)
         self.camera_settings_button.clicked.connect(self.open_camera_settings)
-        self.camera_settings_button.setEnabled(False)
         camera_layout.addWidget(self.camera_settings_button)
         
         camera_layout.addStretch()
@@ -327,7 +326,6 @@ class Mode1CaptureScreen(QWidget):
                     self.timer.start(30)  # 30ms refresh
                     self.capture_button.setEnabled(True)
                     self.record_button.setEnabled(True)
-                    self.camera_settings_button.setEnabled(True)
                     self.status_label.setText(f"Connected to {self.current_camera.name}")
                     
                     # Start QR scanner if available
@@ -421,11 +419,7 @@ class Mode1CaptureScreen(QWidget):
     
     def open_camera_settings(self):
         """Open camera settings dialog."""
-        if not self.current_camera:
-            QMessageBox.warning(self, "No Camera", "Please select a camera first.")
-            return
-        
-        dialog = CameraSettingsDialog(self.current_camera, parent=self)
+        dialog = CameraSettingsDialog(self.available_cameras, parent=self)
         dialog.exec_()
     
     def update_frame(self):

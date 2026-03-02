@@ -770,7 +770,6 @@ class WorkflowExecutionScreen(QWidget):
             }
         """)
         self.camera_settings_button.clicked.connect(self.open_camera_settings)
-        self.camera_settings_button.setEnabled(False)
         camera_layout.addWidget(self.camera_settings_button)
         
         camera_layout.addStretch()
@@ -1104,7 +1103,6 @@ class WorkflowExecutionScreen(QWidget):
                     self.timer.start(30)
                     self.capture_button.setEnabled(True)
                     self.record_button.setEnabled(True)
-                    self.camera_settings_button.setEnabled(True)
                     logger.info("Camera opened successfully")
                     
                     # Start barcode scanner if available
@@ -1606,11 +1604,7 @@ class WorkflowExecutionScreen(QWidget):
     
     def open_camera_settings(self):
         """Open camera settings dialog."""
-        if not self.current_camera:
-            QMessageBox.warning(self, "No Camera", "Please select a camera first.")
-            return
-        
-        dialog = CameraSettingsDialog(self.current_camera, parent=self)
+        dialog = CameraSettingsDialog(self.available_cameras, parent=self)
         dialog.exec_()
     
     def _draw_markers_on_frame(self, frame, markers):

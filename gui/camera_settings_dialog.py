@@ -25,9 +25,10 @@ class CameraSettingsDialog(QDialog):
         'fps': cv2.CAP_PROP_FPS,
     }
     
-    def __init__(self, camera, config_path='settings/camera_config.json', parent=None):
+    def __init__(self, available_cameras=None, config_path='settings/camera_config.json', parent=None):
         super().__init__(parent)
-        self.camera = camera
+        self.available_cameras = available_cameras or []
+        self.current_camera = None
         self.config_path = config_path
         self.supported_properties = {}
         self.original_settings = {}
@@ -36,16 +37,13 @@ class CameraSettingsDialog(QDialog):
         self.setWindowTitle("Camera Settings")
         self.setMinimumSize(700, 600)
         
-        # Detect supported properties
-        self.detect_supported_properties()
-        
-        # Save original settings for reset
-        self.save_original_settings()
-        
         self.init_ui()
         
-        # Load saved settings
-        self.load_settings()
+        # Discover cameras if not provided
+        if not self.available_cameras:
+            self.discover_cameras()
+        else:
+            self.populate_camera_list()
         
         # Start preview timer
         self.preview_timer = QTimer()
@@ -54,14 +52,17 @@ class CameraSettingsDialog(QDialog):
     
     def detect_supported_properties(self):
         """Detect which properties the camera supports."""
+        if not self.current_camera:
+            return
+            
         for name, prop in self.PROPERTIES.items():
             try:
                 # Try to read the property
-                value = self.camera._cap.get(prop)
+                value = self.current_camera._cap.get(prop)
                 # Try to set it back
-                self.camera._cap.set(prop, value)
+                self.current_camera._cap.set(prop, value)
                 # Verify it was set
-                new_value = self.camera._cap.get(prop)
+                new_value = self.current_camera._cap.get(prop)
                 # Consider supported if we can read it (even if set doesn't work perfectly)
                 self.supported_properties[name] = True
             except:
@@ -69,29 +70,111 @@ class CameraSettingsDialog(QDialog):
     
     def save_original_settings(self):
         """Save original camera settings for reset."""
+        if not self.current_camera:
+            return
+            
         for name, prop in self.PROPERTIES.items():
             if self.supported_properties.get(name):
                 try:
-                    self.original_settings[name] = self.camera._cap.get(prop)
+                    self.original_settings[name] = self.current_camera._cap.get(prop)
                 except:
                     pass
         
         # Save resolution
         try:
-            width = self.camera._cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-            height = self.camera._cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            width = self.current_camera._cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+            height = self.current_camera._cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
             self.original_settings['resolution'] = (int(width), int(height))
         except:
             self.original_settings['resolution'] = (1280, 720)
+    
+    def discover_cameras(self):
+        """Discover available cameras."""
+        from camera import CameraManager
+        self.available_cameras = CameraManager.discover_cameras()
+        self.populate_camera_list()
+    
+    def populate_camera_list(self):
+        """Populate the camera selector dropdown."""
+        self.camera_selector.clear()
+        for camera in self.available_cameras:
+            self.camera_selector.addItem(camera.name)
+        
+        if self.available_cameras:
+            self.camera_selector.setCurrentIndex(0)
+    
+    def on_camera_selected(self, index):
+        """Handle camera selection change."""
+        if index < 0 or index >= len(self.available_cameras):
+            return
+        
+        # Close previous camera if different
+        if self.current_camera and self.current_camera != self.available_cameras[index]:
+            # Don't close if it's from the parent (they're still using it)
+            pass
+        
+        self.current_camera = self.available_cameras[index]
+        
+        # Open camera if not already open
+        if not self.current_camera._cap or not self.current_camera._cap.isOpened():
+            self.current_camera.open()
+        
+        # Update info label
+        self.info_label.setText(f"Camera: {self.current_camera.name}")
+        
+        # Detect supported properties
+        self.supported_properties = {}
+        self.detect_supported_properties()
+        
+        # Save original settings
+        self.original_settings = {}
+        self.save_original_settings()
+        
+        # Update UI controls
+        self.update_controls_for_camera()
+        
+        # Load saved settings
+        self.load_settings()
+    
+    def update_controls_for_camera(self):
+        """Update control states based on camera capabilities."""
+        for prop_name, control in self.controls.items():
+            supported = self.supported_properties.get(prop_name, False)
+            control['slider'].setEnabled(supported)
+            
+            # Update or add unsupported label
+            if not supported:
+                # Check if unsupported label already exists
+                has_label = False
+                for i in range(control['layout'].count()):
+                    widget = control['layout'].itemAt(i).widget()
+                    if widget and isinstance(widget, QLabel) and "(Not supported)" in widget.text():
+                        has_label = True
+                        break
+                
+                if not has_label:
+                    unsupported = QLabel("(Not supported)")
+                    unsupported.setStyleSheet("color: #999; font-style: italic;")
+                    control['layout'].addWidget(unsupported)
     
     def init_ui(self):
         """Initialize the user interface."""
         layout = QVBoxLayout()
         
+        # Camera selection at the top
+        camera_select_layout = QHBoxLayout()
+        camera_select_label = QLabel("Select Camera:")
+        camera_select_label.setStyleSheet("font-weight: bold; font-size: 11pt;")
+        self.camera_selector = QComboBox()
+        self.camera_selector.currentIndexChanged.connect(self.on_camera_selected)
+        camera_select_layout.addWidget(camera_select_label)
+        camera_select_layout.addWidget(self.camera_selector, 1)
+        layout.addLayout(camera_select_layout)
+        
         # Camera info
-        info_label = QLabel(f"Camera: {self.camera.name}")
-        info_label.setStyleSheet("font-weight: bold; font-size: 12pt; padding: 10px;")
-        layout.addWidget(info_label)
+        self.info_label = QLabel("Select a camera to configure")
+        self.info_label.setStyleSheet("font-weight: bold; font-size: 10pt; padding: 10px; background-color: #f0f0f0; border-radius: 3px;")
+        layout.addWidget(self.info_label)
         
         # Tabs for Basic/Advanced
         tabs = QTabWidget()
@@ -389,8 +472,8 @@ class CameraSettingsDialog(QDialog):
         if res_text in res_map:
             width, height = res_map[res_text]
             try:
-                self.camera._cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-                self.camera._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                self.current_camera._cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                self.current_camera._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
             except:
                 pass
     
@@ -402,7 +485,7 @@ class CameraSettingsDialog(QDialog):
         if self.supported_properties.get('exposure'):
             try:
                 # 0.75 = auto, 0.25 = manual
-                self.camera._cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.75 if is_auto else 0.25)
+                self.current_camera._cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.75 if is_auto else 0.25)
             except:
                 pass
     
@@ -413,7 +496,7 @@ class CameraSettingsDialog(QDialog):
         
         if self.supported_properties.get('focus'):
             try:
-                self.camera._cap.set(cv2.CAP_PROP_AUTOFOCUS, 1 if is_auto else 0)
+                self.current_camera._cap.set(cv2.CAP_PROP_AUTOFOCUS, 1 if is_auto else 0)
             except:
                 pass
     
@@ -424,7 +507,7 @@ class CameraSettingsDialog(QDialog):
         
         if self.supported_properties.get('white_balance'):
             try:
-                self.camera._cap.set(cv2.CAP_PROP_AUTO_WB, 1 if is_auto else 0)
+                self.current_camera._cap.set(cv2.CAP_PROP_AUTO_WB, 1 if is_auto else 0)
             except:
                 pass
     
@@ -435,7 +518,7 @@ class CameraSettingsDialog(QDialog):
         
         if fps_text in fps_map and self.supported_properties.get('fps'):
             try:
-                self.camera._cap.set(cv2.CAP_PROP_FPS, fps_map[fps_text])
+                self.current_camera._cap.set(cv2.CAP_PROP_FPS, fps_map[fps_text])
             except:
                 pass
     
@@ -447,7 +530,7 @@ class CameraSettingsDialog(QDialog):
                 if self.supported_properties.get(prop_name):
                     value = control['slider'].value()
                     try:
-                        self.camera._cap.set(self.PROPERTIES[prop_name], value)
+                        self.current_camera._cap.set(self.PROPERTIES[prop_name], value)
                     except:
                         pass
             
@@ -470,13 +553,13 @@ class CameraSettingsDialog(QDialog):
                 if name == 'resolution':
                     width, height = value
                     try:
-                        self.camera._cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-                        self.camera._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                        self.current_camera._cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                        self.current_camera._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
                     except:
                         pass
                 elif name in self.PROPERTIES:
                     try:
-                        self.camera._cap.set(self.PROPERTIES[name], value)
+                        self.current_camera._cap.set(self.PROPERTIES[name], value)
                     except:
                         pass
             
@@ -490,7 +573,7 @@ class CameraSettingsDialog(QDialog):
         for prop_name, control in self.controls.items():
             if self.supported_properties.get(prop_name):
                 try:
-                    value = self.camera._cap.get(self.PROPERTIES[prop_name])
+                    value = self.current_camera._cap.get(self.PROPERTIES[prop_name])
                     control['slider'].setValue(int(value))
                 except:
                     pass
@@ -504,7 +587,7 @@ class CameraSettingsDialog(QDialog):
     def save_settings(self):
         """Save current settings to config file."""
         settings = {
-            'camera_name': self.camera.name,
+            'camera_name': self.current_camera.name,
             'resolution': self.resolution_combo.currentText(),
             'auto_exposure': self.auto_exposure_radio.isChecked(),
             'auto_focus': self.auto_focus_radio.isChecked(),
@@ -530,7 +613,7 @@ class CameraSettingsDialog(QDialog):
         if 'cameras' not in config:
             config['cameras'] = {}
         
-        config['cameras'][self.camera.name] = settings
+        config['cameras'][self.current_camera.name] = settings
         
         # Save config
         os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
@@ -546,8 +629,8 @@ class CameraSettingsDialog(QDialog):
             with open(self.config_path, 'r') as f:
                 config = json.load(f)
             
-            if 'cameras' in config and self.camera.name in config['cameras']:
-                settings = config['cameras'][self.camera.name]
+            if 'cameras' in config and self.current_camera.name in config['cameras']:
+                settings = config['cameras'][self.current_camera.name]
                 
                 # Apply resolution
                 if 'resolution' in settings:
@@ -589,8 +672,8 @@ class CameraSettingsDialog(QDialog):
     
     def update_preview(self):
         """Update the live preview."""
-        if self.camera:
-            frame = self.camera.capture_frame()
+        if self.current_camera:
+            frame = self.current_camera.capture_frame()
             if frame is not None:
                 # Convert to RGB
                 rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)

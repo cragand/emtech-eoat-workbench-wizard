@@ -549,7 +549,6 @@ class SerialScanDialog(QDialog):
             }
         """)
         self.camera_settings_button.clicked.connect(self.open_camera_settings)
-        self.camera_settings_button.setEnabled(False)
         camera_layout.addWidget(self.camera_settings_button)
         
         camera_layout.addStretch()
@@ -658,7 +657,6 @@ class SerialScanDialog(QDialog):
                     self.timer.start(30)
                     self.status_label.setText("Camera ready - waiting for barcode...")
                     self.scan_button.setEnabled(False)
-                    self.camera_settings_button.setEnabled(True)
                     
                     # Start scanner
                     self.scanner = QRScannerThread(self.camera)
@@ -712,11 +710,7 @@ class SerialScanDialog(QDialog):
     
     def open_camera_settings(self):
         """Open camera settings dialog."""
-        if not self.camera:
-            QMessageBox.warning(self, "No Camera", "Please select a camera first.")
-            return
-        
-        dialog = CameraSettingsDialog(self.camera, parent=self)
+        dialog = CameraSettingsDialog(self.available_cameras, parent=self)
         dialog.exec_()
     
     def get_scanned_data(self):
