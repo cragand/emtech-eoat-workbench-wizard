@@ -2772,6 +2772,10 @@ class WorkflowExecutionScreen(QWidget):
         
         overlay_checkbox.toggled.connect(toggle_overlay_mode)
         
+        # Auto-enable overlay mode for PNG images with alpha
+        if has_alpha:
+            overlay_checkbox.setChecked(True)
+        
         # Update label functions
         def update_transparency_label(value):
             transparency_label.setText(f"{value}%")
