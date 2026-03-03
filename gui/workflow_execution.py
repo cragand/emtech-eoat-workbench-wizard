@@ -2815,49 +2815,56 @@ class WorkflowExecutionScreen(QWidget):
                                 # Scale overlay
                                 new_w = int(ref_img.shape[1] * scale)
                                 new_h = int(ref_img.shape[0] * scale)
-                                ref_scaled = cv2.resize(ref_img, (new_w, new_h))
-                                
-                                # Rotate overlay
-                                if rotation != 0:
-                                    center = (new_w // 2, new_h // 2)
-                                    rot_matrix = cv2.getRotationMatrix2D(center, rotation, 1.0)
-                                    ref_scaled = cv2.warpAffine(ref_scaled, rot_matrix, (new_w, new_h))
-                                
-                                # Create canvas same size as camera frame
-                                overlay_canvas = np.zeros((h, w, 4), dtype=np.uint8)
-                                
-                                # Calculate position (centered + offset)
-                                x_pos = (w - new_w) // 2 + x_offset
-                                y_pos = (h - new_h) // 2 + y_offset
-                                
-                                # Place overlay on canvas
-                                x_start = max(0, x_pos)
-                                y_start = max(0, y_pos)
-                                x_end = min(w, x_pos + new_w)
-                                y_end = min(h, y_pos + new_h)
-                                
-                                src_x_start = max(0, -x_pos)
-                                src_y_start = max(0, -y_pos)
-                                src_x_end = src_x_start + (x_end - x_start)
-                                src_y_end = src_y_start + (y_end - y_start)
-                                
-                                if x_end > x_start and y_end > y_start:
-                                    overlay_canvas[y_start:y_end, x_start:x_end] = ref_scaled[src_y_start:src_y_end, src_x_start:src_x_end]
-                                
-                                # Extract alpha channel and apply transparency slider
-                                alpha = overlay_canvas[:, :, 3:4].astype(float) / 255.0
-                                alpha = alpha * (transparency_slider.value() / 100.0)
-                                
-                                # Blend overlay with camera frame
-                                overlay_bgr = overlay_canvas[:, :, :3]
-                                blended = frame.astype(float) * (1 - alpha) + overlay_bgr.astype(float) * alpha
-                                blended = blended.astype(np.uint8)
-                                
-                                # Convert to Qt image
-                                rgb_blended = cv2.cvtColor(blended, cv2.COLOR_BGR2RGB)
-                                qt_blended = QImage(rgb_blended.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
-                                overlay_pixmap = QPixmap.fromImage(qt_blended)
-                                overlay_display.set_frame(overlay_pixmap)
+                                if new_w > 0 and new_h > 0:
+                                    ref_scaled = cv2.resize(ref_img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+                                    
+                                    # Rotate overlay
+                                    if rotation != 0:
+                                        center = (new_w // 2, new_h // 2)
+                                        rot_matrix = cv2.getRotationMatrix2D(center, rotation, 1.0)
+                                        ref_scaled = cv2.warpAffine(ref_scaled, rot_matrix, (new_w, new_h), 
+                                                                    borderMode=cv2.BORDER_CONSTANT, borderValue=(0,0,0,0))
+                                    
+                                    # Create canvas same size as camera frame
+                                    overlay_canvas = np.zeros((h, w, 4), dtype=np.uint8)
+                                    
+                                    # Calculate position (centered + offset)
+                                    x_pos = (w - new_w) // 2 + x_offset
+                                    y_pos = (h - new_h) // 2 + y_offset
+                                    
+                                    # Place overlay on canvas
+                                    x_start = max(0, x_pos)
+                                    y_start = max(0, y_pos)
+                                    x_end = min(w, x_pos + new_w)
+                                    y_end = min(h, y_pos + new_h)
+                                    
+                                    src_x_start = max(0, -x_pos)
+                                    src_y_start = max(0, -y_pos)
+                                    src_x_end = src_x_start + (x_end - x_start)
+                                    src_y_end = src_y_start + (y_end - y_start)
+                                    
+                                    if x_end > x_start and y_end > y_start:
+                                        overlay_canvas[y_start:y_end, x_start:x_end] = ref_scaled[src_y_start:src_y_end, src_x_start:src_x_end]
+                                    
+                                    # Separate BGR and alpha channels
+                                    overlay_bgr = overlay_canvas[:, :, :3]
+                                    overlay_alpha = overlay_canvas[:, :, 3].astype(float) / 255.0
+                                    
+                                    # Apply transparency slider to alpha
+                                    overlay_alpha = overlay_alpha * (transparency_slider.value() / 100.0)
+                                    
+                                    # Expand alpha to 3 channels for broadcasting
+                                    alpha_3ch = np.stack([overlay_alpha] * 3, axis=2)
+                                    
+                                    # Blend: result = overlay * alpha + camera * (1 - alpha)
+                                    blended = (overlay_bgr.astype(float) * alpha_3ch + 
+                                             frame.astype(float) * (1 - alpha_3ch)).astype(np.uint8)
+                                    
+                                    # Convert to Qt image
+                                    rgb_blended = cv2.cvtColor(blended, cv2.COLOR_BGR2RGB)
+                                    qt_blended = QImage(rgb_blended.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+                                    overlay_pixmap = QPixmap.fromImage(qt_blended)
+                                    overlay_display.set_frame(overlay_pixmap)
                             else:
                                 # Fallback to regular blending if no alpha
                                 ref_img_bgr = cv2.imread(self.reference_image_path)
