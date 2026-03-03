@@ -2714,7 +2714,6 @@ class WorkflowExecutionScreen(QWidget):
         overlay_display.setStyleSheet("border: 2px solid #9C27B0; background-color: #2b2b2b;")
         overlay_display.setMinimumSize(800, 600)
         overlay_display.setVisible(False)
-        logger.info(f"Created overlay_display: id={id(overlay_display)}")
         
         # Copy markers to overlay display
         if hasattr(self.preview_label, 'markers'):
@@ -2745,11 +2744,9 @@ class WorkflowExecutionScreen(QWidget):
         
         # Toggle between split and overlay mode
         def toggle_overlay_mode(checked):
-            logger.info(f"Overlay mode toggled: {checked}, has_alpha: {has_alpha}, sliders visible: {checked and has_alpha}")
             splitter.setVisible(not checked)
             overlay_display.setVisible(checked)
             transparency_slider.setEnabled(checked)
-            logger.info(f"Widget visibility: splitter={splitter.isVisible()}, overlay_display={overlay_display.isVisible()}, size={overlay_display.size().width()}x{overlay_display.size().height()}")
             
             # Show/enable adjustment controls if overlay mode is on and image has alpha
             if checked and has_alpha:
@@ -2768,9 +2765,6 @@ class WorkflowExecutionScreen(QWidget):
                 overlay_display.update()
         
         overlay_checkbox.toggled.connect(toggle_overlay_mode)
-        
-        # Flag to log overlay rendering only once
-        overlay_rendered_logged = [False]
         
         # Update label functions
         def update_transparency_label(value):
@@ -2902,9 +2896,6 @@ class WorkflowExecutionScreen(QWidget):
                                     qt_blended = QImage(rgb_blended.data, w, h, bytes_per_line, QImage.Format.Format_RGB888).copy()
                                     overlay_pixmap = QPixmap.fromImage(qt_blended)
                                     overlay_display.set_frame(overlay_pixmap)
-                                    if not overlay_rendered_logged[0]:
-                                        logger.info(f"Overlay rendered: scale={scale_slider.value()}, x={x_offset_slider.value()}, y={y_offset_slider.value()}, rot={rotation_slider.value()}, trans={transparency_slider.value()}")
-                                        overlay_rendered_logged[0] = True
                                 else:
                                     # Fallback to regular blending if no alpha
                                     ref_img_bgr = cv2.imread(self.reference_image_path)

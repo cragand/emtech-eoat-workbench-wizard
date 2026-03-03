@@ -156,8 +156,6 @@ class AnnotatablePreview(QLabel):
     def set_frame(self, pixmap):
         """Set the current camera frame."""
         self.current_frame = pixmap
-        if pixmap:
-            logger.info(f"AnnotatablePreview({id(self)}).set_frame: pixmap size={pixmap.width()}x{pixmap.height()}, isNull={pixmap.isNull()}")
         self.update()
     
     def wheelEvent(self, event):
