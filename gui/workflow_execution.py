@@ -534,7 +534,7 @@ class WorkflowExecutionScreen(QWidget):
         self.overlay_x_offset = 0
         self.overlay_y_offset = 0
         self.overlay_rotation = 0
-        self.overlay_transparency = 50
+        self.overlay_transparency = 100  # Default to 100% for overlays
         self.recording_start_time = None
         
         # Setup output directory - sanitize serial number for filesystem
@@ -2455,12 +2455,12 @@ class WorkflowExecutionScreen(QWidget):
         transparency_slider = QSlider(Qt.Horizontal)
         transparency_slider.setMinimum(0)
         transparency_slider.setMaximum(100)
-        transparency_slider.setValue(50)  # Will be updated after has_alpha is determined
+        transparency_slider.setValue(self.overlay_transparency)  # Use stored value
         transparency_slider.setMaximumWidth(150)
         transparency_slider.setEnabled(False)
         first_row.addWidget(transparency_slider)
         
-        transparency_label = QLabel("50%")
+        transparency_label = QLabel(f"{self.overlay_transparency}%")
         transparency_label.setMinimumWidth(40)
         transparency_label.setMinimumWidth(40)
         first_row.addWidget(transparency_label)
@@ -2836,11 +2836,6 @@ class WorkflowExecutionScreen(QWidget):
             has_alpha = ref_test is not None and len(ref_test.shape) == 3 and ref_test.shape[2] == 4
             logger.info(f"Reference image: {self.reference_image_path}")
             logger.info(f"Image loaded: {ref_test is not None}, Shape: {ref_test.shape if ref_test is not None else 'None'}, Has alpha: {has_alpha}")
-        
-        # Set transparency default based on alpha channel
-        if has_alpha:
-            transparency_slider.setValue(100)
-            transparency_label.setText("100%")
         
         # Toggle between split and overlay mode
         def toggle_overlay_mode(checked):
