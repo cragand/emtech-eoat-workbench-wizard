@@ -2737,6 +2737,7 @@ class WorkflowExecutionScreen(QWidget):
             splitter.setVisible(not checked)
             overlay_display.setVisible(checked)
             transparency_slider.setEnabled(checked)
+            logger.info(f"Widget visibility: splitter={splitter.isVisible()}, overlay_display={overlay_display.isVisible()}, size={overlay_display.size().width()}x{overlay_display.size().height()}")
             
             # Show/enable adjustment controls if overlay mode is on and image has alpha
             if checked and has_alpha:
