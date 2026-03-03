@@ -189,16 +189,25 @@ class CameraConfigManager:
         
         # Apply resolution
         if 'resolution' in settings:
-            width, height = settings['resolution']
             try:
-                cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-                actual_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-                actual_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-                if actual_width == width and actual_height == height:
-                    results['applied']['resolution'] = (width, height)
+                res = settings['resolution']
+                # Handle different resolution formats
+                if isinstance(res, (list, tuple)) and len(res) == 2:
+                    width, height = res
                 else:
-                    results['failed']['resolution'] = f"Got {actual_width}x{actual_height}"
+                    # Skip invalid resolution format
+                    results['failed']['resolution'] = f"Invalid format: {res}"
+                    width, height = None, None
+                
+                if width and height:
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                    actual_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+                    actual_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+                    if actual_width == width and actual_height == height:
+                        results['applied']['resolution'] = (width, height)
+                    else:
+                        results['failed']['resolution'] = f"Got {actual_width}x{actual_height}"
             except Exception as e:
                 results['failed']['resolution'] = str(e)
         
