@@ -819,6 +819,24 @@ class WorkflowExecutionScreen(QWidget):
         )
         preview_container_layout.addWidget(self.preview_label, 1)
         
+        # Hide overlay checkbox (only visible when PNG overlay is present)
+        self.hide_overlay_checkbox = QCheckBox("Hide Overlay Image")
+        self.hide_overlay_checkbox.setStyleSheet("""
+            QCheckBox {
+                background-color: rgba(33, 150, 243, 180);
+                color: white;
+                font-weight: bold;
+                padding: 5px 10px;
+                border-radius: 3px;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+            }
+        """)
+        self.hide_overlay_checkbox.setVisible(False)
+        preview_container_layout.addWidget(self.hide_overlay_checkbox)
+        
         # Recording indicator overlay
         self.recording_indicator = QLabel("🔴 REC 00:00")
         self.recording_indicator.setStyleSheet("""
@@ -1155,9 +1173,10 @@ class WorkflowExecutionScreen(QWidget):
                 if self.workflow and self.reference_image_path and os.path.exists(self.reference_image_path):
                     ref_test = cv2.imread(self.reference_image_path, cv2.IMREAD_UNCHANGED)
                     has_alpha = ref_test is not None and len(ref_test.shape) == 3 and ref_test.shape[2] == 4
-                    has_overlay = has_alpha
+                    # Only apply overlay if checkbox is not checked (i.e., not hidden)
+                    has_overlay = has_alpha and not self.hide_overlay_checkbox.isChecked()
                 
-                # Apply overlay if present
+                # Apply overlay if present and not hidden
                 display_frame = frame.copy()
                 if has_overlay:
                     display_frame = self._render_overlay_on_frame(display_frame, self.reference_image_path, has_alpha)
@@ -1317,8 +1336,11 @@ class WorkflowExecutionScreen(QWidget):
             has_alpha = ref_test is not None and len(ref_test.shape) == 3 and ref_test.shape[2] == 4
             if has_alpha:
                 self.compare_button.setText("⚙️ Overlay Settings/Zoom View")
+                self.hide_overlay_checkbox.setVisible(True)
+                self.hide_overlay_checkbox.setChecked(False)
             else:
                 self.compare_button.setText("🔍 Reference Comparison View")
+                self.hide_overlay_checkbox.setVisible(False)
         else:
             # Clear reference image completely
             self.reference_image_path = None
@@ -1326,6 +1348,7 @@ class WorkflowExecutionScreen(QWidget):
             self.reference_image.checkboxes = []
             self.reference_image.clear()
             self.reference_image.setText("No reference image")
+            self.hide_overlay_checkbox.setVisible(False)
             self.compare_button.setEnabled(False)
         
         # Show/hide pass/fail buttons based on step requirement
@@ -1517,8 +1540,8 @@ class WorkflowExecutionScreen(QWidget):
                 ref_test = cv2.imread(self.reference_image_path, cv2.IMREAD_UNCHANGED)
                 has_alpha = ref_test is not None and len(ref_test.shape) == 3 and ref_test.shape[2] == 4
             
-            # Apply overlay if present
-            if has_alpha:
+            # Apply overlay if present and not hidden
+            if has_alpha and not self.hide_overlay_checkbox.isChecked():
                 frame = self._render_overlay_on_frame(frame, self.reference_image_path, has_alpha)
             
             # Draw markers
