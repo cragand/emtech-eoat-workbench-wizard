@@ -820,6 +820,8 @@ class WorkflowExecutionScreen(QWidget):
         preview_container_layout.addWidget(self.preview_label, 1)
         
         # Hide overlay checkbox (only visible when PNG overlay is present)
+        hide_overlay_layout = QHBoxLayout()
+        
         self.hide_overlay_checkbox = QCheckBox("Hide Overlay Image")
         self.hide_overlay_checkbox.setStyleSheet("""
             QCheckBox {
@@ -835,7 +837,30 @@ class WorkflowExecutionScreen(QWidget):
             }
         """)
         self.hide_overlay_checkbox.setVisible(False)
-        preview_container_layout.addWidget(self.hide_overlay_checkbox)
+        hide_overlay_layout.addWidget(self.hide_overlay_checkbox)
+        
+        # Warning label (only visible when checkbox is checked)
+        self.overlay_hidden_warning = QLabel("⚠️ Overlay Hidden - Not captured in images/video")
+        self.overlay_hidden_warning.setStyleSheet("""
+            QLabel {
+                background-color: rgba(220, 53, 69, 200);
+                color: white;
+                font-weight: bold;
+                padding: 5px 10px;
+                border-radius: 3px;
+            }
+        """)
+        self.overlay_hidden_warning.setVisible(False)
+        hide_overlay_layout.addWidget(self.overlay_hidden_warning)
+        
+        hide_overlay_layout.addStretch()
+        
+        hide_overlay_widget = QWidget()
+        hide_overlay_widget.setLayout(hide_overlay_layout)
+        preview_container_layout.addWidget(hide_overlay_widget)
+        
+        # Connect checkbox to show/hide warning
+        self.hide_overlay_checkbox.toggled.connect(self.overlay_hidden_warning.setVisible)
         
         # Recording indicator overlay
         self.recording_indicator = QLabel("🔴 REC 00:00")
