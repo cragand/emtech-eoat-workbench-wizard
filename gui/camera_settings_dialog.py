@@ -284,6 +284,24 @@ class CameraSettingsDialog(QDialog):
         res_note.setWordWrap(True)
         res_layout.addWidget(res_note)
         
+        # Restart camera button
+        restart_camera_btn = QPushButton("🔄 Restart Camera")
+        restart_camera_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                padding: 8px;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+        """)
+        restart_camera_btn.clicked.connect(self.restart_camera)
+        res_layout.addWidget(restart_camera_btn)
+        
         res_group.setLayout(res_layout)
         layout.addWidget(res_group)
         
@@ -540,6 +558,41 @@ class CameraSettingsDialog(QDialog):
                     if prop_name == 'exposure' and self.auto_exposure_radio.isChecked():
                         continue
                     if prop_name == 'focus' and self.auto_focus_radio.isChecked():
+                        continue
+                    
+                    value = control['slider'].value()
+                    try:
+                        self.current_camera.capture.set(self.PROPERTIES[prop_name], value)
+                    except:
+                        pass
+            
+            QMessageBox.information(self, "Settings Applied", 
+                                   "Camera settings have been applied.")
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Failed to apply some settings:\n{e}")
+    
+    def restart_camera(self):
+        """Restart the camera to fix grayscale or other issues."""
+        try:
+            # Close and reopen camera
+            self.current_camera.close()
+            if self.current_camera.open():
+                # Reapply saved settings
+                from camera.camera_config_manager import CameraConfigManager
+                CameraConfigManager.initialize_camera_with_optimal_settings(
+                    self.current_camera.capture, self.current_camera.name)
+                
+                # Refresh the dialog
+                self.save_original_settings()
+                self.update_controls_for_camera()
+                self.load_settings()
+                
+                QMessageBox.information(self, "Camera Restarted", 
+                                       "Camera has been restarted successfully.")
+            else:
+                QMessageBox.warning(self, "Error", "Failed to restart camera.")
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Failed to restart camera:\n{e}")
                         continue
                     
                     value = control['slider'].value()
