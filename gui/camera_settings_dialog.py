@@ -545,7 +545,7 @@ class CameraSettingsDialog(QDialog):
     def apply_settings(self):
         """Apply current settings to camera."""
         try:
-            # Apply all slider values
+            # Only apply properties that have changed
             for prop_name, control in self.controls.items():
                 if self.supported_properties.get(prop_name):
                     # Skip manual values if auto mode is enabled
@@ -557,10 +557,17 @@ class CameraSettingsDialog(QDialog):
                         continue
                     
                     value = control['slider'].value()
-                    try:
-                        self.current_camera.capture.set(self.PROPERTIES[prop_name], value)
-                    except:
-                        pass
+                    original_value = self.original_settings.get(prop_name)
+                    
+                    # Only set if value has changed
+                    if original_value is None or value != original_value:
+                        try:
+                            self.current_camera.capture.set(self.PROPERTIES[prop_name], value)
+                        except:
+                            pass
+            
+            # Save settings to config
+            self.save_to_config()
             
             QMessageBox.information(self, "Settings Applied", 
                                    "Camera settings have been applied.")
