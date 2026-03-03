@@ -2349,7 +2349,8 @@ class WorkflowExecutionScreen(QWidget):
         transparency_slider = QSlider(Qt.Horizontal)
         transparency_slider.setMinimum(0)
         transparency_slider.setMaximum(100)
-        transparency_slider.setValue(50)
+        # Default to 100% for PNG overlays with alpha, 50% for regular images
+        transparency_slider.setValue(100 if has_alpha else 50)
         transparency_slider.setMaximumWidth(150)
         transparency_slider.setEnabled(False)
         first_row.addWidget(transparency_slider)
@@ -2405,8 +2406,8 @@ class WorkflowExecutionScreen(QWidget):
         
         adjustment_row.addWidget(QLabel("Rotation:"))
         rotation_slider = QSlider(Qt.Horizontal)
-        rotation_slider.setMinimum(-15)
-        rotation_slider.setMaximum(15)
+        rotation_slider.setMinimum(-180)
+        rotation_slider.setMaximum(180)
         rotation_slider.setValue(0)
         rotation_slider.setMaximumWidth(100)
         rotation_slider.setEnabled(False)
