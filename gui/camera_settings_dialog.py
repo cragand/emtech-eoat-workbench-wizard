@@ -501,35 +501,16 @@ class CameraSettingsDialog(QDialog):
         """Handle exposure mode change."""
         is_auto = self.auto_exposure_radio.isChecked()
         self.controls['exposure']['slider'].setEnabled(not is_auto)
-        
-        if self.supported_properties.get('exposure'):
-            try:
-                # 0.75 = auto, 0.25 = manual
-                self.current_camera.capture.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.75 if is_auto else 0.25)
-            except:
-                pass
     
     def on_focus_mode_changed(self):
         """Handle focus mode change."""
         is_auto = self.auto_focus_radio.isChecked()
         self.controls['focus']['slider'].setEnabled(not is_auto)
-        
-        if self.supported_properties.get('focus'):
-            try:
-                self.current_camera.capture.set(cv2.CAP_PROP_AUTOFOCUS, 1 if is_auto else 0)
-            except:
-                pass
     
     def on_wb_mode_changed(self):
         """Handle white balance mode change."""
         is_auto = self.auto_wb_radio.isChecked()
         self.controls['white_balance']['slider'].setEnabled(not is_auto)
-        
-        if self.supported_properties.get('white_balance'):
-            try:
-                self.current_camera.capture.set(cv2.CAP_PROP_AUTO_WB, 1 if is_auto else 0)
-            except:
-                pass
     
     def on_fps_changed(self):
         """Handle FPS change."""
@@ -545,15 +526,35 @@ class CameraSettingsDialog(QDialog):
     def apply_settings(self):
         """Apply current settings to camera."""
         try:
+            # Apply auto mode settings first
+            auto_exposure = self.auto_exposure_radio.isChecked()
+            auto_focus = self.auto_focus_radio.isChecked()
+            auto_wb = self.auto_wb_radio.isChecked()
+            
+            try:
+                self.current_camera.capture.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.75 if auto_exposure else 0.25)
+            except:
+                pass
+            
+            try:
+                self.current_camera.capture.set(cv2.CAP_PROP_AUTOFOCUS, 1 if auto_focus else 0)
+            except:
+                pass
+            
+            try:
+                self.current_camera.capture.set(cv2.CAP_PROP_AUTO_WB, 1 if auto_wb else 0)
+            except:
+                pass
+            
             # Only apply properties that have changed
             for prop_name, control in self.controls.items():
                 if self.supported_properties.get(prop_name):
                     # Skip manual values if auto mode is enabled
-                    if prop_name == 'white_balance' and self.auto_wb_radio.isChecked():
+                    if prop_name == 'white_balance' and auto_wb:
                         continue
-                    if prop_name == 'exposure' and self.auto_exposure_radio.isChecked():
+                    if prop_name == 'exposure' and auto_exposure:
                         continue
-                    if prop_name == 'focus' and self.auto_focus_radio.isChecked():
+                    if prop_name == 'focus' and auto_focus:
                         continue
                     
                     value = control['slider'].value()
