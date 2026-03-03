@@ -2733,7 +2733,7 @@ class WorkflowExecutionScreen(QWidget):
         
         # Toggle between split and overlay mode
         def toggle_overlay_mode(checked):
-            logger.info(f"Overlay mode toggled: {checked}, has_alpha: {has_alpha}")
+            logger.info(f"Overlay mode toggled: {checked}, has_alpha: {has_alpha}, sliders visible: {checked and has_alpha}")
             splitter.setVisible(not checked)
             overlay_display.setVisible(checked)
             transparency_slider.setEnabled(checked)
@@ -2809,13 +2809,10 @@ class WorkflowExecutionScreen(QWidget):
                     qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
                     live_pixmap = QPixmap.fromImage(qt_image)
                     
-                    logger.info(f"Update: overlay_checked={overlay_checkbox.isChecked()}, has_alpha={has_alpha}")
-                    
                     if overlay_checkbox.isChecked():
                         # Overlay mode
                         if has_alpha:
                             # Transparent overlay mode - respect alpha channel
-                            logger.info("Rendering transparent overlay with alpha channel")
                             try:
                                 ref_img = cv2.imread(self.reference_image_path, cv2.IMREAD_UNCHANGED)
                                 
@@ -2904,7 +2901,6 @@ class WorkflowExecutionScreen(QWidget):
                                 traceback.print_exc()
                         else:
                             # Regular blend mode
-                            logger.info("Rendering regular blend overlay (no alpha)")
                             ref_img = cv2.imread(self.reference_image_path)
                             if ref_img is not None:
                                 # Resize reference to match camera frame
