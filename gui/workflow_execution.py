@@ -2806,15 +2806,59 @@ class WorkflowExecutionScreen(QWidget):
                             # Transparent overlay mode - respect alpha channel
                             try:
                                 ref_img = cv2.imread(self.reference_image_path, cv2.IMREAD_UNCHANGED)
-                                logger.info(f"Loaded overlay image: shape={ref_img.shape if ref_img is not None else None}")
                                 
                                 if ref_img is not None and len(ref_img.shape) == 3 and ref_img.shape[2] == 4:
-                                    # Simple version first - just resize to match camera and blend
-                                    ref_resized = cv2.resize(ref_img, (w, h))
+                                    # Get transformation values
+                                    scale = scale_slider.value() / 100.0
+                                    x_offset = x_offset_slider.value()
+                                    y_offset = y_offset_slider.value()
+                                    rotation = rotation_slider.value()
                                     
-                                    # Split into BGR and alpha
-                                    overlay_bgr = ref_resized[:, :, :3]
-                                    overlay_alpha = ref_resized[:, :, 3].astype(float) / 255.0
+                                    # Apply scale
+                                    new_w = int(ref_img.shape[1] * scale)
+                                    new_h = int(ref_img.shape[0] * scale)
+                                    
+                                    if new_w > 0 and new_h > 0:
+                                        ref_scaled = cv2.resize(ref_img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+                                        
+                                        # Apply rotation
+                                        if rotation != 0:
+                                            center = (new_w // 2, new_h // 2)
+                                            rot_matrix = cv2.getRotationMatrix2D(center, rotation, 1.0)
+                                            ref_scaled = cv2.warpAffine(ref_scaled, rot_matrix, (new_w, new_h),
+                                                                       borderMode=cv2.BORDER_CONSTANT, 
+                                                                       borderValue=(0, 0, 0, 0))
+                                        
+                                        # Create canvas for positioning
+                                        canvas = np.zeros((h, w, 4), dtype=np.uint8)
+                                        
+                                        # Calculate centered position with offset
+                                        x_pos = (w - new_w) // 2 + x_offset
+                                        y_pos = (h - new_h) // 2 + y_offset
+                                        
+                                        # Calculate valid regions
+                                        x_start = max(0, x_pos)
+                                        y_start = max(0, y_pos)
+                                        x_end = min(w, x_pos + new_w)
+                                        y_end = min(h, y_pos + new_h)
+                                        
+                                        src_x_start = max(0, -x_pos)
+                                        src_y_start = max(0, -y_pos)
+                                        src_x_end = src_x_start + (x_end - x_start)
+                                        src_y_end = src_y_start + (y_end - y_start)
+                                        
+                                        # Place overlay on canvas
+                                        if x_end > x_start and y_end > y_start:
+                                            canvas[y_start:y_end, x_start:x_end] = ref_scaled[src_y_start:src_y_end, src_x_start:src_x_end]
+                                        
+                                        # Split into BGR and alpha
+                                        overlay_bgr = canvas[:, :, :3]
+                                        overlay_alpha = canvas[:, :, 3].astype(float) / 255.0
+                                    else:
+                                        # Fallback if scale is too small
+                                        ref_resized = cv2.resize(ref_img, (w, h))
+                                        overlay_bgr = ref_resized[:, :, :3]
+                                        overlay_alpha = ref_resized[:, :, 3].astype(float) / 255.0
                                     
                                     # Apply transparency slider
                                     overlay_alpha = overlay_alpha * (transparency_slider.value() / 100.0)
@@ -2826,16 +2870,13 @@ class WorkflowExecutionScreen(QWidget):
                                     blended = (overlay_bgr.astype(float) * alpha_3ch + 
                                              frame.astype(float) * (1 - alpha_3ch)).astype(np.uint8)
                                     
-                                    logger.info(f"Blended image created: shape={blended.shape}")
-                                    
                                     # Convert to Qt image
                                     rgb_blended = cv2.cvtColor(blended, cv2.COLOR_BGR2RGB)
                                     qt_blended = QImage(rgb_blended.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
                                     overlay_pixmap = QPixmap.fromImage(qt_blended)
                                     overlay_display.set_frame(overlay_pixmap)
                                 else:
-                                    logger.warning(f"Image doesn't have alpha channel or couldn't load")
-                                    # Fallback to regular blending
+                                    # Fallback to regular blending if no alpha
                                     ref_img_bgr = cv2.imread(self.reference_image_path)
                                     if ref_img_bgr is not None:
                                         ref_resized = cv2.resize(ref_img_bgr, (w, h))
