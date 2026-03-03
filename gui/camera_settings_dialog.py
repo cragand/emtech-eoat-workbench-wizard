@@ -658,18 +658,29 @@ class CameraSettingsDialog(QDialog):
         res_match = res_text.split()[0]  # Get "1920x1080" from "1920x1080 (Full HD)"
         width, height = map(int, res_match.split('x'))
         
+        auto_exposure = self.auto_exposure_radio.isChecked()
+        auto_focus = self.auto_focus_radio.isChecked()
+        auto_wb = self.auto_wb_radio.isChecked()
+        
         settings = {
             'camera_name': self.current_camera.name,
             'resolution': [width, height],
-            'auto_exposure': self.auto_exposure_radio.isChecked(),
-            'auto_focus': self.auto_focus_radio.isChecked(),
-            'auto_wb': self.auto_wb_radio.isChecked(),
+            'auto_exposure': auto_exposure,
+            'auto_focus': auto_focus,
+            'auto_wb': auto_wb,
             'fps': int(self.fps_combo.currentText().split()[0]),  # Get "30" from "30 FPS"
             'properties': {}
         }
         
-        # Save all property values
+        # Save all property values, but skip manual values when auto is enabled
         for prop_name, control in self.controls.items():
+            # Skip manual values if auto mode is enabled
+            if prop_name == 'white_balance' and auto_wb:
+                continue
+            if prop_name == 'exposure' and auto_exposure:
+                continue
+            if prop_name == 'focus' and auto_focus:
+                continue
             settings['properties'][prop_name] = control['slider'].value()
         
         # Load existing config

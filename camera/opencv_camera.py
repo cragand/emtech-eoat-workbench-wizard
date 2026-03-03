@@ -40,9 +40,6 @@ class OpenCVCamera(CameraInterface):
     def _detect_camera_name(self):
         """Attempt to detect the actual camera name."""
         try:
-            # Try to get backend name
-            backend = self.capture.getBackendName()
-            
             # On Windows with DirectShow, try to get device name
             if platform.system() == "Windows":
                 try:
@@ -64,18 +61,8 @@ class OpenCVCamera(CameraInterface):
                 except:
                     pass
             
-            # Fallback: Try to detect based on resolution and capabilities
-            width, height = self.get_resolution()
-            
-            # Common patterns
-            if width == 1280 and height == 720:
-                self._detected_name = f"HD Webcam (Camera {self.camera_index})"
-            elif width == 1920 and height == 1080:
-                self._detected_name = f"Full HD Webcam (Camera {self.camera_index})"
-            elif width == 640 and height == 480:
-                self._detected_name = f"VGA Camera (Camera {self.camera_index})"
-            else:
-                self._detected_name = f"Camera {self.camera_index} ({width}x{height})"
+            # Fallback: Just use simple numbering
+            self._detected_name = f"Camera {self.camera_index}"
                 
         except:
             pass
