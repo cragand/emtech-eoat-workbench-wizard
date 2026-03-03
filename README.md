@@ -185,11 +185,20 @@ Create and customize workflows for Mode 2 and Mode 3.
 - **Title**: Short name for the step
 - **Instructions**: Detailed instructions for the user
 - **Reference Image**: Optional image to display alongside camera
+- **Transparent Overlay**: Check to use PNG image as overlay on camera feed (requires PNG with alpha channel)
 - **Place Checkboxes**: Add inspection points on reference image (bright amber/yellow boxes)
 - **Require Photo**: User must capture at least one photo
 - **Require Annotations**: User must add markers to photos
 - **Require Barcode Scan**: User must scan at least one barcode/QR code
 - **Require Pass/Fail**: User must explicitly mark step as pass or fail
+
+**PNG Overlay Feature:**
+- Upload PNG images with transparency to overlay on live camera feed
+- Overlay appears on main workflow screen and comparison view
+- Transform controls: scale (50-200%), position (±100px X/Y), rotation (±180°), transparency (0-100%)
+- Transforms persist across views and are saved with captures/recordings
+- "Hide Overlay Image" checkbox temporarily removes overlay from view and captures
+- Ideal for alignment guides, templates, or measurement overlays
 
 **Inspection Checkboxes:**
 - Click on reference image to place checkboxes at inspection points
@@ -198,6 +207,25 @@ Create and customize workflows for Mode 2 and Mode 3.
 - Checkboxes appear as bright amber/yellow squares
 - During workflow execution, user clicks checkboxes to mark inspection complete
 - Step automatically fails if not all checkboxes are checked
+
+**Reference Image Comparison:**
+- Click "🔍 Reference Comparison View" button to open side-by-side comparison
+- Split view: Reference image with checkboxes | Live camera feed
+- Overlay mode: Blend reference and camera with adjustable transparency
+- Capture images and record videos directly from comparison view
+- All annotations and markers are preserved
+
+**PNG Overlay Mode:**
+- For steps with PNG overlay images, button shows "⚙️ Overlay Settings/Zoom View"
+- Automatically opens in overlay mode with transform controls
+- **Transform Controls:**
+  - Scale: 50-200% (resize overlay)
+  - Position: ±100px X/Y offset (move overlay)
+  - Rotation: ±180° (rotate overlay)
+  - Transparency: 0-100% (blend with camera feed)
+- Transforms apply to main view and all captures/recordings
+- Reset button restores default transform values
+- "Hide Overlay Image" checkbox on main view temporarily removes overlay
 
 ## Annotations
 

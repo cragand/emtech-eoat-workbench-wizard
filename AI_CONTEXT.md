@@ -65,9 +65,19 @@ This is a Python-based quality control and maintenance application designed for 
 - `maintenance_workflows/` - Maintenance procedure definitions
 - Each step can specify:
   - Instructions and reference images
+  - Transparent PNG overlays with transform controls
   - Inspection checkboxes (bright amber/yellow)
   - Photo/annotation/pass-fail requirements
   - Step validation before proceeding
+
+#### PNG Overlay System
+- Supports PNG images with alpha channel as camera overlays
+- Transform controls: scale, position (X/Y offset), rotation, transparency
+- Transforms persist across main view and comparison dialog
+- Applied to live preview, captures, and video recordings
+- "Hide Overlay Image" checkbox for temporary removal
+- Auto-enables overlay mode for PNG images with alpha
+- Overlay rendering function shared between views for consistency
 
 #### Workflow Editor
 - Password-protected (default: "admin")
@@ -241,7 +251,19 @@ output/
 - Test report generation in both PDF and DOCX formats
 - Test inspection checkbox state preservation in fullsize view
 
-## Recent Enhancements (2026-02-26)
+## Recent Enhancements
+
+### 2026-03-03: PNG Overlay System
+- **Transparent PNG Overlays**: Upload PNG images with alpha channel as overlays on camera feed
+- **Transform Controls**: Scale (50-200%), position (±100px X/Y), rotation (±180°), transparency (0-100%)
+- **Persistent Transforms**: Settings saved and synchronized between main view and comparison dialog
+- **Overlay Rendering**: Applied to live preview, captures, and video recordings
+- **Hide Overlay Toggle**: Checkbox to temporarily remove overlay from view and captures
+- **Auto-detection**: Automatically detects PNG alpha channel and enables overlay mode
+- **Button Labels**: Dynamic button text based on image type (Overlay Settings vs Reference Comparison)
+- **Camera Settings**: Fixed grayscale/color issues, added Restart Camera button, improved settings dialog
+
+### 2026-02-26: Workflow Management
 - Unsaved changes protection in workflow editor
 - Variable arrow length (Shift+Scroll, 50-300px max)
 - MP4 video recording with annotation overlays
