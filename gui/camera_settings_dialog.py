@@ -592,13 +592,18 @@ class CameraSettingsDialog(QDialog):
     
     def save_settings(self):
         """Save current settings to config file."""
+        # Parse resolution from combo text
+        res_text = self.resolution_combo.currentText()
+        res_match = res_text.split()[0]  # Get "1920x1080" from "1920x1080 (Full HD)"
+        width, height = map(int, res_match.split('x'))
+        
         settings = {
             'camera_name': self.current_camera.name,
-            'resolution': self.resolution_combo.currentText(),
+            'resolution': [width, height],
             'auto_exposure': self.auto_exposure_radio.isChecked(),
             'auto_focus': self.auto_focus_radio.isChecked(),
             'auto_wb': self.auto_wb_radio.isChecked(),
-            'fps': self.fps_combo.currentText(),
+            'fps': int(self.fps_combo.currentText().split()[0]),  # Get "30" from "30 FPS"
             'properties': {}
         }
         
