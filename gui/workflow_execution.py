@@ -1734,14 +1734,6 @@ class WorkflowExecutionScreen(QWidget):
         return frame
     
     def _draw_reference_annotations(self, img, checkboxes, markers):
-            text_size = cv2.getTextSize(label, font, 0.5, 2)[0]
-            text_x = end_x - text_size[0] // 2
-            text_y = end_y + text_size[1] // 2
-            cv2.putText(frame, label, (text_x, text_y), font, 0.5, (0, 0, 255), 2)
-        
-        return frame
-    
-    def _draw_reference_annotations(self, img, checkboxes, markers):
         """Draw checkboxes and markers on reference image."""
         img_h, img_w = img.shape[:2]
         
