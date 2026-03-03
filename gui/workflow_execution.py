@@ -2703,6 +2703,7 @@ class WorkflowExecutionScreen(QWidget):
         overlay_display.setStyleSheet("border: 2px solid #9C27B0; background-color: #2b2b2b;")
         overlay_display.setMinimumSize(800, 600)
         overlay_display.setVisible(False)
+        logger.info(f"Created overlay_display: id={id(overlay_display)}")
         
         # Copy markers to overlay display
         if hasattr(self.preview_label, 'markers'):
