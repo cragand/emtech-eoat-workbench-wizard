@@ -57,14 +57,10 @@ class CameraSettingsDialog(QDialog):
             
         for name, prop in self.PROPERTIES.items():
             try:
-                # Try to read the property
+                # Try to read the property - don't set it to avoid triggering camera changes
                 value = self.current_camera.capture.get(prop)
-                # Try to set it back
-                self.current_camera.capture.set(prop, value)
-                # Verify it was set
-                new_value = self.current_camera.capture.get(prop)
-                # Consider supported if we can read it (even if set doesn't work perfectly)
-                self.supported_properties[name] = True
+                # Consider supported if we can read a valid value
+                self.supported_properties[name] = (value is not None and value != -1)
             except:
                 self.supported_properties[name] = False
     
