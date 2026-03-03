@@ -2885,7 +2885,9 @@ class WorkflowExecutionScreen(QWidget):
                                     
                                     # Convert to Qt image
                                     rgb_blended = cv2.cvtColor(blended, cv2.COLOR_BGR2RGB)
-                                    qt_blended = QImage(rgb_blended.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+                                    # Make contiguous copy to prevent garbage collection issues
+                                    rgb_blended = np.ascontiguousarray(rgb_blended)
+                                    qt_blended = QImage(rgb_blended.data, w, h, bytes_per_line, QImage.Format.Format_RGB888).copy()
                                     overlay_pixmap = QPixmap.fromImage(qt_blended)
                                     overlay_display.set_frame(overlay_pixmap)
                                     if not overlay_rendered_logged[0]:
