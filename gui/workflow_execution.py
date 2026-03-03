@@ -1311,6 +1311,14 @@ class WorkflowExecutionScreen(QWidget):
             self.reference_image_path = ref_image_path
             self.reference_image.set_image_and_checkboxes(ref_image_path, checkbox_data)
             self.compare_button.setEnabled(True)
+            
+            # Update button label based on image type
+            ref_test = cv2.imread(ref_image_path, cv2.IMREAD_UNCHANGED)
+            has_alpha = ref_test is not None and len(ref_test.shape) == 3 and ref_test.shape[2] == 4
+            if has_alpha:
+                self.compare_button.setText("⚙️ Overlay Settings/Zoom View")
+            else:
+                self.compare_button.setText("🔍 Reference Comparison View")
         else:
             # Clear reference image completely
             self.reference_image_path = None
