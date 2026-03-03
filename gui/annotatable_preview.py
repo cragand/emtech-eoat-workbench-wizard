@@ -4,6 +4,9 @@ from PyQt5.QtCore import Qt, QPoint, pyqtSignal
 from PyQt5.QtGui import QPainter, QColor, QPen, QFont, QPixmap, QPainterPath
 import string
 import math
+from logger_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class MarkerNoteDialog(QDialog):
@@ -153,6 +156,8 @@ class AnnotatablePreview(QLabel):
     def set_frame(self, pixmap):
         """Set the current camera frame."""
         self.current_frame = pixmap
+        if pixmap:
+            logger.info(f"AnnotatablePreview.set_frame called: pixmap size={pixmap.width()}x{pixmap.height()}, isNull={pixmap.isNull()}")
         self.update()
     
     def wheelEvent(self, event):
