@@ -2831,7 +2831,7 @@ class WorkflowExecutionScreen(QWidget):
                     
                     if overlay_checkbox.isChecked():
                         # Overlay mode
-                        if has_alpha:
+                        if has_alpha and self.reference_image_path:
                             # Transparent overlay mode - respect alpha channel
                             try:
                                 ref_img = cv2.imread(self.reference_image_path, cv2.IMREAD_UNCHANGED)
@@ -2923,20 +2923,21 @@ class WorkflowExecutionScreen(QWidget):
                                 traceback.print_exc()
                         else:
                             # Regular blend mode
-                            ref_img = cv2.imread(self.reference_image_path)
-                            if ref_img is not None:
-                                # Resize reference to match camera frame
-                                ref_resized = cv2.resize(ref_img, (w, h))
-                                
-                                # Blend images based on transparency slider
-                                alpha = transparency_slider.value() / 100.0
-                                blended = cv2.addWeighted(ref_resized, alpha, frame, 1 - alpha, 0)
-                                
-                                # Convert to Qt image
-                                rgb_blended = cv2.cvtColor(blended, cv2.COLOR_BGR2RGB)
-                                qt_blended = QImage(rgb_blended.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
-                                overlay_pixmap = QPixmap.fromImage(qt_blended)
-                                overlay_display.set_frame(overlay_pixmap)
+                            if self.reference_image_path:
+                                ref_img = cv2.imread(self.reference_image_path)
+                                if ref_img is not None:
+                                    # Resize reference to match camera frame
+                                    ref_resized = cv2.resize(ref_img, (w, h))
+                                    
+                                    # Blend images based on transparency slider
+                                    alpha = transparency_slider.value() / 100.0
+                                    blended = cv2.addWeighted(ref_resized, alpha, frame, 1 - alpha, 0)
+                                    
+                                    # Convert to Qt image
+                                    rgb_blended = cv2.cvtColor(blended, cv2.COLOR_BGR2RGB)
+                                    qt_blended = QImage(rgb_blended.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+                                    overlay_pixmap = QPixmap.fromImage(qt_blended)
+                                    overlay_display.set_frame(overlay_pixmap)
                     else:
                         # Split mode: update live display
                         live_display.set_frame(live_pixmap)
