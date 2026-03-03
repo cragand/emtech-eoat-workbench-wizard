@@ -528,6 +528,13 @@ class WorkflowExecutionScreen(QWidget):
         self.video_writer = None
         self.current_video_path = None
         self.recorded_videos = []  # List of recorded video paths
+        
+        # Overlay transform state (persistent across views)
+        self.overlay_scale = 100
+        self.overlay_x_offset = 0
+        self.overlay_y_offset = 0
+        self.overlay_rotation = 0
+        self.overlay_transparency = 50
         self.recording_start_time = None
         
         # Setup output directory - sanitize serial number for filesystem
@@ -1648,6 +1655,92 @@ class WorkflowExecutionScreen(QWidget):
         
         return frame
     
+    def _render_overlay_on_frame(self, frame, reference_image_path, has_alpha=False):
+        """Render overlay on frame using current transform settings.
+        
+        Returns the blended frame with overlay applied, or original frame if overlay fails.
+        """
+        if not reference_image_path or not os.path.exists(reference_image_path):
+            return frame
+        
+        try:
+            h, w = frame.shape[:2]
+            
+            if has_alpha:
+                # PNG with alpha channel - use transparent blending
+                ref_img = cv2.imread(reference_image_path, cv2.IMREAD_UNCHANGED)
+                
+                if ref_img is not None and len(ref_img.shape) == 3 and ref_img.shape[2] == 4:
+                    # Apply transforms
+                    scale = self.overlay_scale / 100.0
+                    x_offset = self.overlay_x_offset
+                    y_offset = self.overlay_y_offset
+                    rotation = self.overlay_rotation
+                    
+                    # Scale
+                    new_w = int(ref_img.shape[1] * scale)
+                    new_h = int(ref_img.shape[0] * scale)
+                    
+                    if new_w > 0 and new_h > 0:
+                        ref_scaled = cv2.resize(ref_img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+                        
+                        # Rotate
+                        if rotation != 0:
+                            center = (new_w // 2, new_h // 2)
+                            rot_matrix = cv2.getRotationMatrix2D(center, rotation, 1.0)
+                            ref_scaled = cv2.warpAffine(ref_scaled, rot_matrix, (new_w, new_h),
+                                                       borderMode=cv2.BORDER_CONSTANT, 
+                                                       borderValue=(0, 0, 0, 0))
+                        
+                        # Position on canvas
+                        canvas = np.zeros((h, w, 4), dtype=np.uint8)
+                        x_pos = (w - new_w) // 2 + x_offset
+                        y_pos = (h - new_h) // 2 + y_offset
+                        
+                        # Calculate valid regions
+                        x_start = max(0, x_pos)
+                        y_start = max(0, y_pos)
+                        x_end = min(w, x_pos + new_w)
+                        y_end = min(h, y_pos + new_h)
+                        
+                        src_x_start = max(0, -x_pos)
+                        src_y_start = max(0, -y_pos)
+                        src_x_end = src_x_start + (x_end - x_start)
+                        src_y_end = src_y_start + (y_end - y_start)
+                        
+                        if x_end > x_start and y_end > y_start:
+                            canvas[y_start:y_end, x_start:x_end] = ref_scaled[src_y_start:src_y_end, src_x_start:src_x_end]
+                        
+                        # Blend with alpha
+                        overlay_bgr = canvas[:, :, :3]
+                        overlay_alpha = canvas[:, :, 3].astype(float) / 255.0
+                        overlay_alpha = overlay_alpha * (self.overlay_transparency / 100.0)
+                        alpha_3ch = np.stack([overlay_alpha] * 3, axis=2)
+                        
+                        blended = (overlay_bgr.astype(float) * alpha_3ch + 
+                                 frame.astype(float) * (1 - alpha_3ch)).astype(np.uint8)
+                        return blended
+            else:
+                # Regular image - simple blend
+                ref_img = cv2.imread(reference_image_path)
+                if ref_img is not None:
+                    ref_resized = cv2.resize(ref_img, (w, h))
+                    alpha = self.overlay_transparency / 100.0
+                    blended = cv2.addWeighted(ref_resized, alpha, frame, 1 - alpha, 0)
+                    return blended
+        except Exception as e:
+            logger.error(f"Error rendering overlay: {e}")
+        
+        return frame
+    
+    def _draw_reference_annotations(self, img, checkboxes, markers):
+            text_size = cv2.getTextSize(label, font, 0.5, 2)[0]
+            text_x = end_x - text_size[0] // 2
+            text_y = end_y + text_size[1] // 2
+            cv2.putText(frame, label, (text_x, text_y), font, 0.5, (0, 0, 255), 2)
+        
+        return frame
+    
     def _draw_reference_annotations(self, img, checkboxes, markers):
         """Draw checkboxes and markers on reference image."""
         img_h, img_w = img.shape[:2]
@@ -2369,7 +2462,7 @@ class WorkflowExecutionScreen(QWidget):
         scale_slider = QSlider(Qt.Horizontal)
         scale_slider.setMinimum(50)
         scale_slider.setMaximum(200)
-        scale_slider.setValue(100)
+        scale_slider.setValue(self.overlay_scale)
         scale_slider.setMaximumWidth(120)
         scale_slider.setEnabled(False)
         adjustment_row.addWidget(scale_slider)
@@ -2382,7 +2475,7 @@ class WorkflowExecutionScreen(QWidget):
         x_offset_slider = QSlider(Qt.Horizontal)
         x_offset_slider.setMinimum(-100)
         x_offset_slider.setMaximum(100)
-        x_offset_slider.setValue(0)
+        x_offset_slider.setValue(self.overlay_x_offset)
         x_offset_slider.setMaximumWidth(100)
         x_offset_slider.setEnabled(False)
         adjustment_row.addWidget(x_offset_slider)
@@ -2395,7 +2488,7 @@ class WorkflowExecutionScreen(QWidget):
         y_offset_slider = QSlider(Qt.Horizontal)
         y_offset_slider.setMinimum(-100)
         y_offset_slider.setMaximum(100)
-        y_offset_slider.setValue(0)
+        y_offset_slider.setValue(self.overlay_y_offset)
         y_offset_slider.setMaximumWidth(100)
         y_offset_slider.setEnabled(False)
         adjustment_row.addWidget(y_offset_slider)
@@ -2408,7 +2501,7 @@ class WorkflowExecutionScreen(QWidget):
         rotation_slider = QSlider(Qt.Horizontal)
         rotation_slider.setMinimum(-180)
         rotation_slider.setMaximum(180)
-        rotation_slider.setValue(0)
+        rotation_slider.setValue(self.overlay_rotation)
         rotation_slider.setMaximumWidth(100)
         rotation_slider.setEnabled(False)
         adjustment_row.addWidget(rotation_slider)
@@ -2526,34 +2619,17 @@ class WorkflowExecutionScreen(QWidget):
                 frame = self.current_camera.capture_frame()
                 if frame is not None:
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    has_ref_markers = len(ref_display.markers) > 0
                     
-                    # Capture reference image if it has markers
-                    if has_ref_markers:
-                        ref_img = cv2.imread(self.reference_image_path)
-                        if ref_img is not None:
-                            # Draw markers and checkboxes on reference
-                            ref_annotated = self._draw_reference_annotations(ref_img, ref_display.checkboxes, ref_display.markers)
-                            
-                            # Save annotated reference
-                            ref_filename = f"step{self.current_step + 1}_reference_annotated_{timestamp}.jpg"
-                            ref_filepath = os.path.join(self.output_dir, ref_filename)
-                            cv2.imwrite(ref_filepath, ref_annotated)
-                            
-                            # Store reference image data
-                            ref_image_data = {
-                                'path': ref_filepath,
-                                'camera': 'Reference Image',
-                                'notes': 'Annotated reference image',
-                                'markers': [{'label': m['label'], 'note': m['note']} for m in ref_display.markers],
-                                'step': self.current_step + 1
-                            }
-                            self.captured_images.append(ref_image_data)
-                            self.step_images.append(ref_image_data)
+                    # If in overlay mode, render the overlay on the frame
+                    if overlay_checkbox.isChecked() and has_alpha:
+                        frame = self._render_overlay_on_frame(frame, self.reference_image_path, has_alpha)
+                        markers_to_use = overlay_display.markers
+                    else:
+                        markers_to_use = live_display.markers
                     
-                    # Draw markers on camera frame
-                    if live_display.markers:
-                        frame = self._draw_markers_on_frame(frame, live_display.markers)
+                    # Draw markers on frame
+                    if markers_to_use:
+                        frame = self._draw_markers_on_frame(frame, markers_to_use)
                     
                     # Save camera image
                     camera_name = self.current_camera.name.replace(" ", "_")
@@ -2566,7 +2642,7 @@ class WorkflowExecutionScreen(QWidget):
                         'path': filepath,
                         'camera': self.current_camera.name,
                         'notes': '',
-                        'markers': live_display.get_markers_data(),
+                        'markers': markers_to_use if markers_to_use else [],
                         'step': self.current_step + 1
                     }
                     
@@ -2574,9 +2650,12 @@ class WorkflowExecutionScreen(QWidget):
                     self.step_images.append(image_data)
                     
                     # Clear markers after capture
-                    live_display.clear_markers()
-                    ref_display.markers = []
-                    ref_display.update()
+                    if overlay_checkbox.isChecked():
+                        overlay_display.clear_markers()
+                    else:
+                        live_display.clear_markers()
+                        ref_display.markers = []
+                        ref_display.update()
                     
                     # Sync cleared markers back to main view
                     if hasattr(self.preview_label, 'markers'):
@@ -2585,10 +2664,8 @@ class WorkflowExecutionScreen(QWidget):
                     
                     self.update_step_status()
                     
-                    msg = f"Image saved for step {self.current_step + 1}"
-                    if has_ref_markers:
-                        msg += "\n(Reference image with annotations also saved)"
-                    QMessageBox.information(dialog, "Image Captured", msg)
+                    QMessageBox.information(dialog, "Image Captured", 
+                                          f"Image saved for step {self.current_step + 1}")
         
         capture_btn.clicked.connect(capture_from_comparison)
         action_layout.addWidget(capture_btn)
@@ -2783,24 +2860,33 @@ class WorkflowExecutionScreen(QWidget):
         # Update label functions
         def update_transparency_label(value):
             transparency_label.setText(f"{value}%")
+            self.overlay_transparency = value
         
         def update_scale_label(value):
             scale_label.setText(f"{value}%")
+            self.overlay_scale = value
         
         def update_x_offset_label(value):
             x_offset_label.setText(f"{value}px")
+            self.overlay_x_offset = value
         
         def update_y_offset_label(value):
             y_offset_label.setText(f"{value}px")
+            self.overlay_y_offset = value
         
         def update_rotation_label(value):
             rotation_label.setText(f"{value}°")
+            self.overlay_rotation = value
         
         def reset_adjustments():
             scale_slider.setValue(100)
             x_offset_slider.setValue(0)
             y_offset_slider.setValue(0)
             rotation_slider.setValue(0)
+            self.overlay_scale = 100
+            self.overlay_x_offset = 0
+            self.overlay_y_offset = 0
+            self.overlay_rotation = 0
         
         transparency_slider.valueChanged.connect(update_transparency_label)
         scale_slider.valueChanged.connect(update_scale_label)
@@ -2819,12 +2905,21 @@ class WorkflowExecutionScreen(QWidget):
                         barcode_type, barcode_data = self.qr_scanner.get_current_barcode()
                         scan_btn.setEnabled(barcode_type is not None)
                     
-                    # If recording in comparison view, write frame with annotations
+                    # If recording in comparison view, write frame with overlay and annotations
                     if comparison_recording['active'] and comparison_recording['writer']:
                         annotated_frame = frame.copy()
-                        markers_to_use = overlay_display.markers if overlay_checkbox.isChecked() else live_display.markers
+                        
+                        # Apply overlay if in overlay mode
+                        if overlay_checkbox.isChecked() and has_alpha:
+                            annotated_frame = self._render_overlay_on_frame(annotated_frame, self.reference_image_path, has_alpha)
+                            markers_to_use = overlay_display.markers
+                        else:
+                            markers_to_use = live_display.markers
+                        
+                        # Draw markers
                         if markers_to_use:
                             annotated_frame = self._draw_markers_on_frame(annotated_frame, markers_to_use)
+                        
                         comparison_recording['writer'].write(annotated_frame)
                     
                     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
