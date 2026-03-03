@@ -2756,6 +2756,9 @@ class WorkflowExecutionScreen(QWidget):
         
         overlay_checkbox.toggled.connect(toggle_overlay_mode)
         
+        # Flag to log overlay rendering only once
+        overlay_rendered_logged = [False]
+        
         # Update label functions
         def update_transparency_label(value):
             transparency_label.setText(f"{value}%")
@@ -2884,6 +2887,9 @@ class WorkflowExecutionScreen(QWidget):
                                     qt_blended = QImage(rgb_blended.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
                                     overlay_pixmap = QPixmap.fromImage(qt_blended)
                                     overlay_display.set_frame(overlay_pixmap)
+                                    if not overlay_rendered_logged[0]:
+                                        logger.info(f"Overlay rendered: scale={scale_slider.value()}, x={x_offset_slider.value()}, y={y_offset_slider.value()}, rot={rotation_slider.value()}, trans={transparency_slider.value()}")
+                                        overlay_rendered_logged[0] = True
                                 else:
                                     # Fallback to regular blending if no alpha
                                     ref_img_bgr = cv2.imread(self.reference_image_path)
