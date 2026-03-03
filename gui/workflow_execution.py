@@ -2324,28 +2324,101 @@ class WorkflowExecutionScreen(QWidget):
         layout.addLayout(header_layout)
         
         # Overlay mode controls
-        overlay_controls = QHBoxLayout()
+        overlay_controls_layout = QVBoxLayout()
+        
+        # First row: Overlay mode toggle and transparency
+        first_row = QHBoxLayout()
         
         overlay_checkbox = QCheckBox("Overlay Mode")
         overlay_checkbox.setStyleSheet("font-weight: bold;")
-        overlay_controls.addWidget(overlay_checkbox)
+        first_row.addWidget(overlay_checkbox)
         
-        overlay_controls.addWidget(QLabel("Transparency:"))
+        first_row.addWidget(QLabel("Transparency:"))
         
         transparency_slider = QSlider(Qt.Horizontal)
         transparency_slider.setMinimum(0)
         transparency_slider.setMaximum(100)
         transparency_slider.setValue(50)
-        transparency_slider.setMaximumWidth(200)
+        transparency_slider.setMaximumWidth(150)
         transparency_slider.setEnabled(False)
-        overlay_controls.addWidget(transparency_slider)
+        first_row.addWidget(transparency_slider)
         
         transparency_label = QLabel("50%")
         transparency_label.setMinimumWidth(40)
-        overlay_controls.addWidget(transparency_label)
+        first_row.addWidget(transparency_label)
         
-        overlay_controls.addStretch()
-        layout.addLayout(overlay_controls)
+        first_row.addStretch()
+        overlay_controls_layout.addLayout(first_row)
+        
+        # Second row: Overlay adjustments (only visible in transparent overlay mode)
+        adjustment_row = QHBoxLayout()
+        
+        adjustment_row.addWidget(QLabel("Scale:"))
+        scale_slider = QSlider(Qt.Horizontal)
+        scale_slider.setMinimum(50)
+        scale_slider.setMaximum(200)
+        scale_slider.setValue(100)
+        scale_slider.setMaximumWidth(120)
+        scale_slider.setEnabled(False)
+        adjustment_row.addWidget(scale_slider)
+        
+        scale_label = QLabel("100%")
+        scale_label.setMinimumWidth(45)
+        adjustment_row.addWidget(scale_label)
+        
+        adjustment_row.addWidget(QLabel("X:"))
+        x_offset_slider = QSlider(Qt.Horizontal)
+        x_offset_slider.setMinimum(-100)
+        x_offset_slider.setMaximum(100)
+        x_offset_slider.setValue(0)
+        x_offset_slider.setMaximumWidth(100)
+        x_offset_slider.setEnabled(False)
+        adjustment_row.addWidget(x_offset_slider)
+        
+        x_offset_label = QLabel("0px")
+        x_offset_label.setMinimumWidth(40)
+        adjustment_row.addWidget(x_offset_label)
+        
+        adjustment_row.addWidget(QLabel("Y:"))
+        y_offset_slider = QSlider(Qt.Horizontal)
+        y_offset_slider.setMinimum(-100)
+        y_offset_slider.setMaximum(100)
+        y_offset_slider.setValue(0)
+        y_offset_slider.setMaximumWidth(100)
+        y_offset_slider.setEnabled(False)
+        adjustment_row.addWidget(y_offset_slider)
+        
+        y_offset_label = QLabel("0px")
+        y_offset_label.setMinimumWidth(40)
+        adjustment_row.addWidget(y_offset_label)
+        
+        adjustment_row.addWidget(QLabel("Rotation:"))
+        rotation_slider = QSlider(Qt.Horizontal)
+        rotation_slider.setMinimum(-15)
+        rotation_slider.setMaximum(15)
+        rotation_slider.setValue(0)
+        rotation_slider.setMaximumWidth(100)
+        rotation_slider.setEnabled(False)
+        adjustment_row.addWidget(rotation_slider)
+        
+        rotation_label = QLabel("0°")
+        rotation_label.setMinimumWidth(35)
+        adjustment_row.addWidget(rotation_label)
+        
+        reset_adjustments_btn = QPushButton("Reset")
+        reset_adjustments_btn.setMaximumWidth(60)
+        reset_adjustments_btn.setEnabled(False)
+        adjustment_row.addWidget(reset_adjustments_btn)
+        
+        adjustment_row.addStretch()
+        
+        # Create a widget to hold adjustment controls so we can show/hide them
+        adjustment_widget = QWidget()
+        adjustment_widget.setLayout(adjustment_row)
+        adjustment_widget.setVisible(False)  # Hidden by default
+        overlay_controls_layout.addWidget(adjustment_widget)
+        
+        layout.addLayout(overlay_controls_layout)
         
         # Container for either split view or overlay view
         view_container = QWidget()
@@ -2646,11 +2719,27 @@ class WorkflowExecutionScreen(QWidget):
         
         layout.addWidget(view_container, 1)
         
+        # Check if this step uses transparent overlay
+        current_step = self.workflow['steps'][self.current_step]
+        use_transparent_overlay = current_step.get('transparent_overlay', False)
+        
         # Toggle between split and overlay mode
         def toggle_overlay_mode(checked):
             splitter.setVisible(not checked)
             overlay_display.setVisible(checked)
             transparency_slider.setEnabled(checked)
+            
+            # Show/enable adjustment controls only for transparent overlays
+            if use_transparent_overlay and checked:
+                adjustment_widget.setVisible(True)
+                scale_slider.setEnabled(True)
+                x_offset_slider.setEnabled(True)
+                y_offset_slider.setEnabled(True)
+                rotation_slider.setEnabled(True)
+                reset_adjustments_btn.setEnabled(True)
+            else:
+                adjustment_widget.setVisible(False)
+            
             if checked:
                 # Copy markers from live display to overlay
                 overlay_display.markers = [m.copy() for m in live_display.markers]
@@ -2658,11 +2747,34 @@ class WorkflowExecutionScreen(QWidget):
         
         overlay_checkbox.toggled.connect(toggle_overlay_mode)
         
-        # Update transparency label
+        # Update label functions
         def update_transparency_label(value):
             transparency_label.setText(f"{value}%")
         
+        def update_scale_label(value):
+            scale_label.setText(f"{value}%")
+        
+        def update_x_offset_label(value):
+            x_offset_label.setText(f"{value}px")
+        
+        def update_y_offset_label(value):
+            y_offset_label.setText(f"{value}px")
+        
+        def update_rotation_label(value):
+            rotation_label.setText(f"{value}°")
+        
+        def reset_adjustments():
+            scale_slider.setValue(100)
+            x_offset_slider.setValue(0)
+            y_offset_slider.setValue(0)
+            rotation_slider.setValue(0)
+        
         transparency_slider.valueChanged.connect(update_transparency_label)
+        scale_slider.valueChanged.connect(update_scale_label)
+        x_offset_slider.valueChanged.connect(update_x_offset_label)
+        y_offset_slider.valueChanged.connect(update_y_offset_label)
+        rotation_slider.valueChanged.connect(update_rotation_label)
+        reset_adjustments_btn.clicked.connect(reset_adjustments)
         
         # Update timer for live feed
         def update_comparison():
@@ -2689,26 +2801,93 @@ class WorkflowExecutionScreen(QWidget):
                     live_pixmap = QPixmap.fromImage(qt_image)
                     
                     if overlay_checkbox.isChecked():
-                        # Overlay mode: blend reference and live camera
-                        # Load reference image
-                        ref_img = cv2.imread(self.reference_image_path)
-                        if ref_img is not None:
-                            # Resize reference to match camera frame
-                            ref_resized = cv2.resize(ref_img, (w, h))
-                            
-                            # Blend images based on transparency slider
-                            alpha = transparency_slider.value() / 100.0
-                            blended = cv2.addWeighted(ref_resized, alpha, frame, 1 - alpha, 0)
-                            
-                            # Convert to Qt image
-                            rgb_blended = cv2.cvtColor(blended, cv2.COLOR_BGR2RGB)
-                            qt_blended = QImage(rgb_blended.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
-                            overlay_pixmap = QPixmap.fromImage(qt_blended)
-                            overlay_display.set_frame(overlay_pixmap)
+                        # Overlay mode
+                        if use_transparent_overlay:
+                            # Transparent overlay mode - respect alpha channel
+                            ref_img = cv2.imread(self.reference_image_path, cv2.IMREAD_UNCHANGED)
+                            if ref_img is not None and len(ref_img.shape) == 3 and ref_img.shape[2] == 4:
+                                # Apply transformations
+                                scale = scale_slider.value() / 100.0
+                                x_offset = x_offset_slider.value()
+                                y_offset = y_offset_slider.value()
+                                rotation = rotation_slider.value()
+                                
+                                # Scale overlay
+                                new_w = int(ref_img.shape[1] * scale)
+                                new_h = int(ref_img.shape[0] * scale)
+                                ref_scaled = cv2.resize(ref_img, (new_w, new_h))
+                                
+                                # Rotate overlay
+                                if rotation != 0:
+                                    center = (new_w // 2, new_h // 2)
+                                    rot_matrix = cv2.getRotationMatrix2D(center, rotation, 1.0)
+                                    ref_scaled = cv2.warpAffine(ref_scaled, rot_matrix, (new_w, new_h))
+                                
+                                # Create canvas same size as camera frame
+                                overlay_canvas = np.zeros((h, w, 4), dtype=np.uint8)
+                                
+                                # Calculate position (centered + offset)
+                                x_pos = (w - new_w) // 2 + x_offset
+                                y_pos = (h - new_h) // 2 + y_offset
+                                
+                                # Place overlay on canvas
+                                x_start = max(0, x_pos)
+                                y_start = max(0, y_pos)
+                                x_end = min(w, x_pos + new_w)
+                                y_end = min(h, y_pos + new_h)
+                                
+                                src_x_start = max(0, -x_pos)
+                                src_y_start = max(0, -y_pos)
+                                src_x_end = src_x_start + (x_end - x_start)
+                                src_y_end = src_y_start + (y_end - y_start)
+                                
+                                if x_end > x_start and y_end > y_start:
+                                    overlay_canvas[y_start:y_end, x_start:x_end] = ref_scaled[src_y_start:src_y_end, src_x_start:src_x_end]
+                                
+                                # Extract alpha channel and apply transparency slider
+                                alpha = overlay_canvas[:, :, 3:4].astype(float) / 255.0
+                                alpha = alpha * (transparency_slider.value() / 100.0)
+                                
+                                # Blend overlay with camera frame
+                                overlay_bgr = overlay_canvas[:, :, :3]
+                                blended = frame.astype(float) * (1 - alpha) + overlay_bgr.astype(float) * alpha
+                                blended = blended.astype(np.uint8)
+                                
+                                # Convert to Qt image
+                                rgb_blended = cv2.cvtColor(blended, cv2.COLOR_BGR2RGB)
+                                qt_blended = QImage(rgb_blended.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+                                overlay_pixmap = QPixmap.fromImage(qt_blended)
+                                overlay_display.set_frame(overlay_pixmap)
+                            else:
+                                # Fallback to regular blending if no alpha
+                                ref_img_bgr = cv2.imread(self.reference_image_path)
+                                if ref_img_bgr is not None:
+                                    ref_resized = cv2.resize(ref_img_bgr, (w, h))
+                                    alpha_val = transparency_slider.value() / 100.0
+                                    blended = cv2.addWeighted(ref_resized, alpha_val, frame, 1 - alpha_val, 0)
+                                    rgb_blended = cv2.cvtColor(blended, cv2.COLOR_BGR2RGB)
+                                    qt_blended = QImage(rgb_blended.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+                                    overlay_pixmap = QPixmap.fromImage(qt_blended)
+                                    overlay_display.set_frame(overlay_pixmap)
+                        else:
+                            # Regular blend mode
+                            ref_img = cv2.imread(self.reference_image_path)
+                            if ref_img is not None:
+                                # Resize reference to match camera frame
+                                ref_resized = cv2.resize(ref_img, (w, h))
+                                
+                                # Blend images based on transparency slider
+                                alpha = transparency_slider.value() / 100.0
+                                blended = cv2.addWeighted(ref_resized, alpha, frame, 1 - alpha, 0)
+                                
+                                # Convert to Qt image
+                                rgb_blended = cv2.cvtColor(blended, cv2.COLOR_BGR2RGB)
+                                qt_blended = QImage(rgb_blended.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+                                overlay_pixmap = QPixmap.fromImage(qt_blended)
+                                overlay_display.set_frame(overlay_pixmap)
                     else:
                         # Split mode: update live display
                         live_display.set_frame(live_pixmap)
-                    # If recording in comparison view, write frame with annotations
         
         comparison_timer = QTimer()
         comparison_timer.timeout.connect(update_comparison)

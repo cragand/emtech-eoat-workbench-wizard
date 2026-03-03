@@ -229,6 +229,27 @@ class StepEditorDialog(QDialog):
         req_group.setLayout(req_layout)
         layout.addWidget(req_group)
         
+        # Overlay options
+        overlay_group = QGroupBox("Overlay Options")
+        overlay_layout = QVBoxLayout()
+        
+        self.transparent_overlay_check = QCheckBox("Use as transparent overlay")
+        self.transparent_overlay_check.setToolTip("Overlay image on camera feed respecting transparency (PNG/TIFF/WebP)")
+        overlay_layout.addWidget(self.transparent_overlay_check)
+        
+        self.transparency_note = QLabel("💡 Use PNG format for transparent overlays (alignment guides, measurement grids, etc.)")
+        self.transparency_note.setStyleSheet("color: #2196F3; font-size: 9pt; padding: 5px;")
+        self.transparency_note.setWordWrap(True)
+        overlay_layout.addWidget(self.transparency_note)
+        
+        self.no_transparency_note = QLabel("(No transparency available - will use blend mode)")
+        self.no_transparency_note.setStyleSheet("color: #999; font-style: italic; font-size: 9pt;")
+        self.no_transparency_note.setVisible(False)
+        overlay_layout.addWidget(self.no_transparency_note)
+        
+        overlay_group.setLayout(overlay_layout)
+        layout.addWidget(overlay_group)
+        
         # Buttons
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
@@ -241,6 +262,38 @@ class StepEditorDialog(QDialog):
         """Enable/disable checkbox placement button based on image path."""
         path = self.ref_image_input.text().strip()
         self.place_checkboxes_button.setEnabled(bool(path and os.path.exists(path)))
+    
+    def check_image_transparency(self):
+        """Check if selected image has transparency and update UI."""
+        import cv2
+        path = self.ref_image_input.text().strip()
+        
+        if not path or not os.path.exists(path):
+            return
+        
+        try:
+            # Load image with alpha channel if present
+            img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+            
+            # Check if image has alpha channel
+            has_alpha = len(img.shape) == 3 and img.shape[2] == 4
+            
+            if has_alpha:
+                # Enable transparent overlay option
+                self.transparent_overlay_check.setEnabled(True)
+                self.transparent_overlay_check.setChecked(True)
+                self.transparency_note.setVisible(True)
+                self.no_transparency_note.setVisible(False)
+            else:
+                # Disable transparent overlay option
+                self.transparent_overlay_check.setEnabled(False)
+                self.transparent_overlay_check.setChecked(False)
+                self.transparency_note.setVisible(False)
+                self.no_transparency_note.setVisible(True)
+        except:
+            # If can't load image, disable overlay option
+            self.transparent_overlay_check.setEnabled(False)
+            self.transparent_overlay_check.setChecked(False)
     
     def place_checkboxes(self):
         """Open dialog to place checkboxes on reference image."""
@@ -261,10 +314,11 @@ class StepEditorDialog(QDialog):
         """Browse for reference image."""
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Select Reference Image", "",
-            "Images (*.png *.jpg *.jpeg *.bmp);;All Files (*)"
+            "Images (*.png *.jpg *.jpeg *.bmp *.tiff *.tif *.webp);;All Files (*)"
         )
         if file_path:
             self.ref_image_input.setText(file_path)
+            self.check_image_transparency()
     
     def load_step_data(self):
         """Load existing step data into form."""
@@ -275,6 +329,11 @@ class StepEditorDialog(QDialog):
         self.require_annotations_check.setChecked(self.step_data.get('require_annotations', False))
         self.require_barcode_scan_check.setChecked(self.step_data.get('require_barcode_scan', False))
         self.require_pass_fail_check.setChecked(self.step_data.get('require_pass_fail', False))
+        self.transparent_overlay_check.setChecked(self.step_data.get('transparent_overlay', False))
+        
+        # Check transparency if image is set
+        if self.ref_image_input.text().strip():
+            self.check_image_transparency()
     
     def get_step_data(self):
         """Get step data from form."""
@@ -285,7 +344,8 @@ class StepEditorDialog(QDialog):
             'require_photo': self.require_photo_check.isChecked(),
             'require_annotations': self.require_annotations_check.isChecked(),
             'require_barcode_scan': self.require_barcode_scan_check.isChecked(),
-            'require_pass_fail': self.require_pass_fail_check.isChecked()
+            'require_pass_fail': self.require_pass_fail_check.isChecked(),
+            'transparent_overlay': self.transparent_overlay_check.isChecked()
         }
         
         # Include inspection checkboxes if they were placed
