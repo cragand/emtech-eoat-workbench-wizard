@@ -2728,9 +2728,12 @@ class WorkflowExecutionScreen(QWidget):
         if self.reference_image_path and os.path.exists(self.reference_image_path):
             ref_test = cv2.imread(self.reference_image_path, cv2.IMREAD_UNCHANGED)
             has_alpha = ref_test is not None and len(ref_test.shape) == 3 and ref_test.shape[2] == 4
+            logger.info(f"Reference image: {self.reference_image_path}")
+            logger.info(f"Image loaded: {ref_test is not None}, Shape: {ref_test.shape if ref_test is not None else 'None'}, Has alpha: {has_alpha}")
         
         # Toggle between split and overlay mode
         def toggle_overlay_mode(checked):
+            logger.info(f"Overlay mode toggled: {checked}, has_alpha: {has_alpha}")
             splitter.setVisible(not checked)
             overlay_display.setVisible(checked)
             transparency_slider.setEnabled(checked)
@@ -2810,6 +2813,7 @@ class WorkflowExecutionScreen(QWidget):
                         # Overlay mode
                         if has_alpha:
                             # Transparent overlay mode - respect alpha channel
+                            logger.debug("Rendering transparent overlay with alpha channel")
                             try:
                                 ref_img = cv2.imread(self.reference_image_path, cv2.IMREAD_UNCHANGED)
                                 
@@ -2898,6 +2902,7 @@ class WorkflowExecutionScreen(QWidget):
                                 traceback.print_exc()
                         else:
                             # Regular blend mode
+                            logger.debug("Rendering regular blend overlay (no alpha)")
                             ref_img = cv2.imread(self.reference_image_path)
                             if ref_img is not None:
                                 # Resize reference to match camera frame
