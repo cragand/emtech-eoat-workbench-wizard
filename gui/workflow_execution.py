@@ -2723,14 +2723,20 @@ class WorkflowExecutionScreen(QWidget):
         current_step = self.workflow['steps'][self.current_step]
         use_transparent_overlay = current_step.get('transparent_overlay', False)
         
+        # Check if reference image has alpha channel
+        has_alpha = False
+        if self.reference_image_path and os.path.exists(self.reference_image_path):
+            ref_test = cv2.imread(self.reference_image_path, cv2.IMREAD_UNCHANGED)
+            has_alpha = ref_test is not None and len(ref_test.shape) == 3 and ref_test.shape[2] == 4
+        
         # Toggle between split and overlay mode
         def toggle_overlay_mode(checked):
             splitter.setVisible(not checked)
             overlay_display.setVisible(checked)
             transparency_slider.setEnabled(checked)
             
-            # Show/enable adjustment controls only for transparent overlays
-            if use_transparent_overlay and checked:
+            # Show/enable adjustment controls if overlay mode is on and image has alpha
+            if checked and has_alpha:
                 adjustment_widget.setVisible(True)
                 scale_slider.setEnabled(True)
                 x_offset_slider.setEnabled(True)
@@ -2802,7 +2808,7 @@ class WorkflowExecutionScreen(QWidget):
                     
                     if overlay_checkbox.isChecked():
                         # Overlay mode
-                        if use_transparent_overlay:
+                        if has_alpha:
                             # Transparent overlay mode - respect alpha channel
                             try:
                                 ref_img = cv2.imread(self.reference_image_path, cv2.IMREAD_UNCHANGED)
