@@ -1149,10 +1149,22 @@ class WorkflowExecutionScreen(QWidget):
         try:
             frame = self.current_camera.capture_frame()
             if frame is not None:
-                # If recording, write frame with annotations to video
+                # Check if current step has PNG overlay with alpha
+                has_overlay = False
+                has_alpha = False
+                if self.workflow and self.reference_image_path and os.path.exists(self.reference_image_path):
+                    ref_test = cv2.imread(self.reference_image_path, cv2.IMREAD_UNCHANGED)
+                    has_alpha = ref_test is not None and len(ref_test.shape) == 3 and ref_test.shape[2] == 4
+                    has_overlay = has_alpha
+                
+                # Apply overlay if present
+                display_frame = frame.copy()
+                if has_overlay:
+                    display_frame = self._render_overlay_on_frame(display_frame, self.reference_image_path, has_alpha)
+                
+                # If recording, write frame with overlay and annotations to video
                 if self.is_recording and self.video_writer:
-                    # Draw markers on frame for video
-                    annotated_frame = frame.copy()
+                    annotated_frame = display_frame.copy()
                     if self.preview_label.markers:
                         annotated_frame = self._draw_markers_on_frame(annotated_frame, self.preview_label.markers)
                     self.video_writer.write(annotated_frame)
@@ -1165,11 +1177,10 @@ class WorkflowExecutionScreen(QWidget):
                         self.recording_indicator.setText(f"🔴 REC {minutes:02d}:{seconds:02d}")
                 
                 # Update preview
-                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                rgb_frame = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
                 h, w, ch = rgb_frame.shape
                 bytes_per_line = ch * w
                 
-                # Normal mode (overlay removed from main view)
                 qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
                 
                 scaled_pixmap = QPixmap.fromImage(qt_image).scaled(
@@ -1492,8 +1503,18 @@ class WorkflowExecutionScreen(QWidget):
         
         frame = self.current_camera.capture_frame()
         if frame is not None:
-            markers = self.preview_label.get_markers_data()
+            # Check if current step has PNG overlay with alpha
+            has_alpha = False
+            if self.workflow and self.reference_image_path and os.path.exists(self.reference_image_path):
+                ref_test = cv2.imread(self.reference_image_path, cv2.IMREAD_UNCHANGED)
+                has_alpha = ref_test is not None and len(ref_test.shape) == 3 and ref_test.shape[2] == 4
             
+            # Apply overlay if present
+            if has_alpha:
+                frame = self._render_overlay_on_frame(frame, self.reference_image_path, has_alpha)
+            
+            # Draw markers
+            markers = self.preview_label.get_markers_data()
             if markers:
                 frame = self._draw_markers_on_frame(frame, markers)
             
