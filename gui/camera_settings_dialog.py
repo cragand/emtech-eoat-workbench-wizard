@@ -567,7 +567,7 @@ class CameraSettingsDialog(QDialog):
                             pass
             
             # Save settings to config
-            self.save_to_config()
+            self.save_settings()
             
             QMessageBox.information(self, "Settings Applied", 
                                    "Camera settings have been applied.")
