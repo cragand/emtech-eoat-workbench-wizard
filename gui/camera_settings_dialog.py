@@ -593,18 +593,6 @@ class CameraSettingsDialog(QDialog):
                 QMessageBox.warning(self, "Error", "Failed to restart camera.")
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Failed to restart camera:\n{e}")
-                        continue
-                    
-                    value = control['slider'].value()
-                    try:
-                        self.current_camera.capture.set(self.PROPERTIES[prop_name], value)
-                    except:
-                        pass
-            
-            QMessageBox.information(self, "Settings Applied", 
-                                   "Camera settings have been applied.")
-        except Exception as e:
-            QMessageBox.warning(self, "Error", f"Failed to apply some settings:\n{e}")
     
     def reset_to_defaults(self):
         """Reset camera to original settings."""
