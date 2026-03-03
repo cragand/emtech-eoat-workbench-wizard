@@ -2703,7 +2703,8 @@ class WorkflowExecutionScreen(QWidget):
         record_btn.clicked.connect(toggle_comparison_recording)
         action_layout.addWidget(record_btn)
         
-        right_layout.addLayout(action_layout)
+        # Don't add action_layout to right_layout - will add to main layout later
+        # right_layout.addLayout(action_layout)
         
         # Add right container to splitter
         splitter.addWidget(right_container)
@@ -2730,6 +2731,9 @@ class WorkflowExecutionScreen(QWidget):
         view_layout.addWidget(overlay_display, 1)
         
         layout.addWidget(view_container, 1)
+        
+        # Add action buttons below view (always visible)
+        layout.addLayout(action_layout)
         
         # Check if this step uses transparent overlay
         current_step = self.workflow['steps'][self.current_step]
