@@ -1103,11 +1103,13 @@ class WorkflowExecutionScreen(QWidget):
                     # Apply saved/optimal settings
                     try:
                         from camera.camera_config_manager import CameraConfigManager
-                        CameraConfigManager.initialize_camera_with_optimal_settings(
+                        result = CameraConfigManager.initialize_camera_with_optimal_settings(
                             self.current_camera.capture, self.current_camera.name)
-                        logger.info("Applied camera settings from config")
+                        logger.info(f"Applied camera settings: {result['results']['applied']}")
                     except Exception as e:
                         logger.warning(f"Could not apply camera settings: {e}")
+                        import traceback
+                        traceback.print_exc()
                     
                     self.timer.start(30)
                     self.capture_button.setEnabled(True)
