@@ -534,6 +534,14 @@ class CameraSettingsDialog(QDialog):
             # Apply all slider values
             for prop_name, control in self.controls.items():
                 if self.supported_properties.get(prop_name):
+                    # Skip manual values if auto mode is enabled
+                    if prop_name == 'white_balance' and self.auto_wb_radio.isChecked():
+                        continue
+                    if prop_name == 'exposure' and self.auto_exposure_radio.isChecked():
+                        continue
+                    if prop_name == 'focus' and self.auto_focus_radio.isChecked():
+                        continue
+                    
                     value = control['slider'].value()
                     try:
                         self.current_camera.capture.set(self.PROPERTIES[prop_name], value)

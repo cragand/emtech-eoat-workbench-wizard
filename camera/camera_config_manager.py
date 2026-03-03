@@ -251,6 +251,14 @@ class CameraConfigManager:
         
         for name, prop in property_map.items():
             if name in settings:
+                # Skip manual values if auto mode is enabled
+                if name == 'white_balance' and settings.get('auto_wb', False):
+                    continue
+                if name == 'exposure' and settings.get('auto_exposure', False):
+                    continue
+                if name == 'focus' and settings.get('auto_focus', False):
+                    continue
+                
                 try:
                     cap.set(prop, settings[name])
                     actual = cap.get(prop)
