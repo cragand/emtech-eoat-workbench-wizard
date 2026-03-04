@@ -576,15 +576,25 @@ class CameraSettingsDialog(QDialog):
             QMessageBox.warning(self, "Error", f"Failed to apply some settings:\n{e}")
     
     def restart_camera(self):
-        """Restart the camera to fix grayscale or other issues."""
+        """Restart the camera and reset to defaults to fix grayscale or other issues."""
         try:
             # Close and reopen camera
             self.current_camera.close()
             if self.current_camera.open():
-                # Reapply saved settings
-                from camera.camera_config_manager import CameraConfigManager
-                CameraConfigManager.initialize_camera_with_optimal_settings(
-                    self.current_camera.capture, self.current_camera.name)
+                # Reset to original settings first
+                for name, value in self.original_settings.items():
+                    if name == 'resolution':
+                        width, height = value
+                        try:
+                            self.current_camera.capture.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                            self.current_camera.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                        except:
+                            pass
+                    elif name in self.PROPERTIES:
+                        try:
+                            self.current_camera.capture.set(self.PROPERTIES[name], value)
+                        except:
+                            pass
                 
                 # Refresh the dialog
                 self.save_original_settings()
@@ -592,7 +602,7 @@ class CameraSettingsDialog(QDialog):
                 self.load_settings()
                 
                 QMessageBox.information(self, "Camera Restarted", 
-                                       "Camera has been restarted successfully.")
+                                       "Camera restarted and reset to defaults.")
             else:
                 QMessageBox.warning(self, "Error", "Failed to restart camera.")
         except Exception as e:
