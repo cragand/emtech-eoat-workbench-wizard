@@ -135,6 +135,46 @@ class ThemeManager:
                 background-color: white;
                 color: black;
             }}
+            
+            QTabWidget::pane {{
+                border: 2px solid {self.EMTECH_GREEN};
+                background-color: white;
+            }}
+            
+            QTabBar::tab {{
+                background-color: #E0E0E0;
+                color: black;
+                padding: 8px 16px;
+                border: 1px solid #CCCCCC;
+                border-bottom: none;
+                border-top-left-radius: 3px;
+                border-top-right-radius: 3px;
+            }}
+            
+            QTabBar::tab:selected {{
+                background-color: white;
+                color: black;
+                font-weight: bold;
+            }}
+            
+            QTabBar::tab:hover {{
+                background-color: #F0F0F0;
+            }}
+            
+            QGroupBox {{
+                border: 2px solid {self.EMTECH_GREEN};
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 10px;
+                font-weight: bold;
+            }}
+            
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 5px;
+                color: black;
+            }}
         """
     
     def _get_dark_stylesheet(self):
@@ -263,6 +303,47 @@ class ThemeManager:
             
             QMessageBox QPushButton {{
                 min-width: 80px;
+            }}
+            
+            QTabWidget::pane {{
+                border: 2px solid {self.EMTECH_GREEN};
+                background-color: #1E1E1E;
+            }}
+            
+            QTabBar::tab {{
+                background-color: #2D2D2D;
+                color: #E0E0E0;
+                padding: 8px 16px;
+                border: 1px solid #3A3A3A;
+                border-bottom: none;
+                border-top-left-radius: 3px;
+                border-top-right-radius: 3px;
+            }}
+            
+            QTabBar::tab:selected {{
+                background-color: #1E1E1E;
+                color: #E0E0E0;
+                font-weight: bold;
+            }}
+            
+            QTabBar::tab:hover {{
+                background-color: #3A3A3A;
+            }}
+            
+            QGroupBox {{
+                border: 2px solid {self.EMTECH_GREEN};
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 10px;
+                font-weight: bold;
+                color: #E0E0E0;
+            }}
+            
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 5px;
+                color: #E0E0E0;
             }}
         """
 

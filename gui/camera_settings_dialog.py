@@ -169,7 +169,7 @@ class CameraSettingsDialog(QDialog):
         
         # Camera info
         self.info_label = QLabel("Select a camera to configure")
-        self.info_label.setStyleSheet("font-weight: bold; font-size: 10pt; padding: 10px; background-color: #f0f0f0; border-radius: 3px;")
+        self.info_label.setStyleSheet("font-weight: bold; font-size: 10pt; padding: 10px; border-radius: 3px;")
         layout.addWidget(self.info_label)
         
         # Tabs for Basic/Advanced
