@@ -17,10 +17,9 @@ class OpenCVCamera(CameraInterface):
     
     def open(self) -> bool:
         """Open camera connection."""
-        # Use Media Foundation backend on Windows for better stability
-        # (less prone to grayscale bugs when changing camera properties)
+        # Use DirectShow backend on Windows for faster initialization
         if platform.system() == "Windows":
-            self.capture = cv2.VideoCapture(self.camera_index, cv2.CAP_MSMF)
+            self.capture = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)
         else:
             self.capture = cv2.VideoCapture(self.camera_index)
         
