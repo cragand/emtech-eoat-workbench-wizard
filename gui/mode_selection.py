@@ -59,7 +59,7 @@ class ModeSelectionScreen(QWidget):
         self.serial_input.setMaximumWidth(400)
         
         scan_serial_button = QPushButton("Scan Serial QR/Barcode")
-        scan_serial_button.setMaximumWidth(180)
+        scan_serial_button.setMaximumWidth(270)
         scan_serial_button.setStyleSheet("""
             QPushButton {
                 background-color: #77C25E;
