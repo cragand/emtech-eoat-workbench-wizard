@@ -504,7 +504,7 @@ class WorkflowExecutionScreen(QWidget):
     
     back_requested = pyqtSignal()
     
-    def __init__(self, workflow_path, serial_number, technician, description):
+    def __init__(self, workflow_path, serial_number, technician, description, cached_cameras=None):
         super().__init__()
         self.workflow_path = workflow_path
         self.serial_number = serial_number
@@ -535,6 +535,9 @@ class WorkflowExecutionScreen(QWidget):
         self.overlay_y_offset = 0
         self.overlay_rotation = 0
         self.overlay_transparency = 100  # Default to 100% for overlays
+        
+        # Use cached cameras if provided, otherwise discover
+        self.available_cameras = cached_cameras if cached_cameras is not None else []
         self.recording_start_time = None
         
         # Setup output directory - sanitize serial number for filesystem
@@ -545,7 +548,14 @@ class WorkflowExecutionScreen(QWidget):
         
         self.load_workflow()
         self.init_ui()
-        self.discover_cameras()
+        
+        # Only discover cameras if not already cached
+        if not self.available_cameras:
+            self.discover_cameras()
+        else:
+            logger.info(f"Using {len(self.available_cameras)} cached camera(s)")
+            self.populate_camera_list()
+        
         self.load_progress()  # Load any saved progress
         self.show_current_step()
         self.update_breadcrumb()

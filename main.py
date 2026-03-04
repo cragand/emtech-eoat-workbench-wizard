@@ -25,6 +25,9 @@ class MainWindow(QMainWindow):
         self.current_serial = None
         self.current_description = None
         
+        # Cache discovered cameras (shared across all screens)
+        self.cached_cameras = None
+        
         # Create central widget with layout for stack and theme button
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -76,12 +79,13 @@ class MainWindow(QMainWindow):
             self.current_mode_widget.deleteLater()
             self.current_mode_widget = None
         
-        # Create workflow execution screen
+        # Create workflow execution screen with cached cameras
         self.current_mode_widget = WorkflowExecutionScreen(
             workflow_path,
             serial_number,
             technician,
-            self.current_description
+            self.current_description,
+            cached_cameras=self.cached_cameras
         )
         self.current_mode_widget.back_requested.connect(self.return_to_mode_selection)
         
@@ -199,6 +203,13 @@ def main():
         app.setStyleSheet(theme_manager.get_stylesheet())
         
         window = MainWindow()
+        
+        # Discover cameras once at startup (cached for all screens)
+        logger.info("Discovering cameras at startup...")
+        from camera import CameraManager
+        window.cached_cameras = CameraManager.discover_cameras()
+        logger.info(f"Found {len(window.cached_cameras)} camera(s)")
+        
         window.show()
         
         logger.info("Application window displayed successfully")
