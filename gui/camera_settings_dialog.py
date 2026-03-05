@@ -35,7 +35,7 @@ class CameraSettingsDialog(QDialog):
         self.controls = {}
         
         self.setWindowTitle("Camera Settings")
-        self.setMinimumSize(700, 600)
+        self.setMinimumSize(700, 500)
         
         self.init_ui()
         
@@ -183,9 +183,10 @@ class CameraSettingsDialog(QDialog):
         preview_layout = QVBoxLayout()
         
         self.preview_label = QLabel()
-        self.preview_label.setMinimumSize(640, 480)
+        self.preview_label.setFixedSize(320, 240)
         self.preview_label.setStyleSheet("border: 2px solid #ccc; background-color: #000;")
         self.preview_label.setAlignment(Qt.AlignCenter)
+        self.preview_label.setScaledContents(True)
         preview_layout.addWidget(self.preview_label)
         
         preview_group.setLayout(preview_layout)
