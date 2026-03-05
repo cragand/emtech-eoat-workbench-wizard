@@ -122,14 +122,17 @@ class CameraSettingsDialog(QDialog):
         self.supported_properties = {}
         self.detect_supported_properties()
         
-        # Save original settings
+        # Save the camera's current state as our baseline
         self.original_settings = {}
         self.save_original_settings()
         
-        # Update UI controls
+        # Update UI controls for supported properties
         self.update_controls_for_camera()
         
-        # Load saved settings
+        # Show the camera's actual current values in the UI
+        self.load_current_settings_to_ui()
+        
+        # Then overlay any saved settings from config file
         self.load_settings()
     
     def update_controls_for_camera(self):
@@ -308,22 +311,22 @@ class CameraSettingsDialog(QDialog):
         
         # Brightness
         self.controls['brightness'] = self.create_slider_control(
-            "Brightness", -100, 100, 0, quality_layout, 'brightness'
+            "Brightness", 0, 255, 128, quality_layout, 'brightness'
         )
         
         # Contrast
         self.controls['contrast'] = self.create_slider_control(
-            "Contrast", -100, 100, 0, quality_layout, 'contrast'
+            "Contrast", 0, 255, 128, quality_layout, 'contrast'
         )
         
         # Saturation
         self.controls['saturation'] = self.create_slider_control(
-            "Saturation", -100, 100, 0, quality_layout, 'saturation'
+            "Saturation", 0, 255, 128, quality_layout, 'saturation'
         )
         
         # Sharpness
         self.controls['sharpness'] = self.create_slider_control(
-            "Sharpness", 0, 100, 50, quality_layout, 'sharpness'
+            "Sharpness", 0, 255, 128, quality_layout, 'sharpness'
         )
         
         quality_group.setLayout(quality_layout)
@@ -406,7 +409,7 @@ class CameraSettingsDialog(QDialog):
         
         # Gain
         self.controls['gain'] = self.create_slider_control(
-            "Gain (ISO)", 0, 100, 0, None, 'gain'
+            "Gain (ISO)", 0, 255, 0, None, 'gain'
         )
         gain_group = QGroupBox("Gain")
         gain_layout = QVBoxLayout()
@@ -577,76 +580,86 @@ class CameraSettingsDialog(QDialog):
             QMessageBox.warning(self, "Error", f"Failed to apply some settings:\n{e}")
     
     def restart_camera(self):
-        """Restart the camera and reset to defaults to fix grayscale or other issues."""
+        """Restart the camera with factory defaults - no saved settings applied."""
         try:
-            # Close and reopen camera
+            # Close and reopen camera - this gives us the driver's factory defaults
             self.current_camera.close()
             if self.current_camera.open():
-                # Reset to original settings first
-                for name, value in self.original_settings.items():
-                    if name == 'resolution':
-                        width, height = value
-                        try:
-                            self.current_camera.capture.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-                            self.current_camera.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-                        except:
-                            pass
-                    elif name in self.PROPERTIES:
-                        try:
-                            self.current_camera.capture.set(self.PROPERTIES[name], value)
-                        except:
-                            pass
-                
-                # Refresh the dialog
+                # Read the camera's true factory defaults (what the driver set on open)
                 self.save_original_settings()
+                
+                # Update UI to show the factory values
+                self.load_current_settings_to_ui()
+                self.auto_exposure_radio.setChecked(True)
+                self.auto_focus_radio.setChecked(True)
+                self.auto_wb_radio.setChecked(True)
+                
                 self.update_controls_for_camera()
-                self.load_settings()
                 
                 QMessageBox.information(self, "Camera Restarted", 
-                                       "Camera restarted and reset to defaults.")
+                                       "Camera restarted with factory defaults.\n"
+                                       "No saved settings were applied.")
             else:
                 QMessageBox.warning(self, "Error", "Failed to restart camera.")
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Failed to restart camera:\n{e}")
     
     def reset_to_defaults(self):
-        """Reset camera to original settings."""
+        """Reset camera to factory defaults by reopening it."""
         reply = QMessageBox.question(
             self, "Reset Settings",
-            "Reset all settings to their original values?",
+            "Reset camera to factory defaults?\n\n"
+            "This will restart the camera and discard all custom settings.",
             QMessageBox.Yes | QMessageBox.No
         )
         
         if reply == QMessageBox.Yes:
-            # Restore original settings
-            for name, value in self.original_settings.items():
-                if name == 'resolution':
-                    width, height = value
-                    try:
-                        self.current_camera.capture.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-                        self.current_camera.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-                    except:
-                        pass
-                elif name in self.PROPERTIES:
-                    try:
-                        self.current_camera.capture.set(self.PROPERTIES[name], value)
-                    except:
-                        pass
+            # The only reliable way to get factory defaults is to reopen the camera
+            self.restart_camera()
             
-            # Reset UI controls
-            self.load_current_settings_to_ui()
-            QMessageBox.information(self, "Reset Complete", 
-                                   "Settings have been reset to defaults.")
+            # Delete saved config for this camera so it doesn't reload bad settings
+            if os.path.exists(self.config_path):
+                try:
+                    with open(self.config_path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                    if 'cameras' in config and self.current_camera.name in config['cameras']:
+                        del config['cameras'][self.current_camera.name]
+                        with open(self.config_path, 'w', encoding='utf-8') as f:
+                            json.dump(config, f, indent=2)
+                except:
+                    pass
     
     def load_current_settings_to_ui(self):
         """Load current camera settings into UI controls."""
+        if not self.current_camera or not self.current_camera.capture:
+            return
+        
         for prop_name, control in self.controls.items():
             if self.supported_properties.get(prop_name):
                 try:
                     value = self.current_camera.capture.get(self.PROPERTIES[prop_name])
-                    control['slider'].setValue(int(value))
+                    control['slider'].blockSignals(True)
+                    # Clamp to slider range to avoid out-of-range issues
+                    clamped = max(control['slider'].minimum(), min(control['slider'].maximum(), int(value)))
+                    control['slider'].setValue(clamped)
+                    control['value_label'].setText(str(clamped))
+                    control['slider'].blockSignals(False)
                 except:
                     pass
+        
+        # Update resolution combo to match actual camera resolution
+        try:
+            width = int(self.current_camera.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(self.current_camera.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            res_text = f"{width}x{height}"
+            for i in range(self.resolution_combo.count()):
+                if self.resolution_combo.itemText(i).startswith(res_text):
+                    self.resolution_combo.blockSignals(True)
+                    self.resolution_combo.setCurrentIndex(i)
+                    self.resolution_combo.blockSignals(False)
+                    break
+        except:
+            pass
     
     def save_and_close(self):
         """Save settings to config file and close."""
