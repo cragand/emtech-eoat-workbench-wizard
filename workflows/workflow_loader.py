@@ -29,7 +29,7 @@ class WorkflowLoader:
     def load_workflow(self, workflow_path: str) -> Optional[Dict]:
         """Load a specific workflow by path."""
         try:
-            with open(workflow_path, 'r') as f:
+            with open(workflow_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
             print(f"Failed to load workflow {workflow_path}: {e}")

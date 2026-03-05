@@ -695,7 +695,7 @@ class WorkflowEditorScreen(QWidget):
         filepath = os.path.join(self.workflow_dir, f"{workflow_name}.json")
         
         try:
-            with open(filepath, 'r') as f:
+            with open(filepath, 'r', encoding='utf-8') as f:
                 self.current_workflow = json.load(f)
                 self.current_workflow_path = filepath
             

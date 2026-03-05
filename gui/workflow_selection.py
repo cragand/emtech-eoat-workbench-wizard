@@ -182,7 +182,7 @@ class WorkflowSelectionScreen(QWidget):
             if filename.endswith('.json'):
                 filepath = os.path.join(self.workflow_dir, filename)
                 try:
-                    with open(filepath, 'r') as f:
+                    with open(filepath, 'r', encoding='utf-8') as f:
                         workflow = json.load(f)
                         workflow['filepath'] = filepath
                         self.workflows.append(workflow)

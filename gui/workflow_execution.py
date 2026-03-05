@@ -600,7 +600,7 @@ class WorkflowExecutionScreen(QWidget):
             if not os.path.exists(self.workflow_path):
                 raise FileNotFoundError(f"Workflow file not found: {self.workflow_path}")
             
-            with open(self.workflow_path, 'r') as f:
+            with open(self.workflow_path, 'r', encoding='utf-8') as f:
                 self.workflow = json.load(f)
             
             # Validate workflow structure
