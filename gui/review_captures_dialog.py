@@ -311,10 +311,12 @@ class ReviewCapturesDialog(QDialog):
         if img_data in self.step_images:
             # Check photo requirement
             if self.requirements.get('require_photo', False):
+                required_count = self.requirements.get('required_photo_count', 1)
                 remaining_step_images = [img for img in self.step_images if img != img_data]
-                if len(remaining_step_images) == 0:
+                if len(remaining_step_images) < required_count:
                     QMessageBox.warning(self, "Cannot Delete",
-                                       "Cannot delete - this step requires at least one photo.")
+                                       f"Cannot delete - this step requires {required_count} photo(s).\n"
+                                       f"Remaining after deletion: {len(remaining_step_images)}")
                     return
             
             # Check annotation requirement

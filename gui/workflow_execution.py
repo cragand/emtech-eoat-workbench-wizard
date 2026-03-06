@@ -1390,11 +1390,12 @@ class WorkflowExecutionScreen(QWidget):
         
         # Update step status
         photo_required = step.get('require_photo', False)
+        required_photo_count = step.get('required_photo_count', 1)
         annotations_required = step.get('require_annotations', False)
         
         status_parts = []
         if photo_required:
-            status_parts.append(f"Photos: {len(self.step_images)}/1 required")
+            status_parts.append(f"Photos: {len(self.step_images)}/{required_photo_count} required")
         if annotations_required:
             # Check if any captured image has markers
             has_markers = any(img.get('markers') and len(img.get('markers', [])) > 0 
@@ -1433,11 +1434,12 @@ class WorkflowExecutionScreen(QWidget):
         checkbox_data = step.get('inspection_checkboxes', [])
         
         photo_required = step.get('require_photo', False)
+        required_photo_count = step.get('required_photo_count', 1)
         annotations_required = step.get('require_annotations', False)
         
         status_parts = []
         if photo_required:
-            status_parts.append(f"Photos: {len(self.step_images)}/1 required")
+            status_parts.append(f"Photos: {len(self.step_images)}/{required_photo_count} required")
         if annotations_required:
             has_markers = any(img.get('markers') and len(img.get('markers', [])) > 0 
                             for img in self.step_images)
@@ -1689,6 +1691,7 @@ class WorkflowExecutionScreen(QWidget):
         step = self.workflow['steps'][self.current_step]
         requirements = {
             'require_photo': step.get('require_photo', False),
+            'required_photo_count': step.get('required_photo_count', 1),
             'require_annotations': step.get('require_annotations', False)
         }
         
@@ -2062,10 +2065,13 @@ class WorkflowExecutionScreen(QWidget):
         """Validate current step requirements."""
         step = self.workflow['steps'][self.current_step]
         
-        if step.get('require_photo', False) and len(self.step_images) == 0:
-            QMessageBox.warning(self, "Photo Required", 
-                               "This step requires at least one photo before proceeding.")
-            return False
+        if step.get('require_photo', False):
+            required_count = step.get('required_photo_count', 1)
+            if len(self.step_images) < required_count:
+                QMessageBox.warning(self, "Photo Required", 
+                                   f"This step requires {required_count} photo(s) before proceeding.\n"
+                                   f"Currently captured: {len(self.step_images)}")
+                return False
         
         if step.get('require_annotations', False):
             has_annotations = any(img.get('markers') and len(img.get('markers', [])) > 0 

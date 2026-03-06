@@ -2,7 +2,7 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QPushButton, QListWidget, QMessageBox, QLineEdit, 
                              QTextEdit, QCheckBox, QFileDialog, QDialog, QDialogButtonBox,
-                             QScrollArea, QGroupBox)
+                             QScrollArea, QGroupBox, QSpinBox)
 from PyQt5.QtCore import Qt, pyqtSignal, QPoint
 from PyQt5.QtGui import QFont, QPixmap, QPainter, QColor, QPen
 import os
@@ -210,9 +210,22 @@ class StepEditorDialog(QDialog):
         req_group = QGroupBox("Requirements")
         req_layout = QVBoxLayout()
         
+        photo_layout = QHBoxLayout()
         self.require_photo_check = QCheckBox("Require photo capture")
-        self.require_photo_check.setToolTip("User must capture at least one photo before proceeding")
-        req_layout.addWidget(self.require_photo_check)
+        self.require_photo_check.setToolTip("User must capture photos before proceeding")
+        photo_layout.addWidget(self.require_photo_check)
+        
+        photo_count_label = QLabel("Required count:")
+        self.photo_count_spin = QSpinBox()
+        self.photo_count_spin.setRange(1, 50)
+        self.photo_count_spin.setValue(1)
+        self.photo_count_spin.setEnabled(False)
+        self.photo_count_spin.setToolTip("Number of photos required for this step")
+        self.require_photo_check.toggled.connect(self.photo_count_spin.setEnabled)
+        photo_layout.addWidget(photo_count_label)
+        photo_layout.addWidget(self.photo_count_spin)
+        photo_layout.addStretch()
+        req_layout.addLayout(photo_layout)
         
         self.require_annotations_check = QCheckBox("Require annotations")
         self.require_annotations_check.setToolTip("User must add annotation markers to photos")
@@ -326,6 +339,8 @@ class StepEditorDialog(QDialog):
         self.instructions_input.setText(self.step_data.get('instructions', ''))
         self.ref_image_input.setText(self.step_data.get('reference_image', ''))
         self.require_photo_check.setChecked(self.step_data.get('require_photo', False))
+        self.photo_count_spin.setValue(self.step_data.get('required_photo_count', 1))
+        self.photo_count_spin.setEnabled(self.require_photo_check.isChecked())
         self.require_annotations_check.setChecked(self.step_data.get('require_annotations', False))
         self.require_barcode_scan_check.setChecked(self.step_data.get('require_barcode_scan', False))
         self.require_pass_fail_check.setChecked(self.step_data.get('require_pass_fail', False))
@@ -342,6 +357,7 @@ class StepEditorDialog(QDialog):
             'instructions': self.instructions_input.toPlainText().strip(),
             'reference_image': self.ref_image_input.text().strip(),
             'require_photo': self.require_photo_check.isChecked(),
+            'required_photo_count': self.photo_count_spin.value() if self.require_photo_check.isChecked() else 1,
             'require_annotations': self.require_annotations_check.isChecked(),
             'require_barcode_scan': self.require_barcode_scan_check.isChecked(),
             'require_pass_fail': self.require_pass_fail_check.isChecked(),
