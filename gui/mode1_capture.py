@@ -167,6 +167,33 @@ class Mode1CaptureScreen(QWidget):
         layout.addLayout(camera_layout)
         
         # Annotatable camera preview
+        # Review captures button above camera, right-aligned
+        review_layout = QHBoxLayout()
+        review_layout.addStretch()
+        self.review_button = QPushButton("📋 Review Captures")
+        self.review_button.setMaximumWidth(180)
+        self.review_button.setStyleSheet("""
+            QPushButton {
+                background-color: #77C25E;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-weight: bold;
+                padding: 5px 10px;
+            }
+            QPushButton:hover {
+                background-color: #5FA84A;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #666666;
+            }
+        """)
+        self.review_button.clicked.connect(self.open_review_dialog)
+        review_layout.addWidget(self.review_button)
+        layout.addLayout(review_layout)
+        
+        # Annotatable camera preview
         self.preview_label = AnnotatablePreview()
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setStyleSheet("border: 2px solid black; background-color: #2b2b2b;")
@@ -176,33 +203,11 @@ class Mode1CaptureScreen(QWidget):
         )
         layout.addWidget(self.preview_label)
         
-        # Capture/Scan/Record buttons directly below camera
+        # Capture/Scan/Record buttons below camera
         button_layout = QHBoxLayout()
-        
-        # Button stylesheet
-        button_style = """
-            QPushButton {
-                background-color: #77C25E;
-                color: white;
-                border: none;
-                border-radius: 3px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #5FA84A;
-            }
-            QPushButton:pressed {
-                background-color: #4D8A3C;
-            }
-            QPushButton:disabled {
-                background-color: #CCCCCC;
-                color: #666666;
-            }
-        """
         
         self.capture_button = QPushButton("Capture Image")
         self.capture_button.setMinimumHeight(40)
-        self.capture_button.setStyleSheet(button_style)
         self.capture_button.clicked.connect(self.capture_image)
         self.capture_button.setEnabled(False)
         button_layout.addWidget(self.capture_button)
@@ -210,24 +215,47 @@ class Mode1CaptureScreen(QWidget):
         self.scan_button = QPushButton("Scan Barcode/QR")
         self.scan_button.setMinimumHeight(40)
         self.scan_button.setMaximumWidth(150)
-        self.scan_button.setStyleSheet(button_style)
+        self.scan_button.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #F57C00;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #666666;
+            }
+        """)
         self.scan_button.clicked.connect(self.scan_barcode)
         self.scan_button.setEnabled(False)
         button_layout.addWidget(self.scan_button)
         
-        self.record_button = QPushButton("Start Recording")
+        self.record_button = QPushButton("🔴 Start Recording")
         self.record_button.setMinimumHeight(40)
-        self.record_button.setStyleSheet(button_style)
+        self.record_button.setStyleSheet("""
+            QPushButton {
+                background-color: #DC3545;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #C82333;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #666666;
+            }
+        """)
         self.record_button.clicked.connect(self.toggle_recording)
         self.record_button.setEnabled(False)
         button_layout.addWidget(self.record_button)
-        
-        self.review_button = QPushButton("📋 Review Captures")
-        self.review_button.setMinimumHeight(40)
-        self.review_button.setMaximumWidth(180)
-        self.review_button.setStyleSheet(button_style)
-        self.review_button.clicked.connect(self.open_review_dialog)
-        button_layout.addWidget(self.review_button)
         
         layout.addLayout(button_layout)
         
@@ -568,7 +596,7 @@ class Mode1CaptureScreen(QWidget):
             self.current_video_timestamp = timestamp
             
             self.is_recording = True
-            self.record_button.setText("Stop Recording")
+            self.record_button.setText("⏹ Stop Recording")
             self.capture_button.setEnabled(False)
             self.status_label.setText(f"Recording: {filename}")
         else:
@@ -601,7 +629,7 @@ class Mode1CaptureScreen(QWidget):
             self.notes_input.clear()
             self.preview_label.clear_markers()
             
-            self.record_button.setText("Start Recording")
+            self.record_button.setText("🔴 Start Recording")
             self.capture_button.setEnabled(True)
             self.status_label.setText(f"Recording stopped (Total: {len(self.captured_images)})")
     
