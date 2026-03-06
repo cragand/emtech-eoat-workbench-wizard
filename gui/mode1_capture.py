@@ -331,7 +331,7 @@ class Mode1CaptureScreen(QWidget):
                     # Start QR scanner if available
                     if QR_SCANNER_AVAILABLE:
                         print("Starting barcode scanner...")
-                        self.qr_scanner = QRScannerThread(self.current_camera)
+                        self.qr_scanner = QRScannerThread()
                         self.qr_scanner.barcode_detected.connect(self.on_barcode_detected)
                         self.qr_scanner.start()
                         self.qr_status_label.setText("Active")
@@ -429,6 +429,10 @@ class Mode1CaptureScreen(QWidget):
         
         frame = self.current_camera.capture_frame()
         if frame is not None:
+            # Feed frame to QR scanner (thread-safe)
+            if self.qr_scanner:
+                self.qr_scanner.update_frame(frame)
+            
             if self.is_recording and self.video_writer:
                 # Draw markers on frame for video
                 annotated_frame = frame.copy()

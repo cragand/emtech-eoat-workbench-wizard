@@ -1171,7 +1171,7 @@ class WorkflowExecutionScreen(QWidget):
                     # Start barcode scanner if available
                     if QR_SCANNER_AVAILABLE:
                         logger.info("Starting barcode scanner...")
-                        self.qr_scanner = QRScannerThread(self.current_camera)
+                        self.qr_scanner = QRScannerThread()
                         self.qr_scanner.barcode_detected.connect(self.on_barcode_detected)
                         self.qr_scanner.start()
                         # Start timer to check barcode availability
@@ -1194,6 +1194,10 @@ class WorkflowExecutionScreen(QWidget):
         try:
             frame = self.current_camera.capture_frame()
             if frame is not None:
+                # Feed frame to QR scanner (thread-safe)
+                if self.qr_scanner:
+                    self.qr_scanner.update_frame(frame)
+                
                 # Check if current step has PNG overlay with alpha
                 has_overlay = False
                 has_alpha = False

@@ -691,7 +691,7 @@ class SerialScanDialog(QDialog):
                     self.scan_button.setEnabled(False)
                     
                     # Start scanner
-                    self.scanner = QRScannerThread(self.camera)
+                    self.scanner = QRScannerThread()
                     self.scanner.barcode_detected.connect(self.on_barcode_detected)
                     self.scanner.start()
                     
@@ -711,6 +711,10 @@ class SerialScanDialog(QDialog):
         
         frame = self.camera.capture_frame()
         if frame is not None:
+            # Feed frame to QR scanner (thread-safe)
+            if self.scanner:
+                self.scanner.update_frame(frame)
+            
             # Convert to QImage
             height, width, channel = frame.shape
             bytes_per_line = 3 * width

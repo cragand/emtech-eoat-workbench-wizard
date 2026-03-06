@@ -1,26 +1,36 @@
 """Passive barcode/QR code scanner that runs in background."""
 import cv2
+import threading
 from PyQt5.QtCore import QThread, pyqtSignal
 
 
 class QRScannerThread(QThread):
-    """Background thread for passive barcode/QR code scanning."""
+    """Background thread for passive barcode/QR code scanning.
+    
+    Uses a shared frame buffer instead of reading from the camera directly,
+    to avoid thread-safety issues with OpenCV VideoCapture.
+    """
     
     barcode_detected = pyqtSignal(str, str)  # Emits (barcode_type, data) when detected
     
-    def __init__(self, camera):
+    def __init__(self, camera=None):
         super().__init__()
-        self.camera = camera
         self.running = False
         self.last_barcode_data = None
         self.current_barcode_type = None
         self.current_barcode_data = None
+        self._frame = None
+        self._frame_lock = threading.Lock()
+    
+    def update_frame(self, frame):
+        """Called by the main thread to provide the latest camera frame."""
+        with self._frame_lock:
+            self._frame = frame.copy() if frame is not None else None
     
     def run(self):
         """Run barcode scanning loop."""
         self.running = True
         
-        # Try to import pyzbar, skip if not available
         try:
             from pyzbar import pyzbar
         except ImportError:
@@ -29,10 +39,9 @@ class QRScannerThread(QThread):
         
         while self.running:
             try:
-                if not self.camera or not self.running:
-                    break
+                with self._frame_lock:
+                    frame = self._frame
                 
-                frame = self.camera.capture_frame()
                 if frame is None or not self.running:
                     self.msleep(100)
                     continue
@@ -41,25 +50,21 @@ class QRScannerThread(QThread):
                 decoded_objects = pyzbar.decode(frame)
                 
                 if decoded_objects:
-                    # Use the first detected barcode
                     obj = decoded_objects[0]
                     barcode_type = obj.type
                     barcode_data = obj.data.decode('utf-8')
                     
-                    # Store current detection
                     self.current_barcode_type = barcode_type
                     self.current_barcode_data = barcode_data
                     
-                    # Only emit if it's a new barcode
                     if barcode_data != self.last_barcode_data:
                         self.last_barcode_data = barcode_data
                         self.barcode_detected.emit(barcode_type, barcode_data)
                 else:
-                    # No barcode detected, clear current
                     self.current_barcode_type = None
                     self.current_barcode_data = None
                 
-                self.msleep(100)  # Check every 100ms
+                self.msleep(100)
             except Exception as e:
                 print(f"Barcode scanner error: {e}")
                 if not self.running:
@@ -73,9 +78,7 @@ class QRScannerThread(QThread):
     def stop(self):
         """Stop the scanner thread."""
         self.running = False
-        self.camera = None  # Release camera reference immediately
         
-        # Don't wait forever - give it 500ms then force quit
         if not self.wait(500):
             print("QR scanner thread timeout, terminating...")
             self.terminate()
