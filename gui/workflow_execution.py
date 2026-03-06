@@ -2123,16 +2123,41 @@ class WorkflowExecutionScreen(QWidget):
     
     def on_back_clicked(self):
         """Handle back to menu button click."""
-        # Auto-generate report if images were captured
-        if self.captured_images:
+        if not self.captured_images:
+            self.cleanup_resources()
+            self.back_requested.emit()
+            return
+        
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Leave Workflow")
+        msg.setText("You have captured data in this workflow. What would you like to do?")
+        
+        save_btn = msg.addButton("Save Progress", QMessageBox.AcceptRole)
+        save_btn.setToolTip("Save a progress file to resume later")
+        report_btn = msg.addButton("Generate Partial Report", QMessageBox.ActionRole)
+        cancel_btn = msg.addButton("Cancel", QMessageBox.RejectRole)
+        
+        msg.setInformativeText(
+            "Save Progress: Creates a progress file you can resume from the main menu.\n"
+            "Generate Partial Report: Creates a PDF/DOCX report with data captured so far."
+        )
+        
+        msg.exec_()
+        
+        if msg.clickedButton() == cancel_btn:
+            return
+        elif msg.clickedButton() == save_btn:
+            self._save_current_step_state()
+            QMessageBox.information(self, "Progress Saved",
+                                   "Your progress has been saved.\n\n"
+                                   "You can resume this workflow from the main menu.")
+        elif msg.clickedButton() == report_btn:
             try:
-                # Collect all barcode scans from images
                 all_barcode_scans = []
                 for img in self.captured_images:
                     if 'barcode_scans' in img:
                         all_barcode_scans.extend(img['barcode_scans'])
                 
-                # Generate report with current progress
                 workflow_name = self.workflow.get('name', 'Workflow')
                 pdf_path, docx_path = generate_reports(
                     serial_number=self.serial_number,
@@ -2144,17 +2169,18 @@ class WorkflowExecutionScreen(QWidget):
                     video_paths=self.recorded_videos,
                     barcode_scans=all_barcode_scans if all_barcode_scans else None
                 )
-                
-                # Show enhanced report dialog
                 self.show_report_dialog(pdf_path, docx_path, len(self.captured_images))
             except Exception as e:
-                # Show error but don't block exit
-                QMessageBox.warning(
-                    self,
-                    "Report Error",
-                    f"Failed to generate report:\n{str(e)}"
-                )
-                print(f"Report generation error: {e}")
+                QMessageBox.warning(self, "Report Error",
+                                   f"Failed to generate report:\n{str(e)}")
+            
+            # Clean up progress file since report was generated
+            progress_file = os.path.join(self.output_dir, "_workflow_progress.json")
+            if os.path.exists(progress_file):
+                try:
+                    os.remove(progress_file)
+                except:
+                    pass
         
         self.cleanup_resources()
         self.back_requested.emit()
