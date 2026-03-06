@@ -1908,6 +1908,7 @@ class WorkflowExecutionScreen(QWidget):
                 {'x': cb['x'], 'y': cb['y'], 'checked': cb['checked']}
                 for cb in self.reference_image.checkboxes
             ]
+        self.save_progress()
 
     def _load_step_data(self, step_index):
         """Rebuild step_images and step_barcode_scans for the given step."""
@@ -1943,7 +1944,6 @@ class WorkflowExecutionScreen(QWidget):
             self.current_step += 1
             self.max_step_reached = max(self.max_step_reached, self.current_step)
             self._load_step_data(self.current_step)
-            self.save_progress()
             self.show_current_step()
     
     def save_progress(self):
