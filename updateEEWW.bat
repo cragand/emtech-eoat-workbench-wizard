@@ -1,6 +1,17 @@
 @echo off
 REM Emtech EoAT Workbench Wizard - Update Script
 REM Pulls the latest version from the repository
+REM
+REM HOW TO USE:
+REM   1. Open File Explorer and navigate to your EEWW application folder
+REM      (the folder containing main.py, runEEWW.bat, etc.)
+REM   2. Double-click this file (updateEEWW.bat)
+REM   3. Follow the on-screen prompts
+REM
+REM FIRST-TIME SETUP (if you received EEWW as a zip file):
+REM   You need to clone the repository instead. Open a Command Prompt and run:
+REM     git clone https://github.com/cragand/emtech-eoat-workbench-wizard.git
+REM   Then use that folder going forward.
 
 echo ============================================
 echo  EEWW Update Check
@@ -10,8 +21,14 @@ echo.
 REM Check if git is available
 where git >nul 2>nul
 if errorlevel 1 (
-    echo ERROR: Git is not installed or not in your PATH.
-    echo Please install Git from https://git-scm.com/
+    echo ERROR: Git is not installed on this computer.
+    echo.
+    echo To install Git:
+    echo   1. Go to https://git-scm.com/download/win
+    echo   2. Download and run the installer
+    echo   3. Use all default options during installation
+    echo   4. Close and reopen this script after installing
+    echo.
     pause
     exit /b 1
 )
@@ -19,8 +36,22 @@ if errorlevel 1 (
 REM Check if this is a git repo
 git rev-parse --git-dir >nul 2>nul
 if errorlevel 1 (
-    echo ERROR: This folder is not a git repository.
-    echo Please contact your administrator.
+    echo ERROR: This folder was not set up with Git.
+    echo.
+    echo This usually means EEWW was copied or unzipped rather than
+    echo cloned from the repository. To fix this:
+    echo.
+    echo   1. Open a Command Prompt
+    echo   2. Navigate to where you want the app, for example:
+    echo        cd C:\Users\%USERNAME%\Downloads
+    echo   3. Run this command:
+    echo        git clone https://github.com/cragand/emtech-eoat-workbench-wizard.git
+    echo   4. Use the new folder from now on:
+    echo        C:\Users\%USERNAME%\Downloads\emtech-eoat-workbench-wizard
+    echo.
+    echo Your existing workflows and output files will NOT be affected.
+    echo You can copy your workflows/ and output/ folders into the new location.
+    echo.
     pause
     exit /b 1
 )
@@ -32,8 +63,16 @@ echo.
 echo Checking for updates...
 git fetch origin
 if errorlevel 1 (
-    echo ERROR: Could not reach the update server.
-    echo Check your network connection and try again.
+    echo.
+    echo ERROR: Could not connect to the update server.
+    echo.
+    echo Possible causes:
+    echo   - No internet connection
+    echo   - VPN not connected (if required by your network)
+    echo   - GitHub is temporarily unavailable
+    echo.
+    echo Try again later or check your network connection.
+    echo.
     pause
     exit /b 1
 )
@@ -49,8 +88,12 @@ if errorlevel 1 (
     if /i "%confirm%"=="Y" (
         git pull origin main
         if errorlevel 1 (
-            echo ERROR: Update failed. You may have local changes.
+            echo.
+            echo ERROR: Update failed.
+            echo.
+            echo This can happen if files were manually edited.
             echo Contact your administrator for help.
+            echo.
             pause
             exit /b 1
         )
