@@ -519,6 +519,7 @@ class WorkflowExecutionScreen(QWidget):
         self.barcode_check_timer = None
         self.captured_images = []  # All images from workflow
         self.step_images = []  # Images for current step
+        self.all_barcode_scans = []  # All barcode scans from workflow
         self.step_barcode_scans = []  # Barcode scans for current step
         self.step_results = {}  # Track pass/fail for each step: {step_index: bool}
         self.step_checkbox_states = {}  # Track checkbox states: {step_index: [{'x', 'y', 'checked'}]}
@@ -1519,17 +1520,36 @@ class WorkflowExecutionScreen(QWidget):
             # Create step indicator
             step_btn = QPushButton(status)
             step_btn.setFixedSize(30, 30)
-            step_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {color};
-                    color: white;
-                    border: none;
-                    border-radius: 15px;
-                    font-weight: bold;
-                    font-size: 10pt;
-                }}
-            """)
-            step_btn.setEnabled(False)  # Not clickable
+            clickable = i < self.current_step
+            if clickable:
+                step_btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: {color};
+                        color: white;
+                        border: none;
+                        border-radius: 15px;
+                        font-weight: bold;
+                        font-size: 10pt;
+                    }}
+                    QPushButton:hover {{
+                        border: 2px solid white;
+                    }}
+                """)
+                step_btn.setCursor(Qt.PointingHandCursor)
+                step_btn.setToolTip(f"Go to Step {i + 1}: {steps[i].get('title', '')}")
+                step_btn.clicked.connect(lambda checked, idx=i: self.go_to_step(idx))
+            else:
+                step_btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: {color};
+                        color: white;
+                        border: none;
+                        border-radius: 15px;
+                        font-weight: bold;
+                        font-size: 10pt;
+                    }}
+                """)
+                step_btn.setEnabled(False)
             self.breadcrumb_layout.addWidget(step_btn)
             
             # Add arrow between steps
@@ -1642,6 +1662,7 @@ class WorkflowExecutionScreen(QWidget):
             'step': self.current_step + 1
         }
         self.step_barcode_scans.append(scan_info)
+        self.all_barcode_scans.append(scan_info)
         
         # Capture current frame
         if self.current_camera:
@@ -1874,51 +1895,49 @@ class WorkflowExecutionScreen(QWidget):
         QMessageBox.information(self, "Step Marked", 
                                f"Step {self.current_step + 1} marked as {result_text}")
     
+    def _save_current_step_state(self):
+        """Save checkbox state for the current step before navigating away."""
+        step = self.workflow['steps'][self.current_step]
+        if step.get('inspection_checkboxes'):
+            self.step_checkbox_states[self.current_step] = [
+                {'x': cb['x'], 'y': cb['y'], 'checked': cb['checked']}
+                for cb in self.reference_image.checkboxes
+            ]
+
+    def _load_step_data(self, step_index):
+        """Rebuild step_images and step_barcode_scans for the given step."""
+        step_num = step_index + 1
+        self.step_images = [img for img in self.captured_images if img.get('step') == step_num]
+        self.step_barcode_scans = [s for s in getattr(self, 'all_barcode_scans', []) if s.get('step') == step_num]
+
     def previous_step(self):
         """Go to previous step."""
         if self.current_step > 0:
+            self._save_current_step_state()
             self.current_step -= 1
-            self.step_images = []  # Clear images for new step
+            self._load_step_data(self.current_step)
             self.show_current_step()
+
+    def go_to_step(self, step_index):
+        """Jump to a specific previous step via breadcrumb click."""
+        if step_index >= self.current_step or step_index < 0:
+            return
+        self._save_current_step_state()
+        self.current_step = step_index
+        self._load_step_data(self.current_step)
+        self.show_current_step()
     
     def next_step(self):
         """Go to next step."""
         if not self.validate_step():
             return
         
-        # Store checkbox state for current step (including which ones were checked)
-        step = self.workflow['steps'][self.current_step]
-        if step.get('inspection_checkboxes'):
-            # Store the actual checkbox objects with their checked states
-            self.step_checkbox_states[self.current_step] = [
-                {'x': cb['x'], 'y': cb['y'], 'checked': cb['checked']} 
-                for cb in self.reference_image.checkboxes
-            ]
+        self._save_current_step_state()
         
         if self.current_step < len(self.workflow['steps']) - 1:
             self.current_step += 1
-            self.step_images = []  # Clear images for new step
-            self.step_barcode_scans = []  # Clear barcode scans for new step
-            self.show_current_step()
-    
-    def next_step(self):
-        """Go to next step."""
-        if not self.validate_step():
-            return
-        
-        # Store checkbox state for current step (including which ones were checked)
-        step = self.workflow['steps'][self.current_step]
-        if step.get('inspection_checkboxes'):
-            # Store the actual checkbox objects with their checked states
-            self.step_checkbox_states[self.current_step] = [
-                {'x': cb['x'], 'y': cb['y'], 'checked': cb['checked']} 
-                for cb in self.reference_image.checkboxes
-            ]
-        
-        if self.current_step < len(self.workflow['steps']) - 1:
-            self.current_step += 1
-            self.step_images = []  # Clear images for new step
-            self.save_progress()  # Auto-save progress
+            self._load_step_data(self.current_step)
+            self.save_progress()
             self.show_current_step()
     
     def save_progress(self):
