@@ -511,6 +511,7 @@ class WorkflowExecutionScreen(QWidget):
         self.technician = technician
         self.description = description
         self.current_step = 0
+        self.max_step_reached = 0
         self.workflow = None
         self.current_camera = None
         self.timer = QTimer()
@@ -1489,8 +1490,8 @@ class WorkflowExecutionScreen(QWidget):
         steps = self.workflow['steps']
         for i in range(len(steps)):
             # Determine step status
-            if i < self.current_step:
-                # Past step - check if passed
+            if i <= self.max_step_reached and i != self.current_step:
+                # Visited step - check if passed
                 if i in self.step_results:
                     status = "✓" if self.step_results[i] else "✗"
                     color = "#4CAF50" if self.step_results[i] else "#F44336"
@@ -1507,8 +1508,12 @@ class WorkflowExecutionScreen(QWidget):
                     else:
                         status = "✓"
                         color = "#81C784"
-                else:
+                elif i < self.current_step:
                     status = "✓"
+                    color = "#81C784"
+                else:
+                    # Visited but ahead of current (user navigated back)
+                    status = str(i + 1)
                     color = "#81C784"
             elif i == self.current_step:
                 status = str(i + 1)
@@ -1520,7 +1525,7 @@ class WorkflowExecutionScreen(QWidget):
             # Create step indicator
             step_btn = QPushButton(status)
             step_btn.setFixedSize(30, 30)
-            clickable = i < self.current_step
+            clickable = i <= self.max_step_reached and i != self.current_step
             if clickable:
                 step_btn.setStyleSheet(f"""
                     QPushButton {{
@@ -1919,8 +1924,8 @@ class WorkflowExecutionScreen(QWidget):
             self.show_current_step()
 
     def go_to_step(self, step_index):
-        """Jump to a specific previous step via breadcrumb click."""
-        if step_index >= self.current_step or step_index < 0:
+        """Jump to a previously visited step via breadcrumb click."""
+        if step_index == self.current_step or step_index < 0 or step_index > self.max_step_reached:
             return
         self._save_current_step_state()
         self.current_step = step_index
@@ -1936,6 +1941,7 @@ class WorkflowExecutionScreen(QWidget):
         
         if self.current_step < len(self.workflow['steps']) - 1:
             self.current_step += 1
+            self.max_step_reached = max(self.max_step_reached, self.current_step)
             self._load_step_data(self.current_step)
             self.save_progress()
             self.show_current_step()
@@ -2009,6 +2015,7 @@ class WorkflowExecutionScreen(QWidget):
                 # Resume progress
                 logger.info("Resuming workflow progress")
                 self.current_step = progress_data.get('current_step', 0)
+                self.max_step_reached = self.current_step
                 self.step_results = progress_data.get('step_results', {})
                 self.step_results = {int(k): v for k, v in self.step_results.items()}
                 self.step_checkbox_states = progress_data.get('step_checkbox_states', {})
