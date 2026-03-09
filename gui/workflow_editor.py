@@ -206,6 +206,19 @@ class StepEditorDialog(QDialog):
         self.ref_image_input.textChanged.connect(self.update_checkbox_button)
         layout.addWidget(self.place_checkboxes_button)
         
+        # Mask editor button
+        self.create_mask_button = QPushButton("🎭 Create Overlay Mask from Image")
+        self.create_mask_button.setToolTip("Open the mask editor to create a transparent PNG overlay from any image")
+        self.create_mask_button.setStyleSheet("""
+            QPushButton {
+                background-color: #9C27B0; color: white; border: none;
+                border-radius: 3px; font-weight: bold; padding: 6px;
+            }
+            QPushButton:hover { background-color: #7B1FA2; }
+        """)
+        self.create_mask_button.clicked.connect(self.open_mask_editor)
+        layout.addWidget(self.create_mask_button)
+        
         # Requirements
         req_group = QGroupBox("Requirements")
         req_layout = QVBoxLayout()
@@ -322,6 +335,25 @@ class StepEditorDialog(QDialog):
             count = len(self.step_data['inspection_checkboxes'])
             QMessageBox.information(self, "Checkboxes Placed", 
                                    f"{count} inspection checkpoint(s) placed.")
+
+    def open_mask_editor(self):
+        """Open the mask editor to create a transparent overlay from an image."""
+        from gui.mask_editor import MaskEditorDialog
+        # Pre-load the current reference image if one is set
+        image_path = self.ref_image_input.text().strip()
+        if image_path and not os.path.exists(image_path):
+            image_path = None
+        dialog = MaskEditorDialog(image_path=image_path, parent=self)
+        dialog.exec_()
+        # If a mask was saved, offer to use it as the reference image
+        if dialog.saved_path:
+            reply = QMessageBox.question(
+                self, "Use Saved Mask",
+                f"Use the saved mask as this step's reference image?\n\n{dialog.saved_path}",
+                QMessageBox.Yes | QMessageBox.No)
+            if reply == QMessageBox.Yes:
+                self.ref_image_input.setText(dialog.saved_path)
+                self.check_image_transparency()
     
     def browse_reference_image(self):
         """Browse for reference image."""
