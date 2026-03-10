@@ -582,10 +582,27 @@ class CameraSettingsDialog(QDialog):
     def restart_camera(self):
         """Restart the camera with factory defaults - no saved settings applied."""
         try:
+            camera_name = self.current_camera.name
+            
+            # Delete saved config for this camera before reopening
+            if os.path.exists(self.config_path):
+                try:
+                    with open(self.config_path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                    if 'cameras' in config and camera_name in config['cameras']:
+                        del config['cameras'][camera_name]
+                        with open(self.config_path, 'w', encoding='utf-8') as f:
+                            json.dump(config, f, indent=2)
+                except:
+                    pass
+            
             # Close and reopen camera - this gives us the driver's factory defaults
             self.current_camera.close()
             if self.current_camera.open():
-                # Read the camera's true factory defaults (what the driver set on open)
+                # Restore the name (open() resets it to generic)
+                self.current_camera._detected_name = camera_name
+                
+                # Read the camera's true factory defaults
                 self.save_original_settings()
                 
                 # Update UI to show the factory values
@@ -598,7 +615,7 @@ class CameraSettingsDialog(QDialog):
                 
                 QMessageBox.information(self, "Camera Restarted", 
                                        "Camera restarted with factory defaults.\n"
-                                       "No saved settings were applied.")
+                                       "Saved settings have been cleared.")
             else:
                 QMessageBox.warning(self, "Error", "Failed to restart camera.")
         except Exception as e:
@@ -614,20 +631,7 @@ class CameraSettingsDialog(QDialog):
         )
         
         if reply == QMessageBox.Yes:
-            # The only reliable way to get factory defaults is to reopen the camera
             self.restart_camera()
-            
-            # Delete saved config for this camera so it doesn't reload bad settings
-            if os.path.exists(self.config_path):
-                try:
-                    with open(self.config_path, 'r', encoding='utf-8') as f:
-                        config = json.load(f)
-                    if 'cameras' in config and self.current_camera.name in config['cameras']:
-                        del config['cameras'][self.current_camera.name]
-                        with open(self.config_path, 'w', encoding='utf-8') as f:
-                            json.dump(config, f, indent=2)
-                except:
-                    pass
     
     def load_current_settings_to_ui(self):
         """Load current camera settings into UI controls."""
@@ -733,9 +737,13 @@ class CameraSettingsDialog(QDialog):
                 
                 # Apply resolution
                 if 'resolution' in settings:
-                    index = self.resolution_combo.findText(settings['resolution'])
-                    if index >= 0:
-                        self.resolution_combo.setCurrentIndex(index)
+                    res = settings['resolution']
+                    if isinstance(res, (list, tuple)) and len(res) == 2:
+                        res_prefix = f"{int(res[0])}x{int(res[1])}"
+                        for i in range(self.resolution_combo.count()):
+                            if self.resolution_combo.itemText(i).startswith(res_prefix):
+                                self.resolution_combo.setCurrentIndex(i)
+                                break
                 
                 # Apply exposure mode
                 if 'auto_exposure' in settings:
@@ -754,7 +762,8 @@ class CameraSettingsDialog(QDialog):
                 
                 # Apply FPS
                 if 'fps' in settings:
-                    index = self.fps_combo.findText(settings['fps'])
+                    fps_text = f"{settings['fps']} FPS"
+                    index = self.fps_combo.findText(fps_text)
                     if index >= 0:
                         self.fps_combo.setCurrentIndex(index)
                 
