@@ -5,27 +5,93 @@ Quality control and maintenance application with guided workflows, camera integr
 ## Quick Start (Windows)
 
 **Easy Method - Double-click to run:**
-1. Double-click `runEEWW.bat`
-2. First run will automatically set up the environment (takes 1-2 minutes)
-3. Subsequent runs launch immediately
+1. Unzip the application folder
+2. Double-click `runEEWW.bat`
+3. First run will automatically set up the environment (takes 1-2 minutes)
+4. Subsequent runs launch immediately
+
+> **Note:** The quick start method does not support automatic updates. See [Full Installation](#full-installation-with-automatic-updates) below for the recommended setup.
 
 ## Quick Start (Linux)
 
 **Easy Method - Run script:**
-1. Make the script executable (first time only):
+1. Unzip the application folder
+2. Make the script executable (first time only):
    ```bash
    chmod +x runEEWW.sh
    ```
-2. Run the script:
+3. Run the script:
    ```bash
    ./runEEWW.sh
    ```
-3. First run will automatically set up the environment (takes 1-2 minutes)
-4. Subsequent runs launch immediately
+4. First run will automatically set up the environment (takes 1-2 minutes)
+5. Subsequent runs launch immediately
 
-**Manual Method:**
+> **Note:** The quick start method does not support automatic updates. See [Full Installation](#full-installation-with-automatic-updates) below for the recommended setup.
 
-## Setup
+## Full Installation (with Automatic Updates)
+
+The recommended installation uses Git to clone the repository, which enables one-click updates via `updateEEWW.bat`.
+
+### Prerequisites
+
+- **Python 3.7+** (3.13+ recommended) — [Download](https://www.python.org/downloads/)
+- **Git** — [Download for Windows](https://git-scm.com/download/win) (use default options during install)
+
+### Windows
+
+1. Open a Command Prompt and navigate to where you want the app:
+   ```cmd
+   cd C:\Users\%USERNAME%\Downloads
+   ```
+
+2. Clone the repository:
+   ```cmd
+   git clone https://github.com/cragand/emtech-eoat-workbench-wizard.git
+   ```
+
+3. Navigate into the folder and run:
+   ```cmd
+   cd emtech-eoat-workbench-wizard
+   runEEWW.bat
+   ```
+
+4. To check for and apply updates, double-click `updateEEWW.bat` at any time. It will:
+   - Show your current version
+   - Check for available updates
+   - List what changed
+   - Ask for confirmation before applying
+   - Automatically update dependencies if needed
+
+### Linux
+
+1. Clone the repository:
+   ```bash
+   cd ~/Downloads
+   git clone https://github.com/cragand/emtech-eoat-workbench-wizard.git
+   ```
+
+2. Navigate into the folder and run:
+   ```bash
+   cd emtech-eoat-workbench-wizard
+   chmod +x runEEWW.sh updateEEWW.sh
+   ./runEEWW.sh
+   ```
+
+3. To check for and apply updates:
+   ```bash
+   ./updateEEWW.sh
+   ```
+
+### Migrating from Zip to Git
+
+If you originally received EEWW as a zip file and want to switch to the git-based setup for automatic updates:
+
+1. Clone the repository to a new folder (see steps above)
+2. Copy your existing `workflows/` and `output/` folders into the new location
+3. Use the new folder going forward — your workflows and reports will be preserved
+
+## Manual Setup
 
 1. Create virtual environment:
 ```bash
