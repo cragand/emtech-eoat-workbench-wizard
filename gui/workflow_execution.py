@@ -558,10 +558,12 @@ class WorkflowExecutionScreen(QWidget):
             logger.info(f"Using {len(self.available_cameras)} cached camera(s)")
             self.populate_camera_list()
         
-        self.load_progress()  # Load any saved progress
         self.show_current_step()
         self.update_breadcrumb()
-        
+
+        # Defer progress loading so signals are connected before any dialogs/navigation
+        QTimer.singleShot(0, self._deferred_load_progress)
+
         # Set focus to this widget so keyboard shortcuts work immediately
         self.setFocusPolicy(Qt.StrongFocus)
         self.setFocus()
@@ -1970,6 +1972,12 @@ class WorkflowExecutionScreen(QWidget):
         except Exception as e:
             logger.error(f"Error saving progress: {e}", exc_info=True)
     
+    def _deferred_load_progress(self):
+        """Load progress after widget is fully constructed and signals connected."""
+        self.load_progress()
+        self.show_current_step()
+        self.update_breadcrumb()
+
     def load_progress(self):
         """Load saved workflow progress if exists."""
         progress_file = os.path.join(self.output_dir, "_workflow_progress.json")
