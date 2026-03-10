@@ -58,6 +58,13 @@
       "require_annotations": false
     },
     {
+      "title": "Creating Overlay Masks",
+      "instructions": "EEWW includes a built-in Mask Editor for creating transparent PNG overlays from any image — no external image editing software needed!\n\nHOW TO ACCESS:\n• Open the Workflow Editor (from the workflow selection screen, click Edit Workflows).\n• Edit any step and click the 🎭 Create Overlay Mask from Image button.\n\nMASK EDITOR FEATURES:\n• Load any captured image (JPG, PNG, BMP, etc.) as your starting point.\n• Use the Brush, Rectangle, or Ellipse tools to define transparent regions.\n• Two paint modes:\n  - Paint Transparency (default): Start with the full image visible, paint areas to make see-through.\n  - Paint Opacity (inverse): Start fully transparent, paint only the areas you want to keep.\n• Left-click paints, right-click erases.\n• Scroll wheel to zoom, Ctrl+drag to pan.\n• Undo/Redo with Ctrl+Z / Ctrl+Y (up to 30 levels).\n• Toggle the checkerboard preview to see which areas are transparent.\n• Saved masks go to resources/overlay_masks/ and can be used as step overlays.\n\nUSE CASE: Capture a photo of a correctly assembled component, then mask out everything except alignment guides or key features. The resulting overlay helps technicians align their work during future inspections.\n\nTO PROCEED: Capture a photo.",
+      "reference_image": "",
+      "require_photo": true,
+      "require_annotations": false
+    },
+    {
       "title": "Camera Controls",
       "instructions": "You can manage camera settings during a workflow.\n\nCAMERA FEATURES:\n• If multiple cameras are connected, use the camera dropdown (top of preview area) to switch between them.\n• Click the ⚙️ Camera Settings button to adjust properties like brightness, contrast, exposure, etc.\n• If your camera feed looks wrong (e.g., grayscale), use the Restart Camera button in settings to reset.\n• Camera discovery is cached at startup for fast loading.\n\nQR CODE SCANNING:\n• If pyzbar is installed, the app passively scans for QR codes in the camera feed.\n• Detected QR codes are automatically appended to the serial number field.\n• No action needed - it runs in the background.\n\nTO PROCEED: Capture a photo.",
       "reference_image": "",

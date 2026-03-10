@@ -79,6 +79,17 @@ This is a Python-based quality control and maintenance application designed for 
 - Auto-enables overlay mode for PNG images with alpha
 - Overlay rendering function shared between views for consistency
 
+#### Overlay Mask Editor (`gui/mask_editor.py`)
+- Built-in tool for creating transparent PNG overlays from any captured image
+- Accessible from workflow editor step dialog ("Create Overlay Mask from Image" button)
+- MaskCanvas widget with zoom/pan, undo/redo (30 levels), brush cursor preview
+- Tools: brush (adjustable 2-200px), rectangle, ellipse
+- Two modes: Paint Transparency (default, paint areas to remove) and Paint Opacity (inverse, paint areas to keep)
+- Left-click paints, right-click erases, scroll zooms, Ctrl+drag pans
+- Checkerboard transparency preview toggle
+- Saves PNG with alpha channel to resources/overlay_masks/
+- After saving, offers to set mask as step reference image with overlay auto-enabled
+
 #### Workflow Editor
 - Password-protected (default: "admin")
 - Create, edit, delete workflows
@@ -252,6 +263,21 @@ output/
 - Test inspection checkbox state preservation in fullsize view
 
 ## Recent Enhancements
+
+### 2026-03-09: Overlay Mask Editor
+- **Built-in Mask Editor**: Create transparent PNG overlays from any captured image without external tools
+- **Drawing Tools**: Brush (2-200px), rectangle, and ellipse for defining transparent/opaque regions
+- **Two Paint Modes**: Paint Transparency (remove areas) and Paint Opacity/Inverse (keep areas)
+- **Full Editing Features**: Undo/redo (30 levels), zoom/pan, checkerboard preview, reset mask
+- **Workflow Integration**: Accessible from workflow editor step dialog, auto-sets as reference image
+
+### 2026-03-06: Step Navigation & Photo Requirements
+- **Configurable Photo Count**: Workflow steps can require multiple photos (1-50) via spinbox in editor
+- **Previous Step Navigation**: Previous Step button and clickable breadcrumb steps fully functional
+- **Breadcrumb Jump**: Click any visited step to jump directly, all visited steps remain clickable
+- **Progress Save on Navigation**: Auto-saves on any step transition (forward, backward, breadcrumb)
+- **Back-to-Menu Dialog**: Choice between saving progress for resume or generating partial report
+- **Mode 1 Button Styling**: Aligned button colors/layout with Mode 2/3 (orange scan, red record)
 
 ### 2026-03-03: PNG Overlay System
 - **Transparent PNG Overlays**: Upload PNG images with alpha channel as overlays on camera feed

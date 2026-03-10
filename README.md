@@ -200,6 +200,23 @@ Create and customize workflows for Mode 2 and Mode 3.
 - "Hide Overlay Image" checkbox temporarily removes overlay from view and captures
 - Ideal for alignment guides, templates, or measurement overlays
 
+**Creating Overlay Masks (Built-in Mask Editor):**
+- Open the Workflow Editor, edit any step, and click "🎭 Create Overlay Mask from Image"
+- Load any captured image (JPG, PNG, BMP, etc.) as the starting point
+- Use painting tools to define which areas become transparent (camera shows through) or opaque (overlay remains visible)
+- **Tools available:**
+  - Brush: Freehand painting with adjustable size (2-200px)
+  - Rectangle: Click and drag to define rectangular transparent/opaque regions
+  - Ellipse: Click and drag to define elliptical transparent/opaque regions
+- **Two paint modes:**
+  - Paint Transparency (default): Start with full image, paint areas to make transparent
+  - Paint Opacity (inverse): Start transparent, paint only the areas you want to keep
+- Left-click paints, right-click erases, scroll wheel zooms, Ctrl+drag pans
+- Undo/Redo support (Ctrl+Z / Ctrl+Y, up to 30 levels)
+- Checkerboard preview shows transparent vs opaque areas
+- Saves as PNG with alpha channel to `resources/overlay_masks/`
+- After saving, the editor offers to set the mask as the step's reference image with overlay mode auto-enabled
+
 **Inspection Checkboxes:**
 - Click on reference image to place checkboxes at inspection points
 - Left-click: Add checkbox
