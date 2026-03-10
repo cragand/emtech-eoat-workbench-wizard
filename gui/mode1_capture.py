@@ -1,6 +1,7 @@
 """Mode 1: General image capture interface."""
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QPushButton, QComboBox, QFileDialog, QMessageBox, QLineEdit, QSizePolicy)
+                             QPushButton, QComboBox, QFileDialog, QMessageBox, QLineEdit, QSizePolicy,
+                             QCheckBox)
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QImage, QPixmap, QFont
 import cv2
@@ -46,6 +47,7 @@ class Mode1CaptureScreen(QWidget):
         self.captured_images = []  # List of dicts: {path, camera, notes, barcode_scans}
         self.report_generated = False  # Track if report has been generated
         self.barcode_scans = []  # List of dicts: {type, data, timestamp}
+        self.overlay_path = None  # Path to active overlay PNG
         
         # Use "unknown" if no serial number provided - sanitize for filesystem
         output_serial = self._sanitize_filename(serial_number) if serial_number else "unknown"
@@ -318,6 +320,24 @@ class Mode1CaptureScreen(QWidget):
         annotation_layout.addStretch()
         layout.addLayout(annotation_layout)
         
+        # Overlay controls
+        overlay_layout = QHBoxLayout()
+        self.overlay_checkbox = QCheckBox("Enable Overlay")
+        self.overlay_checkbox.setStyleSheet("font-weight: bold;")
+        self.overlay_checkbox.setEnabled(False)
+        self.overlay_label = QLabel("No overlay loaded")
+        self.overlay_label.setStyleSheet("color: #666666; font-size: 10px;")
+        self.overlay_clear_button = QPushButton("✕")
+        self.overlay_clear_button.setMaximumWidth(30)
+        self.overlay_clear_button.setToolTip("Remove overlay")
+        self.overlay_clear_button.setVisible(False)
+        self.overlay_clear_button.clicked.connect(self._clear_overlay)
+        overlay_layout.addWidget(self.overlay_checkbox)
+        overlay_layout.addWidget(self.overlay_label)
+        overlay_layout.addWidget(self.overlay_clear_button)
+        overlay_layout.addStretch()
+        layout.addLayout(overlay_layout)
+        
         # Image notes input (optional)
         notes_layout = QHBoxLayout()
         notes_label = QLabel("Image Notes (optional):")
@@ -526,6 +546,47 @@ class Mode1CaptureScreen(QWidget):
         
         dialog = MaskEditorDialog(image_path=image_path, parent=self)
         dialog.exec_()
+        if dialog.saved_path:
+            self._set_overlay(dialog.saved_path)
+
+    def _set_overlay(self, path):
+        """Set the active overlay image."""
+        self.overlay_path = path
+        self.overlay_checkbox.setEnabled(True)
+        self.overlay_checkbox.setChecked(True)
+        self.overlay_label.setText(os.path.basename(path))
+        self.overlay_label.setStyleSheet("color: #9C27B0; font-size: 10px; font-weight: bold;")
+        self.overlay_clear_button.setVisible(True)
+
+    def _clear_overlay(self):
+        """Remove the active overlay."""
+        self.overlay_path = None
+        self.overlay_checkbox.setChecked(False)
+        self.overlay_checkbox.setEnabled(False)
+        self.overlay_label.setText("No overlay loaded")
+        self.overlay_label.setStyleSheet("color: #666666; font-size: 10px;")
+        self.overlay_clear_button.setVisible(False)
+
+    def _apply_overlay(self, frame):
+        """Apply the active overlay onto a frame. Returns the blended frame."""
+        if not self.overlay_path or not self.overlay_checkbox.isChecked():
+            return frame
+        if not os.path.exists(self.overlay_path):
+            return frame
+        try:
+            ref_img = cv2.imread(self.overlay_path, cv2.IMREAD_UNCHANGED)
+            if ref_img is None or ref_img.shape[2] != 4:
+                return frame
+            h, w = frame.shape[:2]
+            ref_scaled = cv2.resize(ref_img, (w, h), interpolation=cv2.INTER_LINEAR)
+            alpha = ref_scaled[:, :, 3].astype(float) / 255.0
+            alpha_3ch = np.stack([alpha] * 3, axis=2)
+            overlay_bgr = ref_scaled[:, :, :3]
+            blended = (overlay_bgr.astype(float) * alpha_3ch +
+                       frame.astype(float) * (1 - alpha_3ch)).astype(np.uint8)
+            return blended
+        except Exception:
+            return frame
 
     def open_camera_settings(self):
         """Open camera settings dialog."""
@@ -543,15 +604,18 @@ class Mode1CaptureScreen(QWidget):
             if self.qr_scanner:
                 self.qr_scanner.update_frame(frame)
             
+            # Apply overlay to display/recording frame
+            display_frame = self._apply_overlay(frame)
+            
             if self.is_recording and self.video_writer:
                 # Draw markers on frame for video
-                annotated_frame = frame.copy()
+                annotated_frame = display_frame.copy()
                 if self.preview_label.markers:
                     annotated_frame = self._draw_markers_on_frame(annotated_frame, self.preview_label.markers, self._get_marker_bgr_color())
                 self.video_writer.write(annotated_frame)
             
             # Convert to QImage for display
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            rgb_frame = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
             h, w, ch = rgb_frame.shape
             bytes_per_line = ch * w
             qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
@@ -571,6 +635,9 @@ class Mode1CaptureScreen(QWidget):
         
         frame = self.current_camera.capture_frame()
         if frame is not None:
+            # Apply overlay before markers
+            frame = self._apply_overlay(frame)
+            
             # Get markers before saving
             markers = self.preview_label.get_markers_data()
             
