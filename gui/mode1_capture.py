@@ -15,6 +15,7 @@ from reports import generate_reports
 from gui.annotatable_preview import AnnotatablePreview
 from gui.review_captures_dialog import ReviewCapturesDialog
 from gui.camera_settings_dialog import CameraSettingsDialog
+from gui.mask_editor import MaskEditorDialog
 
 # Optional QR scanner support
 try:
@@ -166,9 +167,28 @@ class Mode1CaptureScreen(QWidget):
         camera_layout.addStretch()
         layout.addLayout(camera_layout)
         
-        # Annotatable camera preview
-        # Review captures button above camera, right-aligned
+        # Tools row above camera preview
         review_layout = QHBoxLayout()
+        
+        # Overlay mask editor button
+        self.mask_editor_button = QPushButton("🎭 Create Overlay Mask")
+        self.mask_editor_button.setMaximumWidth(200)
+        self.mask_editor_button.setStyleSheet("""
+            QPushButton {
+                background-color: #9C27B0;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-weight: bold;
+                padding: 5px 10px;
+            }
+            QPushButton:hover {
+                background-color: #7B1FA2;
+            }
+        """)
+        self.mask_editor_button.clicked.connect(self.open_mask_editor)
+        review_layout.addWidget(self.mask_editor_button)
+        
         review_layout.addStretch()
         self.review_button = QPushButton("📋 Review Captures")
         self.review_button.setMaximumWidth(180)
@@ -462,6 +482,51 @@ class Mode1CaptureScreen(QWidget):
         dialog = ReviewCapturesDialog(self.captured_images, parent=self)
         dialog.exec_()
     
+    def open_mask_editor(self):
+        """Open overlay mask editor with choice of image source."""
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Create Overlay Mask")
+        msg.setText("Choose an image source for the overlay mask editor:")
+        msg.setIcon(QMessageBox.Question)
+        
+        capture_btn = msg.addButton("📷 Capture Current Frame", QMessageBox.ActionRole)
+        browse_btn = msg.addButton("📂 Browse for Image...", QMessageBox.ActionRole)
+        msg.addButton(QMessageBox.Cancel)
+        
+        # Disable capture if no camera active
+        if not self.current_camera:
+            capture_btn.setEnabled(False)
+            capture_btn.setToolTip("No camera is currently active")
+        
+        msg.exec_()
+        clicked = msg.clickedButton()
+        
+        image_path = None
+        if clicked == capture_btn:
+            frame = self.current_camera.capture_frame()
+            if frame is not None:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"mask_source_{timestamp}.png"
+                image_path = os.path.join(self.output_dir, filename)
+                cv2.imwrite(image_path, frame)
+            else:
+                QMessageBox.warning(self, "Capture Failed", "Could not capture a frame from the camera.")
+                return
+        elif clicked == browse_btn:
+            # Start browsing from the captured_images output directory
+            start_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                     "output", "captured_images")
+            image_path, _ = QFileDialog.getOpenFileName(
+                self, "Select Image for Mask Editor", start_dir,
+                "Images (*.png *.jpg *.jpeg *.bmp *.tiff *.tif *.webp);;All Files (*)")
+            if not image_path:
+                return
+        else:
+            return
+        
+        dialog = MaskEditorDialog(image_path=image_path, parent=self)
+        dialog.exec_()
+
     def open_camera_settings(self):
         """Open camera settings dialog."""
         dialog = CameraSettingsDialog(self.available_cameras, parent=self)
