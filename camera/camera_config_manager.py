@@ -17,7 +17,7 @@ class CameraConfigManager:
             'auto_exposure': True,
             'auto_focus': True,
             'auto_wb': True,
-            'resolution': (1280, 720),
+            'resolution': (1920, 1080),
             'fps': 30
         },
         'microsoft': {
@@ -28,7 +28,7 @@ class CameraConfigManager:
             'auto_exposure': True,
             'auto_focus': True,
             'auto_wb': True,
-            'resolution': (1280, 720),
+            'resolution': (1920, 1080),
             'fps': 30
         },
         'borescope': {
@@ -53,7 +53,7 @@ class CameraConfigManager:
             'auto_exposure': True,
             'auto_focus': True,
             'auto_wb': True,
-            'resolution': (1280, 720),
+            'resolution': (1920, 1080),
             'fps': 30
         }
     }
@@ -67,7 +67,7 @@ class CameraConfigManager:
         'auto_exposure': True,
         'auto_focus': True,
         'auto_wb': True,
-        'resolution': (1280, 720),
+        'resolution': (1920, 1080),
         'fps': 30
     }
     
