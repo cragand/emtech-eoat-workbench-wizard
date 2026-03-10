@@ -300,22 +300,7 @@ class CameraConfigManager:
     
     @staticmethod
     def initialize_camera_with_optimal_settings(cap, camera_name, config_path='settings/camera_config.json'):
-        """Initialize camera with optimal settings on first use."""
-        # Get settings (saved or optimal defaults)
+        """Initialize camera with saved settings (fast, no probing)."""
         settings = CameraConfigManager.get_camera_settings(camera_name, config_path)
-        
-        # Probe capabilities
-        capabilities = CameraConfigManager.probe_camera_capabilities(cap)
-        
-        # Use recommended resolution if no saved preference
-        if 'resolution' not in settings and 'resolution' in capabilities['recommended_settings']:
-            settings['resolution'] = capabilities['recommended_settings']['resolution']
-        
-        # Apply settings
         results = CameraConfigManager.apply_settings_to_camera(cap, settings)
-        
-        return {
-            'settings': settings,
-            'capabilities': capabilities,
-            'results': results
-        }
+        return {'settings': settings, 'results': results}
