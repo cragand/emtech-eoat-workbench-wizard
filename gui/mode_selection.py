@@ -1,6 +1,6 @@
 """Mode selection screen - initial application screen."""
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QLineEdit, QPushButton, QTextEdit, QButtonGroup, QRadioButton, QMessageBox, QDialog, QListWidget, QListWidgetItem, QComboBox)
+                             QLineEdit, QPushButton, QTextEdit, QButtonGroup, QRadioButton, QMessageBox, QDialog, QListWidget, QListWidgetItem, QComboBox, QApplication)
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
 from PyQt5.QtGui import QFont, QPalette, QColor, QImage, QPixmap
 import os
@@ -206,6 +206,13 @@ class ModeSelectionScreen(QWidget):
         self.resume_button.clicked.connect(self.on_resume_clicked)
         bottom_buttons_layout.addWidget(self.resume_button)
         
+        # Check for Updates button
+        self.update_button = QPushButton("🔄 Check for Updates")
+        self.update_button.setMaximumHeight(30)
+        self._update_update_button_style()
+        self.update_button.clicked.connect(self.on_check_updates_clicked)
+        bottom_buttons_layout.addWidget(self.update_button)
+        
         layout.addLayout(bottom_buttons_layout)
         
         self.setLayout(layout)
@@ -230,6 +237,41 @@ class ModeSelectionScreen(QWidget):
             """)
         else:
             self.resume_button.setStyleSheet("""
+                QPushButton {
+                    background-color: transparent;
+                    color: #888888;
+                    border: 1px solid #888888;
+                    border-radius: 3px;
+                    padding: 5px 10px;
+                    font-size: 10px;
+                }
+                QPushButton:hover {
+                    background-color: #f0f0f0;
+                    color: #555555;
+                    border-color: #555555;
+                }
+            """)
+
+    def _update_update_button_style(self):
+        """Apply theme-aware style to the update button."""
+        if theme_manager.dark_mode:
+            self.update_button.setStyleSheet("""
+                QPushButton {
+                    background-color: transparent;
+                    color: #AAAAAA;
+                    border: 1px solid #AAAAAA;
+                    border-radius: 3px;
+                    padding: 5px 10px;
+                    font-size: 10px;
+                }
+                QPushButton:hover {
+                    background-color: #3A3A3A;
+                    color: #E0E0E0;
+                    border-color: #E0E0E0;
+                }
+            """)
+        else:
+            self.update_button.setStyleSheet("""
                 QPushButton {
                     background-color: transparent;
                     color: #888888;
@@ -338,6 +380,93 @@ class ModeSelectionScreen(QWidget):
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Could not open reports folder:\n{str(e)}")
     
+    def on_check_updates_clicked(self):
+        """Check for application updates via git."""
+        import subprocess
+        app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        
+        def run_git(*args):
+            result = subprocess.run(["git"] + list(args), cwd=app_dir,
+                                    capture_output=True, text=True, timeout=30)
+            return result
+        
+        try:
+            # Check if git is available
+            if subprocess.run(["git", "--version"], capture_output=True).returncode != 0:
+                QMessageBox.warning(self, "Git Not Found",
+                    "Git is not installed. Please install Git to use automatic updates.")
+                return
+            
+            # Check if this is a git repo
+            if run_git("rev-parse", "--git-dir").returncode != 0:
+                QMessageBox.information(self, "Not a Git Repository",
+                    "This installation was not set up with Git.\n\n"
+                    "To enable automatic updates, clone the repository:\n"
+                    "  git clone https://github.com/cragand/emtech-eoat-workbench-wizard.git\n\n"
+                    "See the README for full installation instructions.")
+                return
+            
+            # Fetch latest
+            self.update_button.setText("🔄 Checking...")
+            self.update_button.setEnabled(False)
+            QApplication.processEvents()
+            
+            if run_git("fetch", "origin").returncode != 0:
+                QMessageBox.warning(self, "Connection Error",
+                    "Could not connect to the update server.\n\n"
+                    "Check your internet connection and try again.")
+                return
+            
+            # Check for updates
+            diff = run_git("diff", "--quiet", "HEAD", "origin/main")
+            if diff.returncode == 0:
+                current = run_git("log", "-1", "--format=%h (%ci)")
+                QMessageBox.information(self, "Up to Date",
+                    f"You are running the latest version.\n\n"
+                    f"Current: {current.stdout.strip()}")
+                return
+            
+            # Show available changes
+            changes = run_git("log", "HEAD..origin/main", "--format=• %s")
+            reply = QMessageBox.question(self, "Updates Available",
+                f"Updates are available:\n\n{changes.stdout.strip()}\n\n"
+                "Apply updates now? The application will restart.",
+                QMessageBox.Yes | QMessageBox.No)
+            
+            if reply != QMessageBox.Yes:
+                return
+            
+            # Pull updates
+            pull = run_git("pull", "origin", "main")
+            if pull.returncode != 0:
+                QMessageBox.warning(self, "Update Failed",
+                    "Update failed. This can happen if files were manually edited.\n\n"
+                    f"{pull.stderr.strip()}")
+                return
+            
+            # Update dependencies
+            import sys
+            import platform
+            venv_pip = os.path.join(app_dir, "venv",
+                "Scripts" if platform.system() == "Windows" else "bin", "pip")
+            if os.path.exists(venv_pip):
+                subprocess.run([venv_pip, "install", "-r",
+                    os.path.join(app_dir, "requirements.txt"), "--quiet"],
+                    cwd=app_dir, capture_output=True)
+            
+            QMessageBox.information(self, "Update Complete",
+                "Update applied successfully!\n\n"
+                "Please restart the application for changes to take effect.")
+            
+        except subprocess.TimeoutExpired:
+            QMessageBox.warning(self, "Timeout",
+                "Update check timed out. Check your network connection.")
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Update check failed:\n{str(e)}")
+        finally:
+            self.update_button.setText("🔄 Check for Updates")
+            self.update_button.setEnabled(True)
+
     def open_camera_settings(self):
         """Open camera settings dialog."""
         dialog = CameraSettingsDialog(parent=self)

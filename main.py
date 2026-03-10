@@ -162,6 +162,7 @@ class MainWindow(QMainWindow):
         
         # Refresh widgets with inline styles
         self.mode_selection._update_resume_button_style()
+        self.mode_selection._update_update_button_style()
     
     def on_edit_workflows(self):
         """Handle edit workflows request."""
