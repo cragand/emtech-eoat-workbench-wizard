@@ -213,11 +213,15 @@ class MaskCanvas(QWidget):
         if self.show_checkerboard:
             # Create checkerboard for transparent areas
             checker = self._make_checkerboard(w, h, 16)
-            # Blend: where alpha is 0, show checkerboard
+            # Blend: where alpha is 0, show checkerboard with source image bleed-through
             alpha = self.mask.astype(np.float32) / 255.0
             alpha3 = np.stack([alpha] * 3, axis=-1)
             rgb = display[:, :, :3].astype(np.float32)
-            blended = (rgb * alpha3 + checker.astype(np.float32) * (1 - alpha3)).astype(np.uint8)
+            checker_f = checker.astype(np.float32)
+            # In paint opacity mode, show more of the source through the checkerboard
+            src_bleed = 0.6 if self.inverse_mode else 0.15
+            checker_blend = checker_f * (1 - src_bleed) + rgb * src_bleed
+            blended = (rgb * alpha3 + checker_blend * (1 - alpha3)).astype(np.uint8)
             display[:, :, :3] = blended
             display[:, :, 3] = 255  # Fully opaque for display
 
