@@ -224,8 +224,11 @@ class MaskCanvas(QWidget):
             blended = (rgb * alpha3 + checker_blend * (1 - alpha3)).astype(np.uint8)
             # In paint opacity mode, draw border outline around opaque areas
             if self.inverse_mode:
-                contours, _ = cv2.findContours(self.mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                cv2.drawContours(blended, contours, -1, (0, 200, 255), 2)
+                # Dilate mask and XOR with original to get edge pixels only
+                kernel = np.ones((3, 3), dtype=np.uint8)
+                dilated = cv2.dilate(self.mask, kernel, iterations=1)
+                edge = cv2.bitwise_and(dilated, cv2.bitwise_not(self.mask))
+                blended[edge > 0] = [0, 200, 255]
             display[:, :, :3] = blended
             display[:, :, 3] = 255  # Fully opaque for display
 
