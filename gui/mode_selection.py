@@ -9,6 +9,7 @@ import cv2
 from datetime import datetime
 from camera import CameraManager
 from gui.camera_settings_dialog import CameraSettingsDialog
+from theme_manager import theme_manager
 
 # Optional barcode scanner support
 try:
@@ -201,21 +202,7 @@ class ModeSelectionScreen(QWidget):
         # Resume button - small and unobtrusive
         self.resume_button = QPushButton("📂 Resume Incomplete Workflow")
         self.resume_button.setMaximumHeight(30)
-        self.resume_button.setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                color: #888888;
-                border: 1px solid #888888;
-                border-radius: 3px;
-                padding: 5px 10px;
-                font-size: 10px;
-            }
-            QPushButton:hover {
-                background-color: #f0f0f0;
-                color: #555555;
-                border-color: #555555;
-            }
-        """)
+        self._update_resume_button_style()
         self.resume_button.clicked.connect(self.on_resume_clicked)
         bottom_buttons_layout.addWidget(self.resume_button)
         
@@ -223,6 +210,82 @@ class ModeSelectionScreen(QWidget):
         
         self.setLayout(layout)
     
+    def _update_resume_button_style(self):
+        """Apply theme-aware style to the resume button."""
+        if theme_manager.dark_mode:
+            self.resume_button.setStyleSheet("""
+                QPushButton {
+                    background-color: transparent;
+                    color: #AAAAAA;
+                    border: 1px solid #AAAAAA;
+                    border-radius: 3px;
+                    padding: 5px 10px;
+                    font-size: 10px;
+                }
+                QPushButton:hover {
+                    background-color: #3A3A3A;
+                    color: #E0E0E0;
+                    border-color: #E0E0E0;
+                }
+            """)
+        else:
+            self.resume_button.setStyleSheet("""
+                QPushButton {
+                    background-color: transparent;
+                    color: #888888;
+                    border: 1px solid #888888;
+                    border-radius: 3px;
+                    padding: 5px 10px;
+                    font-size: 10px;
+                }
+                QPushButton:hover {
+                    background-color: #f0f0f0;
+                    color: #555555;
+                    border-color: #555555;
+                }
+            """)
+
+    def _get_item_style(self, selected=False):
+        """Get theme-aware style for resume dialog list items."""
+        dark = theme_manager.dark_mode
+        if selected:
+            return """
+                QWidget {
+                    background-color: #2E4A2E;
+                    border: 2px solid #77C25E;
+                    border-radius: 3px;
+                    padding: 10px;
+                }
+            """ if dark else """
+                QWidget {
+                    background-color: #e8f5e9;
+                    border: 2px solid #77C25E;
+                    border-radius: 3px;
+                    padding: 10px;
+                }
+            """
+        return ("""
+            QWidget {
+                background-color: #2D2D2D;
+                border: 1px solid #3A3A3A;
+                border-radius: 3px;
+                padding: 10px;
+            }
+            QWidget:hover {
+                background-color: #3A3A3A;
+            }
+        """ if dark else """
+            QWidget {
+                background-color: #f5f5f5;
+                border: 1px solid #ddd;
+                border-radius: 3px;
+                padding: 10px;
+            }
+            QWidget:hover {
+                background-color: #e8e8e8;
+            }
+        """)
+
     def on_start_clicked(self):
         """Handle start button click."""
         serial = self.serial_input.text().strip()
@@ -363,17 +426,7 @@ class ModeSelectionScreen(QWidget):
         def create_progress_item(pf):
             """Create a progress item widget."""
             item_widget = QWidget()
-            item_widget.setStyleSheet("""
-                QWidget {
-                    background-color: #f5f5f5;
-                    border: 1px solid #ddd;
-                    border-radius: 3px;
-                    padding: 10px;
-                }
-                QWidget:hover {
-                    background-color: #e8e8e8;
-                }
-            """)
+            item_widget.setStyleSheet(self._get_item_style())
             item_layout = QVBoxLayout(item_widget)
             item_layout.setContentsMargins(10, 5, 10, 5)
             
@@ -392,25 +445,8 @@ class ModeSelectionScreen(QWidget):
                 for i in range(list_layout.count()):
                     w = list_layout.itemAt(i).widget()
                     if w and w != item_widget:
-                        w.setStyleSheet("""
-                            QWidget {
-                                background-color: #f5f5f5;
-                                border: 1px solid #ddd;
-                                border-radius: 3px;
-                                padding: 10px;
-                            }
-                            QWidget:hover {
-                                background-color: #e8e8e8;
-                            }
-                        """)
-                item_widget.setStyleSheet("""
-                    QWidget {
-                        background-color: #e8f5e9;
-                        border: 2px solid #77C25E;
-                        border-radius: 3px;
-                        padding: 10px;
-                    }
-                """)
+                        w.setStyleSheet(self._get_item_style())
+                item_widget.setStyleSheet(self._get_item_style(selected=True))
             
             item_widget.mousePressEvent = select_item
             

@@ -159,6 +159,9 @@ class MainWindow(QMainWindow):
             self.theme_button.setText("☀️ Light Mode")
         else:
             self.theme_button.setText("🌙 Dark Mode")
+        
+        # Refresh widgets with inline styles
+        self.mode_selection._update_resume_button_style()
     
     def on_edit_workflows(self):
         """Handle edit workflows request."""
