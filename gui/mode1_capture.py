@@ -281,8 +281,8 @@ class Mode1CaptureScreen(QWidget):
         self.clear_markers_button.clicked.connect(self.preview_label.clear_markers)
         
         # Marker color picker button
-        self.marker_color_button = QPushButton("🎨")
-        self.marker_color_button.setMaximumWidth(35)
+        self.marker_color_button = QPushButton("🎨 Marker Color")
+        self.marker_color_button.setMaximumWidth(120)
         self.marker_color_button.setToolTip("Change annotation arrow color")
         self._update_marker_color_button()
         self.marker_color_button.clicked.connect(self._pick_marker_color)
