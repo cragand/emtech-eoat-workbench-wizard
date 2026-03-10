@@ -4,22 +4,22 @@
   "description": "Procedure for replacing motor bearings",
   "steps": [
     {
-      "step_number": 1,
       "title": "Remove Old Bearing",
-      "description": "Use bearing puller to remove worn bearing. Inspect shaft for damage.",
-      "reference_image": "maint_bearing_removal.jpg",
-      "camera_type": "webcam",
-      "requires_photo": true,
-      "notes": "Check shaft for scoring or wear marks"
+      "instructions": "",
+      "reference_image": "C:/Users/cragandb/Downloads/camera-qc-app/resources/overlay_masks/overlay_mask_tool_test1.png",
+      "require_photo": false,
+      "required_photo_count": 1,
+      "require_annotations": false,
+      "require_barcode_scan": false,
+      "require_pass_fail": false,
+      "transparent_overlay": true
     },
     {
-      "step_number": 2,
       "title": "Clean Shaft",
-      "description": "Clean shaft thoroughly with solvent. Ensure no debris remains.",
+      "instructions": "",
       "reference_image": "maint_clean_shaft.jpg",
-      "camera_type": "webcam",
-      "requires_photo": true,
-      "notes": "Use lint-free cloth"
+      "require_photo": true,
+      "require_annotations": true
     },
     {
       "step_number": 3,
@@ -39,5 +39,6 @@
       "requires_photo": true,
       "notes": "Check for smooth rotation with no binding"
     }
-  ]
+  ],
+  "name": "motor_bearing_replacement"
 }

@@ -1,0 +1,93 @@
+{
+  "name": "Sample Maintenance Procedure",
+  "description": "Basic maintenance and repair workflow",
+  "steps": [
+    {
+      "title": "Initial Assessment",
+      "instructions": "Document the current state before maintenance. Take photos of any issues or wear.",
+      "reference_image": "C:/Users/cragandb/Downloads/mstrand-screen-1515324_1280.png",
+      "require_photo": true,
+      "require_annotations": true,
+      "require_barcode_scan": false,
+      "require_pass_fail": false,
+      "transparent_overlay": true
+    },
+    {
+      "title": "Disassembly",
+      "instructions": "Carefully disassemble the component. Document each step with photos.",
+      "reference_image": "",
+      "require_photo": true,
+      "require_annotations": false
+    },
+    {
+      "title": "Cleaning and Inspection",
+      "instructions": "Clean all parts and inspect for wear or damage. Mark any areas of concern. Inspect all marked locations in reference image and check off before proceeding.",
+      "reference_image": "C:/Users/cragandb/Downloads/istockphoto-1499965255-1024x1024.jpg",
+      "require_photo": true,
+      "require_annotations": true,
+      "inspection_checkboxes": [
+        {
+          "x": 0.50125,
+          "y": 0.44090056285178236
+        },
+        {
+          "x": 0.50625,
+          "y": 0.8067542213883677
+        },
+        {
+          "x": 0.2675,
+          "y": 0.3789868667917448
+        },
+        {
+          "x": 0.7575,
+          "y": 0.37335834896810505
+        },
+        {
+          "x": 0.8325,
+          "y": 0.8424015009380863
+        }
+      ]
+    },
+    {
+      "title": "Reassembly",
+      "instructions": "Reassemble the component. Verify all parts are correctly installed.",
+      "reference_image": "",
+      "require_photo": true,
+      "require_annotations": false
+    },
+    {
+      "title": "demo step add",
+      "instructions": "demo  step description after accidental delete",
+      "reference_image": "C:/Users/cragandb/Downloads/istockphoto-1499965255-1024x1024.jpg",
+      "require_photo": true,
+      "require_annotations": true,
+      "require_pass_fail": true,
+      "inspection_checkboxes": [
+        {
+          "x": 0.2075,
+          "y": 0.1294559099437148
+        },
+        {
+          "x": 0.73375,
+          "y": 0.2401500938086304
+        },
+        {
+          "x": 0.20125,
+          "y": 0.1894934333958724
+        },
+        {
+          "x": 0.69,
+          "y": 0.2326454033771107
+        }
+      ]
+    },
+    {
+      "title": "Final Verification",
+      "instructions": "Test functionality and document the completed maintenance.",
+      "reference_image": "",
+      "require_photo": true,
+      "require_annotations": false,
+      "require_pass_fail": true
+    }
+  ]
+}

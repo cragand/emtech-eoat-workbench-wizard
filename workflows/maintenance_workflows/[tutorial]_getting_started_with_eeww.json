@@ -1,0 +1,131 @@
+{
+  "name": "[Tutorial] Getting Started with EEWW",
+  "description": "Interactive tutorial - learn all features by doing.",
+  "steps": [
+    {
+      "title": "Welcome & Navigation",
+      "instructions": "Welcome to the Emtech EoAT Workbench Wizard tutorial!\n\nThis tutorial will walk you through every feature by having you actually use them.\n\nLOOK AROUND THE SCREEN:\n\u2022 LEFT SIDE: You're reading instructions here. Reference images appear below.\n\u2022 RIGHT SIDE: Live camera preview. This is where you'll capture images and video.\n\u2022 TOP: Step counter and navigation buttons (Previous / Next Step).\n\u2022 BOTTOM: Action buttons for capture, recording, and report generation.\n\nTO PROCEED: You must take a photo to move to the next step. Point your camera at anything and click the \ud83d\udcf8 Capture Image button on the right side.",
+      "reference_image": "",
+      "require_photo": true,
+      "require_annotations": false
+    },
+    {
+      "title": "Capturing Images",
+      "instructions": "Great - you captured your first image!\n\nTIPS:\n\u2022 You can check your captured images by clicking the \"Review Captures\" button on the right above the camera preview.\n\u2022 The step status updates to show the number of photos taken.\n\nYou can capture multiple images per step. Each one is saved and will appear in your final report.\n\nTO PROCEED: Capture at least 2 images for this step.",
+      "reference_image": "",
+      "require_photo": true,
+      "required_photo_count": 2,
+      "require_annotations": false,
+      "require_barcode_scan": false,
+      "require_pass_fail": false,
+      "transparent_overlay": false
+    },
+    {
+      "title": "Using Annotations",
+      "instructions": "Now let's learn the annotation system. Annotations are arrow markers you place on the camera preview to highlight areas of interest.\n\nHOW TO USE ANNOTATIONS:\n\u2022 LEFT-CLICK on the camera preview to place an arrow marker.\n\u2022 DRAG a marker to reposition it.\n\u2022 SCROLL WHEEL over a marker to rotate it.\n\u2022 SHIFT + SCROLL over a marker to change arrow length (50-300px).\n\u2022 RIGHT-CLICK a marker to remove it.\n\u2022 Markers are labeled sequentially (A, B, C...).\n\u2022 If you delete one, the remaining labels re-order automatically.\n\nTO PROCEED: Place at least one annotation on the preview, then capture an image. The annotation will be permanently embedded in the saved image.",
+      "reference_image": "",
+      "require_photo": true,
+      "required_photo_count": 1,
+      "require_annotations": true,
+      "require_barcode_scan": false,
+      "require_pass_fail": false,
+      "transparent_overlay": false
+    },
+    {
+      "title": "Video Recording",
+      "instructions": "EEWW can record video with your annotations overlaid in real-time.\n\nHOW TO RECORD:\n\u2022 Click the \ud83d\udd34 Start Recording button below the camera preview.\n\u2022 A red recording indicator with elapsed time appears on the preview.\n\u2022 Any annotations you place or move during recording are captured in the video.\n\u2022 Click \u23f9 Stop Recording when finished.\n\u2022 Videos are saved as MP4 (H264) and included in reports.\n\nTRY IT NOW: Start a recording, wait a few seconds, optionally place/move some annotations, then stop recording.\n\nTO PROCEED: Capture a photo (video recording is not enforced as a requirement, but try it!).",
+      "reference_image": "",
+      "require_photo": true,
+      "require_annotations": false
+    },
+    {
+      "title": "Pass / Fail Marking",
+      "instructions": "Some workflow steps require a Pass or Fail judgment. This step has that requirement enabled.\n\nLOOK FOR:\n\u2022 The Pass / Fail buttons that appeared for this step.\n\u2022 Select PASS (green) or FAIL (red) to record your judgment.\n\u2022 This status is saved with the step and appears in the final report's procedure summary table.\n\nTO PROCEED: Select either Pass or Fail, then capture a photo.",
+      "reference_image": "",
+      "require_photo": true,
+      "require_annotations": false,
+      "require_pass_fail": true
+    },
+    {
+      "title": "Reference Images & Comparison View",
+      "instructions": "Workflow steps can include a reference image shown on the left side. This helps technicians compare their work against a known-good example.\n\nFEATURES:\n\u2022 Reference images appear below the instructions text.\n\u2022 Use the \ud83d\udd0d Compare & Overlay button to open a side-by-side comparison window with the live camera feed.\n\u2022 (Tip- The full size view of the reference image can also be annotated in this view! Click on either the camera view or reference image when fullscreened to add markers and leave notes). If notes are left on the reference image it will also be captured with the \"capture image\" button.\n\n\nTo proceed to the next step:",
+      "reference_image": "C:/Users/cragandb/Downloads/istockphoto-1499965255-1024x1024.jpg",
+      "require_photo": true,
+      "require_annotations": true,
+      "require_barcode_scan": false,
+      "require_pass_fail": false,
+      "transparent_overlay": false
+    },
+    {
+      "title": "Inspection Checkboxes",
+      "instructions": "Workflow steps can include inspection checkboxes overlaid on reference images. This step has example checkboxes.\n\nLOOK AT THE REFERENCE IMAGE BELOW:\n\u2022 You should see bright amber/yellow checkboxes on the reference image.\n\u2022 Click each checkbox to mark it as inspected.\n\u2022 All checkboxes must be checked before you can proceed.\n\u2022 You can click the reference image to open a full-size resizable view.\n\nNOTE: If no reference image is set for this step, the checkboxes won't appear. Workflow authors add these via the Workflow Editor.\n\nTO PROCEED: Check all inspection checkboxes (if visible) and capture a photo.",
+      "reference_image": "C:/Users/cragandb/Downloads/gettyimages-1498955543-2048x2048.webp",
+      "require_photo": true,
+      "require_annotations": false,
+      "require_barcode_scan": false,
+      "require_pass_fail": false,
+      "transparent_overlay": false,
+      "inspection_checkboxes": [
+        {
+          "x": 0.12625,
+          "y": 0.16885553470919323
+        },
+        {
+          "x": 0.075,
+          "y": 0.7729831144465291
+        },
+        {
+          "x": 0.47625,
+          "y": 0.16322701688555347
+        },
+        {
+          "x": 0.47125,
+          "y": 0.8048780487804879
+        },
+        {
+          "x": 0.81625,
+          "y": 0.12195121951219512
+        },
+        {
+          "x": 0.835,
+          "y": 0.851782363977486
+        }
+      ]
+    },
+    {
+      "title": "Camera Overlays (Transparent Masks)",
+      "instructions": "PNG OVERLAY MODE:\n\u2022 If a reference image is a PNG with transparency (alpha channel), it automatically becomes an overlay on the camera feed.\n\u2022 Use Overlay Settings to adjust: scale, position (X/Y), rotation, and transparency.\n\u2022 The 'Hide Overlay Image' checkbox temporarily removes the overlay.\n\u2022 Overlays appear in captured images and video recordings.\n\nTO PROCEED: Capture a photo.",
+      "reference_image": "C:/Users/cragandb/Downloads/pngaaa.com-4802.png",
+      "require_photo": true,
+      "require_annotations": false,
+      "require_barcode_scan": false,
+      "require_pass_fail": false,
+      "transparent_overlay": true
+    },
+    {
+      "title": "Camera Controls",
+      "instructions": "You can manage camera settings during a workflow.\n\nCAMERA FEATURES:\n\u2022 If multiple cameras are connected, use the camera dropdown (top of preview area) to switch between them.\n\u2022 Click the \u2699\ufe0f Camera Settings button to adjust properties like brightness, contrast, exposure, etc.\n\u2022 If your camera feed looks wrong (e.g., grayscale), use the Restart Camera button in settings to reset.\n\u2022 Camera discovery is cached at startup for fast loading.\n\nQR CODE SCANNING:\n\u2022 If pyzbar is installed, the app passively scans for QR codes in the camera feed.\n\u2022 Detected QR codes are automatically appended to the serial number field.\n\u2022 No action needed - it runs in the background.\n\nTO PROCEED: Capture a photo.",
+      "reference_image": "",
+      "require_photo": true,
+      "require_annotations": false
+    },
+    {
+      "title": "Progress Save & Resume",
+      "instructions": "EEWW automatically saves your progress as you work through a workflow.\n\nHOW IT WORKS:\n\u2022 After completing each step, your progress is auto-saved to output/progress/.\n\u2022 If you close the app mid-workflow, you can resume from the main menu.\n\u2022 The Resume button on the mode selection screen shows your saved progress files.\n\u2022 You can delete individual progress files from the resume dialog.\n\u2022 Progress files older than 30 days are automatically cleaned up.\n\nALL captured images, videos, annotations, checkbox states, and pass/fail results are preserved when you resume.\n\nTO PROCEED: Capture a photo.",
+      "reference_image": "",
+      "require_photo": true,
+      "required_photo_count": 1,
+      "require_annotations": false,
+      "require_barcode_scan": false,
+      "require_pass_fail": false,
+      "transparent_overlay": false
+    },
+    {
+      "title": "Report Generation",
+      "instructions": "When you finish a workflow (or at any time), you can generate a professional report.\n\nREPORT FEATURES:\n\u2022 Click the \ud83d\udcc4 Generate Report button (bottom of screen).\n\u2022 Choose PDF or DOCX format.\n\u2022 Reports include: session info, all captured images, videos, annotations, checklist results, and a procedure summary table.\n\u2022 The summary table shows each step's status: Complete (light green), Pass (green), or Fail (red).\n\u2022 Reports are saved to output/reports/ and organized by serial number.\n\nTHIS IS THE LAST STEP!\n\nTO COMPLETE THE TUTORIAL: Capture a final photo. Then try generating a report to see all your tutorial work compiled into a document.",
+      "reference_image": "",
+      "require_photo": true,
+      "require_annotations": false
+    }
+  ]
+}
