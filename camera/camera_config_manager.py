@@ -300,7 +300,28 @@ class CameraConfigManager:
     
     @staticmethod
     def initialize_camera_with_optimal_settings(cap, camera_name, config_path='settings/camera_config.json'):
-        """Initialize camera with saved settings (fast, no probing)."""
-        settings = CameraConfigManager.get_camera_settings(camera_name, config_path)
-        results = CameraConfigManager.apply_settings_to_camera(cap, settings)
-        return {'settings': settings, 'results': results}
+        """Initialize camera with saved or default settings (fast, no probing).
+        
+        Only applies resolution and auto-mode settings by default.
+        Individual properties (brightness, contrast, etc.) are only applied
+        if the user has explicitly saved them via the camera settings dialog.
+        """
+        # Check for user-saved settings first
+        config = CameraConfigManager.load_config(config_path)
+        if 'cameras' in config and camera_name in config['cameras']:
+            # User has saved settings - apply everything they saved
+            settings = config['cameras'][camera_name]
+            results = CameraConfigManager.apply_settings_to_camera(cap, settings)
+            return {'settings': settings, 'results': results}
+        
+        # No saved settings - only set resolution (don't touch other properties)
+        results = {'applied': {}, 'failed': {}}
+        try:
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+            actual_w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+            actual_h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            results['applied']['resolution'] = (int(actual_w), int(actual_h))
+        except:
+            pass
+        return {'settings': {}, 'results': results}

@@ -360,6 +360,14 @@ class Mode1CaptureScreen(QWidget):
             if index >= 0 and index < len(self.available_cameras):
                 self.current_camera = self.available_cameras[index]
                 if self.current_camera.open():
+                    # Apply settings (resolution + any user-saved config)
+                    try:
+                        from camera.camera_config_manager import CameraConfigManager
+                        CameraConfigManager.initialize_camera_with_optimal_settings(
+                            self.current_camera.capture, self.current_camera.name)
+                    except Exception as e:
+                        print(f"Warning: Could not apply camera settings: {e}")
+                    
                     self.timer.start(30)  # 30ms refresh
                     self.capture_button.setEnabled(True)
                     self.record_button.setEnabled(True)

@@ -1176,8 +1176,13 @@ class WorkflowExecutionScreen(QWidget):
                 logger.info(f"Switching to camera: {self.current_camera.name}")
                 
                 if self.current_camera.open():
-                    # Skip applying settings - camera was already configured at startup
-                    # (Applying settings takes 5-10 seconds and causes workflow load delay)
+                    # Apply settings (resolution + any user-saved config)
+                    try:
+                        from camera.camera_config_manager import CameraConfigManager
+                        CameraConfigManager.initialize_camera_with_optimal_settings(
+                            self.current_camera.capture, self.current_camera.name)
+                    except Exception as e:
+                        logger.warning(f"Could not apply camera settings: {e}")
                     
                     self.timer.start(30)
                     self.capture_button.setEnabled(True)
