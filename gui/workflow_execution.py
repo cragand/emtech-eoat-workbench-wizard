@@ -1763,8 +1763,7 @@ class WorkflowExecutionScreen(QWidget):
                 background-color: {c.name()};
                 border: 2px solid #888;
                 border-radius: 3px;
-                padding: 3px;
-                font-size: 14px;
+                padding: 5px 15px;
             }}
             QPushButton:hover {{
                 border-color: #444;
