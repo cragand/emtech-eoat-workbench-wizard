@@ -219,9 +219,13 @@ class MaskCanvas(QWidget):
             rgb = display[:, :, :3].astype(np.float32)
             checker_f = checker.astype(np.float32)
             # In paint opacity mode, show more of the source through the checkerboard
-            src_bleed = 0.6 if self.inverse_mode else 0.15
+            src_bleed = 0.55 if self.inverse_mode else 0.15
             checker_blend = checker_f * (1 - src_bleed) + rgb * src_bleed
             blended = (rgb * alpha3 + checker_blend * (1 - alpha3)).astype(np.uint8)
+            # In paint opacity mode, draw border outline around opaque areas
+            if self.inverse_mode:
+                contours, _ = cv2.findContours(self.mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                cv2.drawContours(blended, contours, -1, (0, 200, 255), 2)
             display[:, :, :3] = blended
             display[:, :, 3] = 255  # Fully opaque for display
 
