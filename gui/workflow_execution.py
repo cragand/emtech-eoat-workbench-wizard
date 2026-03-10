@@ -556,7 +556,9 @@ class WorkflowExecutionScreen(QWidget):
             self.discover_cameras()
         else:
             logger.info(f"Using {len(self.available_cameras)} cached camera(s)")
-            self.populate_camera_list()
+            self.camera_combo.clear()
+            for cam in self.available_cameras:
+                self.camera_combo.addItem(cam.name)
         
         self.show_current_step()
         self.update_breadcrumb()
