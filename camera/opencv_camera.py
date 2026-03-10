@@ -41,43 +41,12 @@ class OpenCVCamera(CameraInterface):
         return self.is_open
     
     def _detect_camera_name(self):
-        """Attempt to detect the actual camera name."""
-        try:
-            if platform.system() == "Windows":
-                try:
-                    import subprocess
-                    # Enumerate DirectShow video capture devices in the same order
-                    # that OpenCV CAP_DSHOW uses, via the SystemDeviceEnum COM object
-                    ps_script = (
-                        "$devEnum = New-Object -ComObject SystemDeviceEnum; "
-                        "$classEnum = $null; "
-                        "$catGuid = [Guid]'860BB310-5D01-11D0-BD3B-00A0C911CE86'; "  # VideoInputDevice
-                        "[void]$devEnum.CreateClassEnumerator([ref]$catGuid, [ref]$classEnum, 0); "
-                        "if ($classEnum) { "
-                        "  $moniker = @($null); $fetched = 0; "
-                        "  while ($classEnum.Next(1, $moniker, [ref]$fetched) -eq 0) { "
-                        "    $bag = $null; "
-                        "    $iid = [Guid]'55272A00-42CB-11CE-8135-00AA004BB851'; "
-                        "    [void]$moniker[0].BindToStorage($null, $null, [ref]$iid, [ref]$bag); "
-                        "    if ($bag) { Write-Output $bag.Read('FriendlyName') } "
-                        "  } "
-                        "}"
-                    )
-                    result = subprocess.run(
-                        ['powershell', '-Command', ps_script],
-                        capture_output=True, text=True, timeout=5
-                    )
-                    if result.returncode == 0 and result.stdout.strip():
-                        camera_names = [n.strip() for n in result.stdout.strip().split('\n') if n.strip()]
-                        if self.camera_index < len(camera_names):
-                            self._detected_name = camera_names[self.camera_index]
-                            return
-                except:
-                    pass
-
-            self._detected_name = f"Camera {self.camera_index}"
-        except:
-            self._detected_name = f"Camera {self.camera_index}"
+        """Attempt to detect the actual camera name.
+        
+        Called by CameraManager after discovery to assign names from
+        a pre-fetched list, or falls back to generic naming.
+        """
+        self._detected_name = f"Camera {self.camera_index}"
     
     def close(self):
         """Close camera connection."""
