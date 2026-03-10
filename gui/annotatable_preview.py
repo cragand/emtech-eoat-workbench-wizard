@@ -66,6 +66,7 @@ class AnnotatablePreview(QLabel):
         self.drag_offset = QPoint()
         self.current_frame = None
         self.hover_marker = None
+        self.marker_color = QColor(255, 0, 0)  # Default red
         self.setMouseTracking(True)
         self.setCursor(Qt.CrossCursor)
     
@@ -301,7 +302,7 @@ class AnnotatablePreview(QLabel):
         end_y = pixel_pos.y() + arrow_length * math.sin(angle_rad)
         
         # Draw arrow line
-        pen = QPen(QColor(255, 0, 0), 2)
+        pen = QPen(self.marker_color, 2)
         painter.setPen(pen)
         painter.drawLine(pixel_pos.x(), pixel_pos.y(), int(end_x), int(end_y))
         
@@ -315,7 +316,7 @@ class AnnotatablePreview(QLabel):
         arrow_p2_x = end_x + arrow_size * math.cos(angle2)
         arrow_p2_y = end_y + arrow_size * math.sin(angle2)
         
-        painter.setBrush(QColor(255, 0, 0))
+        painter.setBrush(self.marker_color)
         arrow_path = QPainterPath()
         arrow_path.moveTo(end_x, end_y)
         arrow_path.lineTo(arrow_p1_x, arrow_p1_y)
@@ -328,11 +329,11 @@ class AnnotatablePreview(QLabel):
         
         # White circle background
         painter.setBrush(QColor(255, 255, 255))
-        painter.setPen(QPen(QColor(255, 0, 0), 2))
+        painter.setPen(QPen(self.marker_color, 2))
         painter.drawEllipse(label_pos, 12, 12)
         
         # Draw label text
-        painter.setPen(QColor(255, 0, 0))
+        painter.setPen(self.marker_color)
         painter.setFont(QFont("Arial", 10, QFont.Bold))
         painter.drawText(label_pos.x() - 5, label_pos.y() + 5, label)
         

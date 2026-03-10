@@ -280,11 +280,19 @@ class Mode1CaptureScreen(QWidget):
         """)
         self.clear_markers_button.clicked.connect(self.preview_label.clear_markers)
         
+        # Marker color picker button
+        self.marker_color_button = QPushButton("🎨")
+        self.marker_color_button.setMaximumWidth(35)
+        self.marker_color_button.setToolTip("Change annotation arrow color")
+        self._update_marker_color_button()
+        self.marker_color_button.clicked.connect(self._pick_marker_color)
+        
         annotation_help = QLabel("Left-click: Add | Drag: Move | Scroll: Rotate | Shift+Scroll: Length | Right-click: Remove")
         annotation_help.setStyleSheet("color: #666666; font-size: 10px;")
         
         annotation_layout.addWidget(annotation_label)
         annotation_layout.addWidget(self.clear_markers_button)
+        annotation_layout.addWidget(self.marker_color_button)
         annotation_layout.addWidget(annotation_help)
         annotation_layout.addStretch()
         layout.addLayout(annotation_layout)
@@ -465,7 +473,7 @@ class Mode1CaptureScreen(QWidget):
                 # Draw markers on frame for video
                 annotated_frame = frame.copy()
                 if self.preview_label.markers:
-                    annotated_frame = self._draw_markers_on_frame(annotated_frame, self.preview_label.markers)
+                    annotated_frame = self._draw_markers_on_frame(annotated_frame, self.preview_label.markers, self._get_marker_bgr_color())
                 self.video_writer.write(annotated_frame)
             
             # Convert to QImage for display
@@ -494,7 +502,7 @@ class Mode1CaptureScreen(QWidget):
             
             # Draw markers on the frame if any exist
             if markers:
-                frame = self._draw_markers_on_frame(frame, markers)
+                frame = self._draw_markers_on_frame(frame, markers, self._get_marker_bgr_color())
             
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             serial_prefix = self.serial_number if self.serial_number else "unknown"
@@ -527,7 +535,37 @@ class Mode1CaptureScreen(QWidget):
             
             self.status_label.setText(f"Image saved: {filename} (Total: {len(self.captured_images)})")
     
-    def _draw_markers_on_frame(self, frame, markers):
+    def _get_marker_bgr_color(self):
+        """Get the current marker color as a BGR tuple for OpenCV."""
+        c = self.preview_label.marker_color
+        return (c.blue(), c.green(), c.red())
+
+    def _update_marker_color_button(self):
+        """Update the color picker button to show the current marker color."""
+        c = self.preview_label.marker_color
+        self.marker_color_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c.name()};
+                border: 2px solid #888;
+                border-radius: 3px;
+                padding: 3px;
+                font-size: 14px;
+            }}
+            QPushButton:hover {{
+                border-color: #444;
+            }}
+        """)
+
+    def _pick_marker_color(self):
+        """Open color picker for annotation arrows."""
+        from PyQt5.QtWidgets import QColorDialog
+        color = QColorDialog.getColor(self.preview_label.marker_color, self, "Annotation Arrow Color")
+        if color.isValid():
+            self.preview_label.marker_color = color
+            self._update_marker_color_button()
+            self.preview_label.update()
+
+    def _draw_markers_on_frame(self, frame, markers, color=(0, 0, 255)):
         """Draw annotation markers on the frame."""
         frame_h, frame_w = frame.shape[:2]
         
@@ -545,18 +583,18 @@ class Mode1CaptureScreen(QWidget):
             end_y = int(y + arrow_length * np.sin(angle_rad))
             
             # Arrow line
-            cv2.arrowedLine(frame, (x, y), (end_x, end_y), (0, 0, 255), 2, tipLength=0.3)
+            cv2.arrowedLine(frame, (x, y), (end_x, end_y), color, 2, tipLength=0.3)
             
             # Label circle at arrow tip
             cv2.circle(frame, (end_x, end_y), 12, (255, 255, 255), -1)
-            cv2.circle(frame, (end_x, end_y), 12, (0, 0, 255), 2)
+            cv2.circle(frame, (end_x, end_y), 12, color, 2)
             
             # Label text
             font = cv2.FONT_HERSHEY_SIMPLEX
             text_size = cv2.getTextSize(label, font, 0.5, 2)[0]
             text_x = end_x - text_size[0] // 2
             text_y = end_y + text_size[1] // 2
-            cv2.putText(frame, label, (text_x, text_y), font, 0.5, (0, 0, 255), 2)
+            cv2.putText(frame, label, (text_x, text_y), font, 0.5, color, 2)
         
         return frame
     

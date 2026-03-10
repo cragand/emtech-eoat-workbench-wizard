@@ -915,6 +915,15 @@ class WorkflowExecutionScreen(QWidget):
         self.clear_markers_button.clicked.connect(self.preview_label.clear_markers)
         annotation_layout.addWidget(self.clear_markers_button)
         
+        # Marker color picker button
+        self.marker_color_button = QPushButton("🎨")
+        self.marker_color_button.setFocusPolicy(Qt.NoFocus)
+        self.marker_color_button.setMaximumWidth(35)
+        self.marker_color_button.setToolTip("Change annotation arrow color")
+        self._update_marker_color_button()
+        self.marker_color_button.clicked.connect(self._pick_marker_color)
+        annotation_layout.addWidget(self.marker_color_button)
+        
         annotation_help = QLabel("Click: Add | Drag: Move | Scroll: Rotate | Right-click: Remove")
         annotation_help.setStyleSheet("color: #888888; font-size: 10px;")
         annotation_layout.addWidget(annotation_help)
@@ -1222,7 +1231,7 @@ class WorkflowExecutionScreen(QWidget):
                 if self.is_recording and self.video_writer:
                     annotated_frame = display_frame.copy()
                     if self.preview_label.markers:
-                        annotated_frame = self._draw_markers_on_frame(annotated_frame, self.preview_label.markers)
+                        annotated_frame = self._draw_markers_on_frame(annotated_frame, self.preview_label.markers, self._get_marker_bgr_color())
                     self.video_writer.write(annotated_frame)
                     
                     # Update recording timer
@@ -1609,7 +1618,7 @@ class WorkflowExecutionScreen(QWidget):
             # Draw markers
             markers = self.preview_label.get_markers_data()
             if markers:
-                frame = self._draw_markers_on_frame(frame, markers)
+                frame = self._draw_markers_on_frame(frame, markers, self._get_marker_bgr_color())
             
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             serial_prefix = self.serial_number if self.serial_number else "unknown"
@@ -1741,7 +1750,37 @@ class WorkflowExecutionScreen(QWidget):
         dialog = CameraSettingsDialog(self.available_cameras, parent=self)
         dialog.exec_()
     
-    def _draw_markers_on_frame(self, frame, markers):
+    def _get_marker_bgr_color(self):
+        """Get the current marker color as a BGR tuple for OpenCV."""
+        c = self.preview_label.marker_color
+        return (c.blue(), c.green(), c.red())
+
+    def _update_marker_color_button(self):
+        """Update the color picker button to show the current marker color."""
+        c = self.preview_label.marker_color
+        self.marker_color_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c.name()};
+                border: 2px solid #888;
+                border-radius: 3px;
+                padding: 3px;
+                font-size: 14px;
+            }}
+            QPushButton:hover {{
+                border-color: #444;
+            }}
+        """)
+
+    def _pick_marker_color(self):
+        """Open color picker for annotation arrows."""
+        from PyQt5.QtWidgets import QColorDialog
+        color = QColorDialog.getColor(self.preview_label.marker_color, self, "Annotation Arrow Color")
+        if color.isValid():
+            self.preview_label.marker_color = color
+            self._update_marker_color_button()
+            self.preview_label.update()
+
+    def _draw_markers_on_frame(self, frame, markers, color=(0, 0, 255)):
         """Draw annotation markers on frame."""
         frame_h, frame_w = frame.shape[:2]
         
@@ -1758,16 +1797,16 @@ class WorkflowExecutionScreen(QWidget):
             end_y = int(y + arrow_length * np.sin(angle_rad))
             
             # Simple line instead of arrow
-            cv2.line(frame, (x, y), (end_x, end_y), (0, 0, 255), 2)
-            cv2.circle(frame, (x, y), 4, (0, 0, 255), -1)  # Small dot at point
+            cv2.line(frame, (x, y), (end_x, end_y), color, 2)
+            cv2.circle(frame, (x, y), 4, color, -1)  # Small dot at point
             cv2.circle(frame, (end_x, end_y), 12, (255, 255, 255), -1)
-            cv2.circle(frame, (end_x, end_y), 12, (0, 0, 255), 2)
+            cv2.circle(frame, (end_x, end_y), 12, color, 2)
             
             font = cv2.FONT_HERSHEY_SIMPLEX
             text_size = cv2.getTextSize(label, font, 0.5, 2)[0]
             text_x = end_x - text_size[0] // 2
             text_y = end_y + text_size[1] // 2
-            cv2.putText(frame, label, (text_x, text_y), font, 0.5, (0, 0, 255), 2)
+            cv2.putText(frame, label, (text_x, text_y), font, 0.5, color, 2)
         
         return frame
     
@@ -2772,7 +2811,7 @@ class WorkflowExecutionScreen(QWidget):
                     
                     # Draw markers on frame
                     if markers_to_use:
-                        frame = self._draw_markers_on_frame(frame, markers_to_use)
+                        frame = self._draw_markers_on_frame(frame, markers_to_use, self._get_marker_bgr_color())
                     
                     # Save camera image
                     camera_name = self.current_camera.name.replace(" ", "_")
@@ -3056,7 +3095,7 @@ class WorkflowExecutionScreen(QWidget):
                         
                         # Draw markers
                         if markers_to_use:
-                            annotated_frame = self._draw_markers_on_frame(annotated_frame, markers_to_use)
+                            annotated_frame = self._draw_markers_on_frame(annotated_frame, markers_to_use, self._get_marker_bgr_color())
                         
                         comparison_recording['writer'].write(annotated_frame)
                     
