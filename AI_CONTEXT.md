@@ -65,10 +65,22 @@ This is a Python-based quality control and maintenance application designed for 
 - `maintenance_workflows/` - Maintenance procedure definitions
 - Each step can specify:
   - Instructions and reference images
+  - Reference video (mp4, avi, mov, mkv, wmv, webm) with playback controls
   - Transparent PNG overlays with transform controls
   - Inspection checkboxes (bright amber/yellow)
   - Photo/annotation/pass-fail requirements
   - Step validation before proceeding
+
+#### Reference Video System
+- Steps can include a `reference_video` field alongside `reference_image`
+- Video player replaces reference image display when a step has a video
+- Playback controls: play/pause, restart, scrub slider, time display
+- Uses `VideoDecoderThread` (QThread) for smooth background decoding via OpenCV
+- Thread reads frames sequentially and emits QImages via signal at correct FPS
+- Supports play/pause/seek commands via thread-safe methods
+- Side-by-side comparison dialog: reference video on left, live camera on right
+- Comparison dialog includes capture image, scan barcode, and record video buttons
+- No audio playback support currently (OpenCV video-only)
 
 #### PNG Overlay System
 - Supports PNG images with alpha channel as camera overlays
@@ -82,19 +94,30 @@ This is a Python-based quality control and maintenance application designed for 
 #### Overlay Mask Editor (`gui/mask_editor.py`)
 - Built-in tool for creating transparent PNG overlays from any captured image
 - Accessible from workflow editor step dialog ("Create Overlay Mask from Image" button)
+- Also accessible from Mode 1 via "🎭 Create Overlay Mask" button (capture current frame or browse existing images)
 - MaskCanvas widget with zoom/pan, undo/redo (30 levels), brush cursor preview
 - Tools: brush (adjustable 2-200px), rectangle, ellipse
 - Two modes: Paint Transparency (default, paint areas to remove) and Paint Opacity (inverse, paint areas to keep)
 - Left-click paints, right-click erases, scroll zooms, Ctrl+drag pans
-- Checkerboard transparency preview toggle
+- Checkerboard transparency preview with source image bleed-through (15% in paint transparency, 55% in paint opacity)
+- Orange pixel-edge outline around opaque areas in paint opacity mode for clear brush visibility
 - Saves PNG with alpha channel to resources/overlay_masks/
-- After saving, offers to set mask as step reference image with overlay auto-enabled
+- After saving in workflow editor, offers to set mask as step reference image with overlay auto-enabled
+- After saving in Mode 1, automatically sets as active overlay on live preview
+
+#### Mode 1 Overlay System
+- "Enable Overlay" checkbox with overlay filename display and clear button
+- Overlay applied to live camera preview, captured images, and video recordings
+- Overlay auto-activates when mask editor saves a new overlay
+- Users can toggle overlay on/off at any time without losing the overlay path
+- Overlay scales to fit camera frame using PNG alpha channel blending
 
 #### Workflow Editor
 - Password-protected (default: "admin")
 - Create, edit, delete workflows
 - Add/edit/delete/reorder steps
 - Place inspection checkboxes on reference images
+- Reference video support (mp4, avi, mov, mkv, wmv, webm) per step
 - Unsaved changes protection with Save/Discard/Cancel prompt
 - Tracks changes via JSON state comparison
 
@@ -263,6 +286,17 @@ output/
 - Test inspection checkbox state preservation in fullsize view
 
 ## Recent Enhancements
+
+### 2026-03-10: Reference Video Support & Mode 1 Overlay Tools
+- **Reference Videos in Workflows**: Steps can now include reference videos (mp4, avi, mov, etc.) alongside reference images
+- **Video Player**: Built-in player with play/pause, restart, scrub slider, and time display in workflow step view
+- **VideoDecoderThread**: Background QThread decodes frames via OpenCV for smooth real-time playback without codec dependencies
+- **Video Comparison Dialog**: Side-by-side view with reference video on left and live camera on right, with full capture/scan/record capabilities
+- **Mode 1 Overlay Mask Editor**: "🎭 Create Overlay Mask" button with option to capture current camera frame or browse existing images
+- **Mode 1 Overlay Toggle**: "Enable Overlay" checkbox applies overlay to live preview, captures, and video recordings
+- **Mask Editor UX**: Checkerboard shows source image bleed-through (15% paint transparency, 55% paint opacity mode)
+- **Paint Opacity Edge Outline**: Orange pixel-edge border around opaque areas using morphological dilation (no shape-closing artifacts)
+- **Camera Settings Fixes**: Gray webcam fix, simplified discovery, default 1080p profiles
 
 ### 2026-03-09: Overlay Mask Editor
 - **Built-in Mask Editor**: Create transparent PNG overlays from any captured image without external tools

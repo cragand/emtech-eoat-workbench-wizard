@@ -125,6 +125,7 @@ Free-form capture mode for quick documentation.
 - Annotation markers (rotatable arrows with labels)
 - Per-image notes
 - Optional barcode/QR code scanning
+- Overlay mask creation and live overlay toggle
 - Generate PDF and DOCX reports
 
 **How to use:**
@@ -141,6 +142,15 @@ Free-form capture mode for quick documentation.
 6. Scan barcodes/QR codes when needed (button enabled when detected)
 7. Click "Capture Image" to save
 8. Click "Generate Report" when done
+
+**Overlay Masks in Mode 1:**
+- Click "🎭 Create Overlay Mask" to open the mask editor
+- Choose "📷 Capture Current Frame" to use the live camera image, or "📂 Browse for Image..." to select an existing file
+- Paint transparent/opaque regions and save the overlay PNG
+- The overlay automatically activates on the live preview after saving
+- Use the "Enable Overlay" checkbox to toggle the overlay on/off
+- Overlay is applied to captured images and video recordings when enabled
+- Click "✕" to remove the overlay entirely
 
 **Annotations:**
 - Click on camera preview to place markers
@@ -251,6 +261,7 @@ Create and customize workflows for Mode 2 and Mode 3.
 - **Title**: Short name for the step
 - **Instructions**: Detailed instructions for the user
 - **Reference Image**: Optional image to display alongside camera
+- **Reference Video**: Optional video (mp4, avi, mov, mkv, wmv, webm) to display alongside camera with playback controls
 - **Transparent Overlay**: Check to use PNG image as overlay on camera feed (requires PNG with alpha channel)
 - **Place Checkboxes**: Add inspection points on reference image (bright amber/yellow boxes)
 - **Require Photo**: User must capture at least one photo
@@ -309,6 +320,15 @@ Create and customize workflows for Mode 2 and Mode 3.
 - Transforms apply to main view and all captures/recordings
 - Reset button restores default transform values
 - "Hide Overlay Image" checkbox on main view temporarily removes overlay
+
+**Reference Video Playback:**
+- Steps can include a reference video that displays in place of the reference image
+- Built-in video player with play/pause, restart, scrub slider, and time display
+- Videos play at correct speed using a background decoder thread (OpenCV-based, no extra codec installs needed)
+- Supports mp4, avi, mov, mkv, wmv, and webm formats
+- Click "🔍 Reference Comparison View" for side-by-side: reference video on left, live camera on right
+- Comparison view includes capture image, scan barcode, and record video buttons
+- Note: Audio playback is not currently supported
 
 ## Annotations
 
@@ -425,6 +445,7 @@ Workflows are stored as JSON files in the `workflows/` directory.
       "title": "Step Title",
       "instructions": "Detailed instructions...",
       "reference_image": "/path/to/image.jpg",
+      "reference_video": "/path/to/video.mp4",
       "require_photo": true,
       "require_annotations": false
     }
@@ -557,6 +578,7 @@ camera_qc_app/
 │   ├── workflow_selection.py       # Workflow selection
 │   ├── workflow_execution.py       # Step-by-step execution
 │   ├── workflow_editor.py          # Workflow editor
+│   ├── mask_editor.py              # Overlay mask creation tool
 │   └── annotatable_preview.py      # Camera preview with annotations
 ├── workflows/                       # Workflow definitions
 │   ├── qc_workflows/               # QC workflows (JSON)
