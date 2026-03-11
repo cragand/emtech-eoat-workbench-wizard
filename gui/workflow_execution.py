@@ -766,7 +766,8 @@ class WorkflowExecutionScreen(QWidget):
         self.ref_video_display.setStyleSheet("border: 2px solid #FF9800; background-color: #2b2b2b;")
         self.ref_video_display.setAlignment(Qt.AlignCenter)
         self.ref_video_display.setText("No reference video")
-        self.ref_video_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.ref_video_display.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.ref_video_display.setMinimumSize(100, 100)
         ref_video_layout.addWidget(self.ref_video_display)
         
         # Video controls
@@ -3419,9 +3420,9 @@ class WorkflowExecutionScreen(QWidget):
         
         video_display = QLabel()
         video_display.setStyleSheet("border: 2px solid #FF9800; background-color: #2b2b2b;")
-        video_display.setMinimumSize(400, 300)
+        video_display.setMinimumSize(100, 100)
         video_display.setAlignment(Qt.AlignCenter)
-        video_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        video_display.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
         left_layout.addWidget(video_display, 1)
         
         # Video controls
@@ -3599,20 +3600,19 @@ class WorkflowExecutionScreen(QWidget):
         def show_vid_frame():
             if not vid_state['cap']:
                 return
-            pos = int(vid_state['cap'].get(cv2.CAP_PROP_POS_FRAMES))
-            vid_state['cap'].set(cv2.CAP_PROP_POS_FRAMES, pos)
             ret, frame = vid_state['cap'].read()
             if ret:
                 display_vid_frame(frame)
-                vid_state['cap'].set(cv2.CAP_PROP_POS_FRAMES, pos)
+                pos = int(vid_state['cap'].get(cv2.CAP_PROP_POS_FRAMES)) - 1
+                vid_state['cap'].set(cv2.CAP_PROP_POS_FRAMES, max(pos, 0))
         
         def display_vid_frame(frame):
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             h, w, ch = rgb.shape
-            qimg = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888)
+            qimg = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888).copy()
             pixmap = QPixmap.fromImage(qimg).scaled(
                 video_display.size(), Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation)
+                Qt.TransformationMode.FastTransformation)
             video_display.setPixmap(pixmap)
         
         # Show first frame
@@ -3801,26 +3801,25 @@ class WorkflowExecutionScreen(QWidget):
         self._update_ref_video_time_label()
 
     def _show_ref_video_frame(self):
-        """Display the current frame without advancing."""
+        """Display the current frame without advancing playback position."""
         if not self.ref_video_cap:
             return
-        pos = int(self.ref_video_cap.get(cv2.CAP_PROP_POS_FRAMES))
-        self.ref_video_cap.set(cv2.CAP_PROP_POS_FRAMES, pos)
         ret, frame = self.ref_video_cap.read()
         if ret:
             self._display_ref_frame(frame)
-            # Seek back so next read gets the next frame
-            self.ref_video_cap.set(cv2.CAP_PROP_POS_FRAMES, pos)
+            # Seek back one frame so next read gets the correct frame
+            pos = int(self.ref_video_cap.get(cv2.CAP_PROP_POS_FRAMES)) - 1
+            self.ref_video_cap.set(cv2.CAP_PROP_POS_FRAMES, max(pos, 0))
 
     def _display_ref_frame(self, frame):
         """Convert an OpenCV frame and display it on the ref video label."""
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, ch = rgb.shape
-        qimg = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888)
+        qimg = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888).copy()
         pixmap = QPixmap.fromImage(qimg).scaled(
             self.ref_video_display.size(),
             Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation
+            Qt.TransformationMode.FastTransformation
         )
         self.ref_video_display.setPixmap(pixmap)
 
