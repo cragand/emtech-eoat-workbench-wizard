@@ -1897,6 +1897,52 @@ class WorkflowExecutionScreen(QWidget):
         self.update_step_status()
         logger.info(f"Barcode scanned ({step_scan_count} total for step)")
     
+    def on_usb_barcode_scanned(self, barcode_data):
+        """Handle barcode from USB HID scanner - same data path as camera scan."""
+        scan_info = {
+            'type': 'USB-HID',
+            'data': barcode_data,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'step': self.current_step + 1
+        }
+        self.step_barcode_scans.append(scan_info)
+        self.all_barcode_scans.append(scan_info)
+        
+        # Capture current frame if camera is active
+        if self.current_camera:
+            frame = self.current_camera.capture_frame()
+            if frame is not None:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                serial_prefix = self.serial_number if self.serial_number else "unknown"
+                step_name = self.workflow['steps'][self.current_step].get('title', f'step{self.current_step + 1}')
+                filename = f"{serial_prefix}_{step_name}_barcode_{timestamp}.jpg"
+                filepath = os.path.join(self.output_dir, filename)
+                cv2.imwrite(filepath, frame)
+                
+                image_data = {
+                    'path': filepath,
+                    'camera': self.current_camera.name,
+                    'notes': f"USB barcode scan: {barcode_data}",
+                    'timestamp': timestamp,
+                    'type': 'image',
+                    'markers': [],
+                    'barcode_scans': [scan_info],
+                    'step': self.current_step + 1,
+                    'step_title': step_name
+                }
+                self.captured_images.append(image_data)
+                self.step_images.append(image_data)
+        
+        step_scan_count = len(self.step_barcode_scans)
+        msg = QMessageBox(self)
+        msg.setWindowTitle("USB Barcode Scanned")
+        msg.setText(f"Barcode Data: {barcode_data}\n\nScan {step_scan_count} for this step")
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.exec()
+        
+        self.update_step_status()
+        logger.info(f"USB barcode scanned ({step_scan_count} total for step)")
+
     def open_review_dialog(self):
         """Open review captures dialog."""
         if not self.captured_images:

@@ -493,6 +493,40 @@ class Mode1CaptureScreen(QWidget):
         
         self.status_label.setText(f"Barcode scanned ({scan_count} total)")
     
+    def on_usb_barcode_scanned(self, barcode_data):
+        """Handle barcode from USB HID scanner - same data path as camera scan."""
+        scan_info = {
+            'type': 'USB-HID',
+            'data': barcode_data,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        self.barcode_scans.append(scan_info)
+        
+        # Capture current frame if camera is active
+        if self.current_camera:
+            frame = self.current_camera.capture_frame()
+            if frame is not None:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"barcode_scan_{timestamp}.jpg"
+                filepath = os.path.join(self.output_dir, filename)
+                cv2.imwrite(filepath, frame)
+                
+                self.captured_images.append({
+                    'path': filepath,
+                    'camera': self.current_camera.name,
+                    'notes': f"USB barcode scan: {barcode_data}",
+                    'barcode_scans': [scan_info]
+                })
+        
+        scan_count = len(self.barcode_scans)
+        msg = QMessageBox(self)
+        msg.setWindowTitle("USB Barcode Scanned")
+        msg.setText(f"Barcode Data: {barcode_data}\n\nScan {scan_count} for this session")
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.exec()
+        
+        self.status_label.setText(f"USB barcode scanned ({scan_count} total)")
+
     def open_review_dialog(self):
         """Open review captures dialog."""
         if not self.captured_images:

@@ -10,6 +10,7 @@ from gui.workflow_execution import WorkflowExecutionScreen
 from gui.workflow_editor import WorkflowEditorScreen
 from theme_manager import theme_manager
 from logger_config import setup_logging, get_logger
+from usb_barcode_scanner import USBBarcodeScanner
 
 logger = get_logger(__name__)
 
@@ -63,6 +64,16 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.mode_selection)
         
         self.current_mode_widget = None
+        
+        # USB HID barcode scanner (global interceptor)
+        self.usb_barcode_scanner = USBBarcodeScanner(self)
+        self.usb_barcode_scanner.barcode_scanned.connect(self.on_usb_barcode)
+    
+    def on_usb_barcode(self, barcode_data):
+        """Route USB barcode scan to the active screen."""
+        current = self.stack.currentWidget()
+        if hasattr(current, 'on_usb_barcode_scanned'):
+            current.on_usb_barcode_scanned(barcode_data)
     
     def on_resume_workflow(self, workflow_path: str, serial_number: str, technician: str):
         """Handle resuming an incomplete workflow."""

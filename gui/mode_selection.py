@@ -472,6 +472,11 @@ class ModeSelectionScreen(QWidget):
         dialog = CameraSettingsDialog(parent=self)
         dialog.exec_()
     
+    def on_usb_barcode_scanned(self, barcode_data):
+        """Handle barcode from USB HID scanner - populate serial number field."""
+        self.serial_input.setText(barcode_data)
+        self.serial_input.setFocus()
+    
     def open_serial_scan_dialog(self):
         """Open dialog to scan barcode for serial number."""
         if not QR_SCANNER_AVAILABLE:
