@@ -1,7 +1,7 @@
 """Workflow execution screen for guided QC and maintenance procedures."""
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QPushButton, QTextEdit, QMessageBox, QLineEdit, QSplitter, QComboBox, QDialog, QSizePolicy, QCheckBox, QRadioButton, QButtonGroup, QSlider)
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QPoint
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QPoint, QThread
 from PyQt5.QtGui import QImage, QPixmap, QFont, QPainter, QColor, QPen
 import cv2
 import os
@@ -27,6 +27,100 @@ except ImportError:
     QR_SCANNER_AVAILABLE = False
     logger.warning("QR scanner not available")
     QRScannerThread = None
+
+
+class VideoDecoderThread(QThread):
+    """Background thread that decodes video frames and emits them at the correct rate."""
+    frame_ready = pyqtSignal(QImage, int, int)  # image, position_ms, duration_ms
+
+    def __init__(self, path, parent=None):
+        super().__init__(parent)
+        self.path = path
+        self._playing = False
+        self._stop = False
+        self._seek_to = -1  # ms, -1 means no pending seek
+        self._lock = __import__('threading').Lock()
+
+    def play(self):
+        with self._lock:
+            self._playing = True
+
+    def pause(self):
+        with self._lock:
+            self._playing = False
+
+    def seek(self, ms):
+        with self._lock:
+            self._seek_to = ms
+
+    def stop_thread(self):
+        with self._lock:
+            self._stop = True
+            self._playing = False
+        self.wait(2000)
+
+    def run(self):
+        import time
+        cap = cv2.VideoCapture(self.path)
+        if not cap.isOpened():
+            return
+        fps = cap.get(cv2.CAP_PROP_FPS) or 30
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        duration_ms = int(total_frames / fps * 1000)
+        frame_interval = 1.0 / fps
+
+        # Emit first frame
+        ret, frame = cap.read()
+        if ret:
+            self._emit_frame(frame, 0, duration_ms)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+
+        while True:
+            with self._lock:
+                if self._stop:
+                    break
+                playing = self._playing
+                seek_to = self._seek_to
+                self._seek_to = -1
+
+            if seek_to >= 0:
+                target_frame = int(seek_to / 1000.0 * fps)
+                cap.set(cv2.CAP_PROP_POS_FRAMES, min(target_frame, total_frames - 1))
+                ret, frame = cap.read()
+                if ret:
+                    pos_ms = int(cap.get(cv2.CAP_PROP_POS_FRAMES) / fps * 1000)
+                    self._emit_frame(frame, pos_ms, duration_ms)
+                if not playing:
+                    # Seek back so next play starts from here
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, max(int(cap.get(cv2.CAP_PROP_POS_FRAMES)) - 1, 0))
+
+            if not playing:
+                self.msleep(30)
+                continue
+
+            t0 = time.perf_counter()
+            ret, frame = cap.read()
+            if not ret:
+                with self._lock:
+                    self._playing = False
+                continue
+
+            pos_ms = int(cap.get(cv2.CAP_PROP_POS_FRAMES) / fps * 1000)
+            self._emit_frame(frame, pos_ms, duration_ms)
+
+            # Sleep to maintain correct frame rate
+            elapsed = time.perf_counter() - t0
+            sleep_ms = max(0, frame_interval - elapsed)
+            if sleep_ms > 0.001:
+                self.msleep(int(sleep_ms * 1000))
+
+        cap.release()
+
+    def _emit_frame(self, frame, pos_ms, duration_ms):
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb.shape
+        qimg = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888).copy()
+        self.frame_ready.emit(qimg, pos_ms, duration_ms)
 
 
 class InteractiveReferenceImage(QLabel):
@@ -761,16 +855,11 @@ class WorkflowExecutionScreen(QWidget):
         ref_video_layout.setContentsMargins(0, 0, 0, 0)
         ref_video_layout.setSpacing(3)
         
-        from PyQt5.QtMultimediaWidgets import QVideoWidget
-        from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
-        from PyQt5.QtCore import QUrl
-        
-        self.ref_video_player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
-        self.ref_video_output = QVideoWidget()
-        self.ref_video_output.setMinimumSize(200, 200)
-        self.ref_video_output.setStyleSheet("background-color: #2b2b2b;")
-        self.ref_video_player.setVideoOutput(self.ref_video_output)
-        ref_video_layout.addWidget(self.ref_video_output, 1)
+        self.ref_video_display = QLabel()
+        self.ref_video_display.setMinimumSize(200, 200)
+        self.ref_video_display.setStyleSheet("border: 2px solid #FF9800; background-color: #2b2b2b;")
+        self.ref_video_display.setAlignment(Qt.AlignCenter)
+        ref_video_layout.addWidget(self.ref_video_display, 1)
         
         # Video controls
         video_ctrl_layout = QHBoxLayout()
@@ -810,11 +899,10 @@ class WorkflowExecutionScreen(QWidget):
         self.ref_video_widget.setVisible(False)
         left_layout.addWidget(self.ref_video_widget, 3)
         
-        # Connect media player signals
-        self.ref_video_player.positionChanged.connect(self._ref_video_position_changed)
-        self.ref_video_player.durationChanged.connect(self._ref_video_duration_changed)
-        self.ref_video_player.stateChanged.connect(self._ref_video_state_changed)
+        # Reference video state
         self.ref_video_path = None
+        self._ref_video_thread = None
+        self._ref_video_playing = False
         self._ref_video_slider_dragging = False
         
         splitter.addWidget(left_widget)
@@ -3414,23 +3502,17 @@ class WorkflowExecutionScreen(QWidget):
         from PyQt5.QtWidgets import QSplitter
         splitter = QSplitter(Qt.Horizontal)
         
-        # Left: video player (QMediaPlayer)
-        from PyQt5.QtMultimediaWidgets import QVideoWidget
-        from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
-        from PyQt5.QtCore import QUrl
-        
+        # Left: video player (threaded OpenCV)
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(3)
         
-        comp_video_output = QVideoWidget()
-        comp_video_output.setMinimumSize(200, 200)
-        comp_video_output.setStyleSheet("background-color: #2b2b2b;")
-        left_layout.addWidget(comp_video_output, 1)
-        
-        comp_player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
-        comp_player.setVideoOutput(comp_video_output)
+        comp_video_display = QLabel()
+        comp_video_display.setMinimumSize(200, 200)
+        comp_video_display.setStyleSheet("border: 2px solid #FF9800; background-color: #2b2b2b;")
+        comp_video_display.setAlignment(Qt.AlignCenter)
+        left_layout.addWidget(comp_video_display, 1)
         
         # Video controls
         vc_layout = QHBoxLayout()
@@ -3592,62 +3674,63 @@ class WorkflowExecutionScreen(QWidget):
         action_layout.addWidget(record_btn)
         layout.addLayout(action_layout)
         
-        # Video player setup
+        # Video player setup (threaded)
         comp_slider_dragging = {'v': False}
+        comp_vid_playing = {'v': False}
         
         def fmt_ms(ms):
             s = max(0, ms) // 1000
             return f"{s // 60}:{s % 60:02d}"
         
-        def on_position(pos):
+        comp_vid_thread = VideoDecoderThread(self.ref_video_path, dialog)
+        
+        def on_comp_frame(qimg, pos_ms, duration_ms):
+            pixmap = QPixmap.fromImage(qimg).scaled(
+                comp_video_display.size(), Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.FastTransformation)
+            comp_video_display.setPixmap(pixmap)
             if not comp_slider_dragging['v']:
                 vid_slider.blockSignals(True)
-                vid_slider.setValue(pos)
+                vid_slider.setMaximum(max(duration_ms, 1))
+                vid_slider.setValue(pos_ms)
                 vid_slider.blockSignals(False)
-            time_label.setText(f"{fmt_ms(pos)} / {fmt_ms(comp_player.duration())}")
-        
-        def on_duration(dur):
-            vid_slider.setMaximum(dur)
-            time_label.setText(f"0:00 / {fmt_ms(dur)}")
-        
-        def on_state(state):
-            if state == QMediaPlayer.PlayingState:
-                play_btn.setText("⏸ Pause")
-            else:
+            time_label.setText(f"{fmt_ms(pos_ms)} / {fmt_ms(duration_ms)}")
+            if comp_vid_playing['v'] and not comp_vid_thread._playing:
+                comp_vid_playing['v'] = False
                 play_btn.setText("▶ Play")
         
-        comp_player.positionChanged.connect(on_position)
-        comp_player.durationChanged.connect(on_duration)
-        comp_player.stateChanged.connect(on_state)
+        comp_vid_thread.frame_ready.connect(on_comp_frame)
+        comp_vid_thread.start()
         
         def toggle_play():
-            if comp_player.state() == QMediaPlayer.PlayingState:
-                comp_player.pause()
+            if comp_vid_playing['v']:
+                comp_vid_thread.pause()
+                comp_vid_playing['v'] = False
+                play_btn.setText("▶ Play")
             else:
-                comp_player.play()
+                comp_vid_thread.play()
+                comp_vid_playing['v'] = True
+                play_btn.setText("⏸ Pause")
         
         def restart_vid():
-            comp_player.setPosition(0)
-            comp_player.play()
+            comp_vid_thread.seek(0)
+            comp_vid_thread.play()
+            comp_vid_playing['v'] = True
+            play_btn.setText("⏸ Pause")
         
         def slider_pressed():
             comp_slider_dragging['v'] = True
         
         def slider_released():
             comp_slider_dragging['v'] = False
-            comp_player.setPosition(vid_slider.value())
+            comp_vid_thread.seek(vid_slider.value())
         
-        vid_slider.sliderMoved.connect(comp_player.setPosition)
+        vid_slider.sliderMoved.connect(lambda pos: comp_vid_thread.seek(pos))
         
         play_btn.clicked.connect(toggle_play)
         restart_btn.clicked.connect(restart_vid)
         vid_slider.sliderPressed.connect(slider_pressed)
         vid_slider.sliderReleased.connect(slider_released)
-        
-        # Load video
-        url = QUrl.fromLocalFile(os.path.abspath(self.ref_video_path))
-        comp_player.setMedia(QMediaContent(url))
-        comp_player.pause()  # Load and show first frame
         
         # Live camera update timer
         def update_live():
@@ -3684,7 +3767,7 @@ class WorkflowExecutionScreen(QWidget):
         """)
         
         def close_dialog():
-            comp_player.stop()
+            comp_vid_thread.stop_thread()
             live_timer.stop()
             if comp_rec['active'] and comp_rec['writer']:
                 comp_rec['writer'].release()
@@ -3693,7 +3776,7 @@ class WorkflowExecutionScreen(QWidget):
             dialog.close()
         
         close_btn.clicked.connect(close_dialog)
-        dialog.destroyed.connect(lambda: (comp_player.stop(), live_timer.stop()))
+        dialog.destroyed.connect(lambda: (comp_vid_thread.stop_thread(), live_timer.stop()))
         layout.addWidget(close_btn)
         
         # Size dialog
@@ -3704,68 +3787,77 @@ class WorkflowExecutionScreen(QWidget):
     # --- Reference video player methods ---
 
     def _open_ref_video(self, path):
-        """Open a reference video file for playback."""
-        from PyQt5.QtMultimedia import QMediaContent
-        from PyQt5.QtCore import QUrl
+        """Open a reference video file for playback using background decoder thread."""
+        self._close_ref_video()
         self.ref_video_path = path
-        url = QUrl.fromLocalFile(os.path.abspath(path))
-        self.ref_video_player.setMedia(QMediaContent(url))
-        self.ref_video_player.pause()  # Load and show first frame
+        self._ref_video_playing = False
+        thread = VideoDecoderThread(path, self)
+        thread.frame_ready.connect(self._on_ref_video_frame)
+        thread.start()
+        self._ref_video_thread = thread
         self.ref_video_play_btn.setText("▶ Play")
 
     def _close_ref_video(self):
-        """Stop and release reference video."""
-        self.ref_video_player.stop()
-        from PyQt5.QtMultimedia import QMediaContent
-        self.ref_video_player.setMedia(QMediaContent())
+        """Stop and release reference video thread."""
+        if self._ref_video_thread:
+            self._ref_video_thread.stop_thread()
+            self._ref_video_thread = None
+        self._ref_video_playing = False
+
+    def _on_ref_video_frame(self, qimg, pos_ms, duration_ms):
+        """Receive a decoded frame from the background thread."""
+        pixmap = QPixmap.fromImage(qimg).scaled(
+            self.ref_video_display.size(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.FastTransformation)
+        self.ref_video_display.setPixmap(pixmap)
+        if not self._ref_video_slider_dragging:
+            self.ref_video_slider.blockSignals(True)
+            self.ref_video_slider.setMaximum(max(duration_ms, 1))
+            self.ref_video_slider.setValue(pos_ms)
+            self.ref_video_slider.blockSignals(False)
+        self.ref_video_time_label.setText(
+            f"{self._fmt_ms(pos_ms)} / {self._fmt_ms(duration_ms)}")
+        # Update button if playback ended
+        if not self._ref_video_thread or not self._ref_video_thread._playing:
+            if self._ref_video_playing:
+                self._ref_video_playing = False
+                self.ref_video_play_btn.setText("▶ Play")
 
     def _toggle_ref_video(self):
         """Play or pause the reference video."""
-        from PyQt5.QtMultimedia import QMediaPlayer
-        if self.ref_video_player.state() == QMediaPlayer.PlayingState:
-            self.ref_video_player.pause()
+        if not self._ref_video_thread:
+            return
+        if self._ref_video_playing:
+            self._ref_video_thread.pause()
+            self._ref_video_playing = False
+            self.ref_video_play_btn.setText("▶ Play")
         else:
-            self.ref_video_player.play()
+            self._ref_video_thread.play()
+            self._ref_video_playing = True
+            self.ref_video_play_btn.setText("⏸ Pause")
 
     def _restart_ref_video(self):
         """Restart the reference video from the beginning."""
-        self.ref_video_player.setPosition(0)
-        self.ref_video_player.play()
-
-    def _ref_video_state_changed(self, state):
-        """Update play button text based on player state."""
-        from PyQt5.QtMultimedia import QMediaPlayer
-        if state == QMediaPlayer.PlayingState:
-            self.ref_video_play_btn.setText("⏸ Pause")
-        else:
-            self.ref_video_play_btn.setText("▶ Play")
-
-    def _ref_video_position_changed(self, position):
-        """Update slider and time label as video plays."""
-        if not self._ref_video_slider_dragging:
-            self.ref_video_slider.blockSignals(True)
-            self.ref_video_slider.setValue(position)
-            self.ref_video_slider.blockSignals(False)
-        duration = self.ref_video_player.duration()
-        self.ref_video_time_label.setText(
-            f"{self._fmt_ms(position)} / {self._fmt_ms(duration)}")
-
-    def _ref_video_duration_changed(self, duration):
-        """Update slider range when video duration is known."""
-        self.ref_video_slider.setMaximum(duration)
-        self.ref_video_time_label.setText(
-            f"0:00 / {self._fmt_ms(duration)}")
+        if not self._ref_video_thread:
+            return
+        self._ref_video_thread.seek(0)
+        self._ref_video_thread.play()
+        self._ref_video_playing = True
+        self.ref_video_play_btn.setText("⏸ Pause")
 
     def _ref_video_slider_pressed(self):
         self._ref_video_slider_dragging = True
 
     def _ref_video_slider_released(self):
         self._ref_video_slider_dragging = False
-        self.ref_video_player.setPosition(self.ref_video_slider.value())
+        if self._ref_video_thread:
+            self._ref_video_thread.seek(self.ref_video_slider.value())
 
     def _ref_video_slider_moved(self, position):
         """Seek while dragging the slider."""
-        self.ref_video_player.setPosition(position)
+        if self._ref_video_thread:
+            self._ref_video_thread.seek(position)
 
     @staticmethod
     def _fmt_ms(ms):
@@ -3775,7 +3867,7 @@ class WorkflowExecutionScreen(QWidget):
 
     def cleanup_resources(self):
         """Clean up camera resources."""
-        self.ref_video_player.stop()
+        self._close_ref_video()
         
         if self.timer.isActive():
             self.timer.stop()
