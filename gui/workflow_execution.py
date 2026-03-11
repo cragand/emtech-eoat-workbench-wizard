@@ -755,6 +755,65 @@ class WorkflowExecutionScreen(QWidget):
         self.reference_checkboxes = []  # Store current checkboxes
         left_layout.addWidget(self.reference_image)
         
+        # Reference video player (hidden by default)
+        self.ref_video_widget = QWidget()
+        ref_video_layout = QVBoxLayout(self.ref_video_widget)
+        ref_video_layout.setContentsMargins(0, 0, 0, 0)
+        ref_video_layout.setSpacing(3)
+        
+        self.ref_video_display = QLabel()
+        self.ref_video_display.setMinimumSize(400, 400)
+        self.ref_video_display.setStyleSheet("border: 2px solid #FF9800; background-color: #2b2b2b;")
+        self.ref_video_display.setAlignment(Qt.AlignCenter)
+        self.ref_video_display.setText("No reference video")
+        self.ref_video_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        ref_video_layout.addWidget(self.ref_video_display)
+        
+        # Video controls
+        video_ctrl_layout = QHBoxLayout()
+        self.ref_video_play_btn = QPushButton("▶ Play")
+        self.ref_video_play_btn.setMaximumWidth(80)
+        self.ref_video_play_btn.setStyleSheet("""
+            QPushButton { background-color: #FF9800; color: white; border: none;
+                border-radius: 3px; font-weight: bold; padding: 4px 8px; }
+            QPushButton:hover { background-color: #F57C00; }
+        """)
+        self.ref_video_play_btn.clicked.connect(self._toggle_ref_video)
+        video_ctrl_layout.addWidget(self.ref_video_play_btn)
+        
+        self.ref_video_restart_btn = QPushButton("⏮ Restart")
+        self.ref_video_restart_btn.setMaximumWidth(80)
+        self.ref_video_restart_btn.setStyleSheet("""
+            QPushButton { background-color: #666; color: white; border: none;
+                border-radius: 3px; font-weight: bold; padding: 4px 8px; }
+            QPushButton:hover { background-color: #555; }
+        """)
+        self.ref_video_restart_btn.clicked.connect(self._restart_ref_video)
+        video_ctrl_layout.addWidget(self.ref_video_restart_btn)
+        
+        self.ref_video_slider = QSlider(Qt.Horizontal)
+        self.ref_video_slider.setMinimum(0)
+        self.ref_video_slider.setMaximum(100)
+        self.ref_video_slider.sliderPressed.connect(self._ref_video_slider_pressed)
+        self.ref_video_slider.sliderReleased.connect(self._ref_video_slider_released)
+        video_ctrl_layout.addWidget(self.ref_video_slider)
+        
+        self.ref_video_time_label = QLabel("0:00 / 0:00")
+        self.ref_video_time_label.setMinimumWidth(90)
+        video_ctrl_layout.addWidget(self.ref_video_time_label)
+        
+        ref_video_layout.addLayout(video_ctrl_layout)
+        self.ref_video_widget.setVisible(False)
+        left_layout.addWidget(self.ref_video_widget)
+        
+        # Reference video state
+        self.ref_video_cap = None
+        self.ref_video_path = None
+        self.ref_video_playing = False
+        self.ref_video_timer = QTimer()
+        self.ref_video_timer.timeout.connect(self._update_ref_video_frame)
+        self._ref_video_slider_dragging = False
+        
         splitter.addWidget(left_widget)
         
         # Right side - Camera view
@@ -1375,7 +1434,20 @@ class WorkflowExecutionScreen(QWidget):
         
         # Update reference image
         ref_image_path = step.get('reference_image', '')
+        ref_video_path = step.get('reference_video', '')
         checkbox_data = step.get('inspection_checkboxes', [])
+        
+        # Stop any playing reference video from previous step
+        self._close_ref_video()
+        
+        # Determine if this step has a reference video
+        has_ref_video = bool(ref_video_path and os.path.exists(ref_video_path))
+        self.ref_video_widget.setVisible(has_ref_video)
+        self.reference_image.setVisible(not has_ref_video)
+        
+        if has_ref_video:
+            self.ref_video_path = ref_video_path
+            self._open_ref_video(ref_video_path)
         
         # Only load if path exists and is not empty
         if ref_image_path and os.path.exists(ref_image_path):
@@ -1401,13 +1473,21 @@ class WorkflowExecutionScreen(QWidget):
             self.reference_image.clear()
             self.reference_image.setText("No reference image")
             self.hide_overlay_checkbox.setVisible(False)
-            self.compare_button.setEnabled(False)
+            if not has_ref_video:
+                self.compare_button.setEnabled(False)
+        
+        # Enable compare button if we have a ref video or ref image + camera
+        if has_ref_video:
+            self.compare_button.setEnabled(bool(self.current_camera))
+            self.compare_button.setText("🔍 Reference Comparison View")
+            self.hide_overlay_checkbox.setVisible(False)
         
         # Show/hide pass/fail buttons based on step requirement
         self.pass_fail_widget.setVisible(step.get('require_pass_fail', False))
         
         # Enable/disable compare button
-        self.compare_button.setEnabled(bool(self.reference_image_path and self.current_camera))
+        if not has_ref_video:
+            self.compare_button.setEnabled(bool(self.reference_image_path and self.current_camera))
         
         # Update step status
         photo_required = step.get('require_photo', False)
@@ -2589,7 +2669,19 @@ class WorkflowExecutionScreen(QWidget):
     
     def show_comparison(self):
         """Show side-by-side comparison of reference and live camera."""
-        if not self.reference_image_path or not self.current_camera:
+        if not self.current_camera:
+            return
+        
+        current_step = self.workflow['steps'][self.current_step]
+        has_ref_video = bool(self.ref_video_path and os.path.exists(self.ref_video_path))
+        has_ref_image = bool(self.reference_image_path and os.path.exists(self.reference_image_path))
+        
+        if not has_ref_video and not has_ref_image:
+            return
+        
+        # If reference video, show video comparison dialog
+        if has_ref_video:
+            self._show_video_comparison()
             return
         
         dialog = QDialog(self)
@@ -3291,8 +3383,474 @@ class WorkflowExecutionScreen(QWidget):
         
         dialog.show()
     
+    # --- Reference video comparison dialog ---
+
+    def _show_video_comparison(self):
+        """Show side-by-side comparison with reference video on left, live camera on right."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Reference Video vs Live Camera")
+        dialog.setModal(False)
+        
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(5)
+        
+        # Header
+        header_layout = QHBoxLayout()
+        ref_label = QLabel("Reference Video")
+        ref_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        ref_label.setAlignment(Qt.AlignCenter)
+        header_layout.addWidget(ref_label)
+        live_label = QLabel("Live Camera")
+        live_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        live_label.setAlignment(Qt.AlignCenter)
+        header_layout.addWidget(live_label)
+        layout.addLayout(header_layout)
+        
+        # Splitter with video on left, camera on right
+        from PyQt5.QtWidgets import QSplitter
+        splitter = QSplitter(Qt.Horizontal)
+        
+        # Left: video player
+        left_container = QWidget()
+        left_layout = QVBoxLayout(left_container)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(3)
+        
+        video_display = QLabel()
+        video_display.setStyleSheet("border: 2px solid #FF9800; background-color: #2b2b2b;")
+        video_display.setMinimumSize(400, 300)
+        video_display.setAlignment(Qt.AlignCenter)
+        video_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        left_layout.addWidget(video_display, 1)
+        
+        # Video controls
+        vc_layout = QHBoxLayout()
+        play_btn = QPushButton("▶ Play")
+        play_btn.setMaximumWidth(80)
+        play_btn.setStyleSheet("""
+            QPushButton { background-color: #FF9800; color: white; border: none;
+                border-radius: 3px; font-weight: bold; padding: 4px 8px; }
+            QPushButton:hover { background-color: #F57C00; }
+        """)
+        vc_layout.addWidget(play_btn)
+        
+        restart_btn = QPushButton("⏮ Restart")
+        restart_btn.setMaximumWidth(80)
+        restart_btn.setStyleSheet("""
+            QPushButton { background-color: #666; color: white; border: none;
+                border-radius: 3px; font-weight: bold; padding: 4px 8px; }
+            QPushButton:hover { background-color: #555; }
+        """)
+        vc_layout.addWidget(restart_btn)
+        
+        vid_slider = QSlider(Qt.Horizontal)
+        vid_slider.setMinimum(0)
+        vc_layout.addWidget(vid_slider)
+        
+        time_label = QLabel("0:00 / 0:00")
+        time_label.setMinimumWidth(90)
+        vc_layout.addWidget(time_label)
+        left_layout.addLayout(vc_layout)
+        
+        splitter.addWidget(left_container)
+        
+        # Right: live camera with annotations and action buttons
+        right_container = QWidget()
+        right_layout = QVBoxLayout(right_container)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(5)
+        
+        live_display = AnnotatablePreview()
+        live_display.setStyleSheet("border: 2px solid #2196F3; background-color: #2b2b2b;")
+        live_display.setMinimumSize(400, 300)
+        if hasattr(self.preview_label, 'markers'):
+            live_display.markers = [m.copy() for m in self.preview_label.markers]
+        
+        def sync_markers():
+            if hasattr(self.preview_label, 'markers'):
+                self.preview_label.markers = [m.copy() for m in live_display.markers]
+                self.preview_label.update()
+        live_display.markers_changed.connect(sync_markers)
+        right_layout.addWidget(live_display, 1)
+        splitter.addWidget(right_container)
+        
+        layout.addWidget(splitter, 1)
+        
+        # Action buttons
+        action_layout = QHBoxLayout()
+        
+        capture_btn = QPushButton("📷 Capture Image")
+        capture_btn.setMinimumHeight(35)
+        capture_btn.setStyleSheet("""
+            QPushButton { background-color: #77C25E; color: white; border: none;
+                border-radius: 3px; padding: 8px 15px; font-weight: bold; }
+            QPushButton:hover { background-color: #5FA84A; }
+        """)
+        
+        def capture_from_video_comparison():
+            if self.current_camera:
+                frame = self.current_camera.capture_frame()
+                if frame is not None:
+                    markers = live_display.markers
+                    if markers:
+                        frame = self._draw_markers_on_frame(frame, markers, self._get_marker_bgr_color())
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    camera_name = self.current_camera.name.replace(" ", "_")
+                    filename = f"step{self.current_step + 1}_{camera_name}_{timestamp}.jpg"
+                    filepath = os.path.join(self.output_dir, filename)
+                    cv2.imwrite(filepath, frame)
+                    image_data = {
+                        'path': filepath, 'camera': self.current_camera.name,
+                        'notes': '', 'markers': markers if markers else [],
+                        'step': self.current_step + 1
+                    }
+                    self.captured_images.append(image_data)
+                    self.step_images.append(image_data)
+                    live_display.clear_markers()
+                    if hasattr(self.preview_label, 'markers'):
+                        self.preview_label.markers = []
+                        self.preview_label.update()
+                    self.update_step_status()
+                    QMessageBox.information(dialog, "Image Captured",
+                                          f"Image saved for step {self.current_step + 1}")
+        
+        capture_btn.clicked.connect(capture_from_video_comparison)
+        action_layout.addWidget(capture_btn)
+        
+        scan_btn = QPushButton("📱 Scan Barcode/QR")
+        scan_btn.setMinimumHeight(35)
+        scan_btn.setEnabled(False)
+        scan_btn.setStyleSheet("""
+            QPushButton { background-color: #FF9800; color: white; border: none;
+                border-radius: 3px; padding: 8px 15px; font-weight: bold; }
+            QPushButton:hover { background-color: #F57C00; }
+            QPushButton:disabled { background-color: #CCCCCC; color: #666666; }
+        """)
+        scan_btn.clicked.connect(self.scan_barcode)
+        action_layout.addWidget(scan_btn)
+        
+        record_btn = QPushButton("🔴 Start Recording")
+        record_btn.setMinimumHeight(35)
+        record_btn.setStyleSheet("""
+            QPushButton { background-color: #DC3545; color: white; border: none;
+                border-radius: 3px; padding: 8px 15px; font-weight: bold; }
+            QPushButton:hover { background-color: #C82333; }
+        """)
+        comp_rec = {'active': False, 'writer': None, 'path': None}
+        
+        def toggle_comp_rec():
+            try:
+                if not comp_rec['active']:
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    video_path = os.path.join(self.output_dir, f"video_{timestamp}.mp4")
+                    frame = self.current_camera.capture_frame()
+                    if frame is None:
+                        raise Exception("No frame available")
+                    h, w = frame.shape[:2]
+                    writer = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*'mp4v'), 30.0, (w, h))
+                    if not writer.isOpened():
+                        raise Exception("Failed to init video writer")
+                    comp_rec.update({'active': True, 'writer': writer, 'path': video_path})
+                    record_btn.setText("⏹ Stop Recording")
+                    record_btn.setStyleSheet("""
+                        QPushButton { background-color: #28A745; color: white; border: none;
+                            border-radius: 3px; padding: 8px 15px; font-weight: bold; }
+                        QPushButton:hover { background-color: #218838; }
+                    """)
+                else:
+                    if comp_rec['writer']:
+                        comp_rec['writer'].release()
+                    comp_rec['active'] = False
+                    record_btn.setText("🔴 Start Recording")
+                    record_btn.setStyleSheet("""
+                        QPushButton { background-color: #DC3545; color: white; border: none;
+                            border-radius: 3px; padding: 8px 15px; font-weight: bold; }
+                        QPushButton:hover { background-color: #C82333; }
+                    """)
+                    if comp_rec['path'] and os.path.exists(comp_rec['path']):
+                        self.recorded_videos.append(comp_rec['path'])
+                        QMessageBox.information(dialog, "Recording Stopped",
+                                              f"Video saved:\n{os.path.basename(comp_rec['path'])}")
+                    comp_rec.update({'writer': None, 'path': None})
+            except Exception as e:
+                logger.error(f"Video comparison recording error: {e}")
+                QMessageBox.warning(dialog, "Recording Error", str(e))
+                if comp_rec['writer']:
+                    comp_rec['writer'].release()
+                comp_rec.update({'active': False, 'writer': None, 'path': None})
+        
+        record_btn.clicked.connect(toggle_comp_rec)
+        action_layout.addWidget(record_btn)
+        layout.addLayout(action_layout)
+        
+        # Video player state
+        vid_cap = cv2.VideoCapture(self.ref_video_path)
+        vid_state = {'cap': vid_cap, 'playing': False, 'slider_dragging': False}
+        fps = vid_cap.get(cv2.CAP_PROP_FPS) or 30
+        total_frames = int(vid_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        vid_slider.setMaximum(max(total_frames - 1, 0))
+        
+        def fmt_time(frame_num):
+            s = int(frame_num / fps)
+            return f"{s // 60}:{s % 60:02d}"
+        time_label.setText(f"0:00 / {fmt_time(total_frames)}")
+        
+        def show_vid_frame():
+            if not vid_state['cap']:
+                return
+            pos = int(vid_state['cap'].get(cv2.CAP_PROP_POS_FRAMES))
+            vid_state['cap'].set(cv2.CAP_PROP_POS_FRAMES, pos)
+            ret, frame = vid_state['cap'].read()
+            if ret:
+                display_vid_frame(frame)
+                vid_state['cap'].set(cv2.CAP_PROP_POS_FRAMES, pos)
+        
+        def display_vid_frame(frame):
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            h, w, ch = rgb.shape
+            qimg = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888)
+            pixmap = QPixmap.fromImage(qimg).scaled(
+                video_display.size(), Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation)
+            video_display.setPixmap(pixmap)
+        
+        # Show first frame
+        show_vid_frame()
+        
+        vid_timer = QTimer()
+        
+        def advance_frame():
+            if not vid_state['cap']:
+                return
+            ret, frame = vid_state['cap'].read()
+            if not ret:
+                vid_timer.stop()
+                vid_state['playing'] = False
+                play_btn.setText("▶ Play")
+                return
+            display_vid_frame(frame)
+            if not vid_state['slider_dragging']:
+                pos = int(vid_state['cap'].get(cv2.CAP_PROP_POS_FRAMES))
+                vid_slider.blockSignals(True)
+                vid_slider.setValue(pos)
+                vid_slider.blockSignals(False)
+            cur = int(vid_state['cap'].get(cv2.CAP_PROP_POS_FRAMES))
+            time_label.setText(f"{fmt_time(cur)} / {fmt_time(total_frames)}")
+        
+        vid_timer.timeout.connect(advance_frame)
+        
+        def toggle_play():
+            if vid_state['playing']:
+                vid_timer.stop()
+                vid_state['playing'] = False
+                play_btn.setText("▶ Play")
+            else:
+                vid_timer.start(max(int(1000 / fps), 1))
+                vid_state['playing'] = True
+                play_btn.setText("⏸ Pause")
+        
+        def restart_vid():
+            if vid_state['cap']:
+                vid_state['cap'].set(cv2.CAP_PROP_POS_FRAMES, 0)
+                vid_slider.setValue(0)
+                show_vid_frame()
+                if not vid_state['playing']:
+                    toggle_play()
+        
+        def slider_pressed():
+            vid_state['slider_dragging'] = True
+        
+        def slider_released():
+            vid_state['slider_dragging'] = False
+            if vid_state['cap']:
+                vid_state['cap'].set(cv2.CAP_PROP_POS_FRAMES, vid_slider.value())
+                if not vid_state['playing']:
+                    show_vid_frame()
+        
+        play_btn.clicked.connect(toggle_play)
+        restart_btn.clicked.connect(restart_vid)
+        vid_slider.sliderPressed.connect(slider_pressed)
+        vid_slider.sliderReleased.connect(slider_released)
+        
+        # Live camera update timer
+        def update_live():
+            if self.current_camera:
+                frame = self.current_camera.capture_frame()
+                if frame is not None:
+                    if self.qr_scanner:
+                        barcode_type, _ = self.qr_scanner.get_current_barcode()
+                        scan_btn.setEnabled(barcode_type is not None)
+                    if comp_rec['active'] and comp_rec['writer']:
+                        rec_frame = frame.copy()
+                        if live_display.markers:
+                            rec_frame = self._draw_markers_on_frame(rec_frame, live_display.markers, self._get_marker_bgr_color())
+                        comp_rec['writer'].write(rec_frame)
+                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    h, w, ch = rgb.shape
+                    qimg = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888)
+                    pixmap = QPixmap.fromImage(qimg).scaled(
+                        live_display.size(), Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation)
+                    live_display.set_frame(pixmap)
+        
+        live_timer = QTimer()
+        live_timer.timeout.connect(update_live)
+        live_timer.start(33)
+        
+        # Close button
+        close_btn = QPushButton("Close")
+        close_btn.setMaximumHeight(30)
+        close_btn.setStyleSheet("""
+            QPushButton { background-color: #77C25E; color: white; border: none;
+                border-radius: 3px; padding: 6px 15px; font-weight: bold; }
+            QPushButton:hover { background-color: #5FA84A; }
+        """)
+        
+        def close_dialog():
+            vid_timer.stop()
+            live_timer.stop()
+            if vid_state['cap']:
+                vid_state['cap'].release()
+            if comp_rec['active'] and comp_rec['writer']:
+                comp_rec['writer'].release()
+                if comp_rec['path'] and os.path.exists(comp_rec['path']):
+                    self.recorded_videos.append(comp_rec['path'])
+            dialog.close()
+        
+        close_btn.clicked.connect(close_dialog)
+        dialog.destroyed.connect(lambda: (vid_timer.stop(), live_timer.stop()))
+        layout.addWidget(close_btn)
+        
+        # Size dialog
+        screen = self.screen().geometry()
+        dialog.resize(int(screen.width() * 0.8), int(screen.height() * 0.7))
+        dialog.show()
+
+    # --- Reference video player methods ---
+
+    def _open_ref_video(self, path):
+        """Open a reference video file for playback."""
+        self._close_ref_video()
+        cap = cv2.VideoCapture(path)
+        if not cap.isOpened():
+            logger.error(f"Could not open reference video: {path}")
+            return
+        self.ref_video_cap = cap
+        self.ref_video_path = path
+        self.ref_video_playing = False
+        fps = cap.get(cv2.CAP_PROP_FPS) or 30
+        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.ref_video_slider.setMaximum(max(total - 1, 0))
+        self._ref_video_fps = fps
+        self._ref_video_total_frames = total
+        self._update_ref_video_time_label()
+        # Show first frame
+        self._show_ref_video_frame()
+        self.ref_video_play_btn.setText("▶ Play")
+
+    def _close_ref_video(self):
+        """Release reference video resources."""
+        self.ref_video_timer.stop()
+        self.ref_video_playing = False
+        if self.ref_video_cap:
+            self.ref_video_cap.release()
+            self.ref_video_cap = None
+
+    def _toggle_ref_video(self):
+        """Play or pause the reference video."""
+        if not self.ref_video_cap:
+            return
+        if self.ref_video_playing:
+            self.ref_video_timer.stop()
+            self.ref_video_playing = False
+            self.ref_video_play_btn.setText("▶ Play")
+        else:
+            interval = max(int(1000 / self._ref_video_fps), 1)
+            self.ref_video_timer.start(interval)
+            self.ref_video_playing = True
+            self.ref_video_play_btn.setText("⏸ Pause")
+
+    def _restart_ref_video(self):
+        """Restart the reference video from the beginning."""
+        if not self.ref_video_cap:
+            return
+        self.ref_video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        self.ref_video_slider.setValue(0)
+        self._show_ref_video_frame()
+        if not self.ref_video_playing:
+            self._toggle_ref_video()
+
+    def _update_ref_video_frame(self):
+        """Timer callback to advance and display the next video frame."""
+        if not self.ref_video_cap:
+            return
+        ret, frame = self.ref_video_cap.read()
+        if not ret:
+            # End of video — stop playback
+            self.ref_video_timer.stop()
+            self.ref_video_playing = False
+            self.ref_video_play_btn.setText("▶ Play")
+            return
+        self._display_ref_frame(frame)
+        if not self._ref_video_slider_dragging:
+            pos = int(self.ref_video_cap.get(cv2.CAP_PROP_POS_FRAMES))
+            self.ref_video_slider.blockSignals(True)
+            self.ref_video_slider.setValue(pos)
+            self.ref_video_slider.blockSignals(False)
+        self._update_ref_video_time_label()
+
+    def _show_ref_video_frame(self):
+        """Display the current frame without advancing."""
+        if not self.ref_video_cap:
+            return
+        pos = int(self.ref_video_cap.get(cv2.CAP_PROP_POS_FRAMES))
+        self.ref_video_cap.set(cv2.CAP_PROP_POS_FRAMES, pos)
+        ret, frame = self.ref_video_cap.read()
+        if ret:
+            self._display_ref_frame(frame)
+            # Seek back so next read gets the next frame
+            self.ref_video_cap.set(cv2.CAP_PROP_POS_FRAMES, pos)
+
+    def _display_ref_frame(self, frame):
+        """Convert an OpenCV frame and display it on the ref video label."""
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb.shape
+        qimg = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888)
+        pixmap = QPixmap.fromImage(qimg).scaled(
+            self.ref_video_display.size(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+        self.ref_video_display.setPixmap(pixmap)
+
+    def _ref_video_slider_pressed(self):
+        self._ref_video_slider_dragging = True
+
+    def _ref_video_slider_released(self):
+        self._ref_video_slider_dragging = False
+        if self.ref_video_cap:
+            self.ref_video_cap.set(cv2.CAP_PROP_POS_FRAMES, self.ref_video_slider.value())
+            if not self.ref_video_playing:
+                self._show_ref_video_frame()
+            self._update_ref_video_time_label()
+
+    def _update_ref_video_time_label(self):
+        """Update the time display label."""
+        if not self.ref_video_cap:
+            self.ref_video_time_label.setText("0:00 / 0:00")
+            return
+        fps = self._ref_video_fps or 30
+        current = int(self.ref_video_cap.get(cv2.CAP_PROP_POS_FRAMES))
+        total = self._ref_video_total_frames
+        cur_s = int(current / fps)
+        tot_s = int(total / fps)
+        self.ref_video_time_label.setText(f"{cur_s // 60}:{cur_s % 60:02d} / {tot_s // 60}:{tot_s % 60:02d}")
+
     def cleanup_resources(self):
         """Clean up camera resources."""
+        self._close_ref_video()
+        
         if self.timer.isActive():
             self.timer.stop()
         

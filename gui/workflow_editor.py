@@ -198,6 +198,19 @@ class StepEditorDialog(QDialog):
         ref_note.setWordWrap(True)
         layout.addWidget(ref_note)
         
+        # Reference video
+        ref_video_layout = QHBoxLayout()
+        ref_video_label = QLabel("Reference Video:")
+        ref_video_label.setStyleSheet("font-weight: bold;")
+        self.ref_video_input = QLineEdit()
+        self.ref_video_input.setPlaceholderText("Path to reference video (optional)")
+        self.ref_video_button = QPushButton("Browse...")
+        self.ref_video_button.clicked.connect(self.browse_reference_video)
+        ref_video_layout.addWidget(ref_video_label)
+        ref_video_layout.addWidget(self.ref_video_input)
+        ref_video_layout.addWidget(self.ref_video_button)
+        layout.addLayout(ref_video_layout)
+        
         # Checkbox placement button
         self.place_checkboxes_button = QPushButton("📍 Place Inspection Checkboxes")
         self.place_checkboxes_button.setToolTip("Add checkboxes on reference image for inspection points")
@@ -365,11 +378,21 @@ class StepEditorDialog(QDialog):
             self.ref_image_input.setText(file_path)
             self.check_image_transparency()
     
+    def browse_reference_video(self):
+        """Browse for reference video."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Reference Video", "",
+            "Videos (*.mp4 *.avi *.mov *.mkv *.wmv *.webm);;All Files (*)"
+        )
+        if file_path:
+            self.ref_video_input.setText(file_path)
+    
     def load_step_data(self):
         """Load existing step data into form."""
         self.title_input.setText(self.step_data.get('title', ''))
         self.instructions_input.setText(self.step_data.get('instructions', ''))
         self.ref_image_input.setText(self.step_data.get('reference_image', ''))
+        self.ref_video_input.setText(self.step_data.get('reference_video', ''))
         self.require_photo_check.setChecked(self.step_data.get('require_photo', False))
         self.photo_count_spin.setValue(self.step_data.get('required_photo_count', 1))
         self.photo_count_spin.setEnabled(self.require_photo_check.isChecked())
@@ -388,6 +411,7 @@ class StepEditorDialog(QDialog):
             'title': self.title_input.text().strip(),
             'instructions': self.instructions_input.toPlainText().strip(),
             'reference_image': self.ref_image_input.text().strip(),
+            'reference_video': self.ref_video_input.text().strip(),
             'require_photo': self.require_photo_check.isChecked(),
             'required_photo_count': self.photo_count_spin.value() if self.require_photo_check.isChecked() else 1,
             'require_annotations': self.require_annotations_check.isChecked(),
