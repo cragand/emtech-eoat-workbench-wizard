@@ -761,12 +761,16 @@ class WorkflowExecutionScreen(QWidget):
         ref_video_layout.setContentsMargins(0, 0, 0, 0)
         ref_video_layout.setSpacing(3)
         
-        self.ref_video_display = QLabel()
-        self.ref_video_display.setStyleSheet("border: 2px solid #FF9800; background-color: #2b2b2b;")
-        self.ref_video_display.setAlignment(Qt.AlignCenter)
-        self.ref_video_display.setText("No reference video")
-        self.ref_video_display.setMinimumSize(200, 200)
-        ref_video_layout.addWidget(self.ref_video_display, 1)
+        from PyQt5.QtMultimediaWidgets import QVideoWidget
+        from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
+        from PyQt5.QtCore import QUrl
+        
+        self.ref_video_player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
+        self.ref_video_output = QVideoWidget()
+        self.ref_video_output.setMinimumSize(200, 200)
+        self.ref_video_output.setStyleSheet("background-color: #2b2b2b;")
+        self.ref_video_player.setVideoOutput(self.ref_video_output)
+        ref_video_layout.addWidget(self.ref_video_output, 1)
         
         # Video controls
         video_ctrl_layout = QHBoxLayout()
@@ -792,9 +796,10 @@ class WorkflowExecutionScreen(QWidget):
         
         self.ref_video_slider = QSlider(Qt.Horizontal)
         self.ref_video_slider.setMinimum(0)
-        self.ref_video_slider.setMaximum(100)
+        self.ref_video_slider.setMaximum(1000)
         self.ref_video_slider.sliderPressed.connect(self._ref_video_slider_pressed)
         self.ref_video_slider.sliderReleased.connect(self._ref_video_slider_released)
+        self.ref_video_slider.sliderMoved.connect(self._ref_video_slider_moved)
         video_ctrl_layout.addWidget(self.ref_video_slider)
         
         self.ref_video_time_label = QLabel("0:00 / 0:00")
@@ -805,12 +810,11 @@ class WorkflowExecutionScreen(QWidget):
         self.ref_video_widget.setVisible(False)
         left_layout.addWidget(self.ref_video_widget, 3)
         
-        # Reference video state
-        self.ref_video_cap = None
+        # Connect media player signals
+        self.ref_video_player.positionChanged.connect(self._ref_video_position_changed)
+        self.ref_video_player.durationChanged.connect(self._ref_video_duration_changed)
+        self.ref_video_player.stateChanged.connect(self._ref_video_state_changed)
         self.ref_video_path = None
-        self.ref_video_playing = False
-        self.ref_video_timer = QTimer()
-        self.ref_video_timer.timeout.connect(self._update_ref_video_frame)
         self._ref_video_slider_dragging = False
         
         splitter.addWidget(left_widget)
@@ -3410,18 +3414,23 @@ class WorkflowExecutionScreen(QWidget):
         from PyQt5.QtWidgets import QSplitter
         splitter = QSplitter(Qt.Horizontal)
         
-        # Left: video player
+        # Left: video player (QMediaPlayer)
+        from PyQt5.QtMultimediaWidgets import QVideoWidget
+        from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
+        from PyQt5.QtCore import QUrl
+        
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(3)
         
-        video_display = QLabel()
-        video_display.setStyleSheet("border: 2px solid #FF9800; background-color: #2b2b2b;")
-        video_display.setMinimumSize(100, 100)
-        video_display.setAlignment(Qt.AlignCenter)
-        video_display.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
-        left_layout.addWidget(video_display, 1)
+        comp_video_output = QVideoWidget()
+        comp_video_output.setMinimumSize(200, 200)
+        comp_video_output.setStyleSheet("background-color: #2b2b2b;")
+        left_layout.addWidget(comp_video_output, 1)
+        
+        comp_player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
+        comp_player.setVideoOutput(comp_video_output)
         
         # Video controls
         vc_layout = QHBoxLayout()
@@ -3583,119 +3592,62 @@ class WorkflowExecutionScreen(QWidget):
         action_layout.addWidget(record_btn)
         layout.addLayout(action_layout)
         
-        # Video player state
-        vid_cap = cv2.VideoCapture(self.ref_video_path)
-        vid_state = {'cap': vid_cap, 'playing': False, 'slider_dragging': False}
-        fps = vid_cap.get(cv2.CAP_PROP_FPS) or 30
-        total_frames = int(vid_cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        vid_slider.setMaximum(max(total_frames - 1, 0))
+        # Video player setup
+        comp_slider_dragging = {'v': False}
         
-        def fmt_time(frame_num):
-            s = int(frame_num / fps)
+        def fmt_ms(ms):
+            s = max(0, ms) // 1000
             return f"{s // 60}:{s % 60:02d}"
-        time_label.setText(f"0:00 / {fmt_time(total_frames)}")
         
-        import time as _time
-        
-        def display_vid_frame(frame):
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            h, w, ch = rgb.shape
-            qimg = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888).copy()
-            pixmap = QPixmap.fromImage(qimg).scaled(
-                video_display.size(), Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.FastTransformation)
-            video_display.setPixmap(pixmap)
-        
-        # Show first frame
-        ret, first_frame = vid_cap.read()
-        if ret:
-            display_vid_frame(first_frame)
-        vid_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-        
-        vid_timer = QTimer()
-        vid_state['start_time'] = None
-        vid_state['start_frame'] = 0
-        
-        def advance_frame():
-            if not vid_state['cap'] or not vid_state.get('start_time'):
-                return
-            elapsed = _time.time() - vid_state['start_time']
-            target = vid_state['start_frame'] + int(elapsed * fps)
-            if target >= total_frames:
-                vid_timer.stop()
-                vid_state['playing'] = False
-                play_btn.setText("▶ Play")
-                vid_state['cap'].set(cv2.CAP_PROP_POS_FRAMES, total_frames - 1)
-                ret, frame = vid_state['cap'].read()
-                if ret:
-                    display_vid_frame(frame)
-                time_label.setText(f"{fmt_time(total_frames)} / {fmt_time(total_frames)}")
-                return
-            current = int(vid_state['cap'].get(cv2.CAP_PROP_POS_FRAMES))
-            if target > current + 1:
-                vid_state['cap'].set(cv2.CAP_PROP_POS_FRAMES, target)
-            elif target <= current:
-                return
-            ret, frame = vid_state['cap'].read()
-            if not ret:
-                vid_timer.stop()
-                vid_state['playing'] = False
-                play_btn.setText("▶ Play")
-                return
-            display_vid_frame(frame)
-            if not vid_state['slider_dragging']:
+        def on_position(pos):
+            if not comp_slider_dragging['v']:
                 vid_slider.blockSignals(True)
-                vid_slider.setValue(target)
+                vid_slider.setValue(pos)
                 vid_slider.blockSignals(False)
-            time_label.setText(f"{fmt_time(target)} / {fmt_time(total_frames)}")
+            time_label.setText(f"{fmt_ms(pos)} / {fmt_ms(comp_player.duration())}")
         
-        vid_timer.timeout.connect(advance_frame)
+        def on_duration(dur):
+            vid_slider.setMaximum(dur)
+            time_label.setText(f"0:00 / {fmt_ms(dur)}")
+        
+        def on_state(state):
+            if state == QMediaPlayer.PlayingState:
+                play_btn.setText("⏸ Pause")
+            else:
+                play_btn.setText("▶ Play")
+        
+        comp_player.positionChanged.connect(on_position)
+        comp_player.durationChanged.connect(on_duration)
+        comp_player.stateChanged.connect(on_state)
         
         def toggle_play():
-            if vid_state['playing']:
-                vid_timer.stop()
-                vid_state['playing'] = False
-                play_btn.setText("▶ Play")
+            if comp_player.state() == QMediaPlayer.PlayingState:
+                comp_player.pause()
             else:
-                vid_state['start_time'] = _time.time()
-                vid_state['start_frame'] = int(vid_state['cap'].get(cv2.CAP_PROP_POS_FRAMES))
-                vid_timer.start(33)
-                vid_state['playing'] = True
-                play_btn.setText("⏸ Pause")
+                comp_player.play()
         
         def restart_vid():
-            if vid_state['cap']:
-                vid_state['cap'].set(cv2.CAP_PROP_POS_FRAMES, 0)
-                vid_slider.setValue(0)
-                vid_state['start_time'] = _time.time()
-                vid_state['start_frame'] = 0
-                if not vid_state['playing']:
-                    ret, frame = vid_state['cap'].read()
-                    if ret:
-                        display_vid_frame(frame)
-                    vid_state['cap'].set(cv2.CAP_PROP_POS_FRAMES, 0)
-                    toggle_play()
+            comp_player.setPosition(0)
+            comp_player.play()
         
         def slider_pressed():
-            vid_state['slider_dragging'] = True
+            comp_slider_dragging['v'] = True
         
         def slider_released():
-            vid_state['slider_dragging'] = False
-            if vid_state['cap']:
-                vid_state['cap'].set(cv2.CAP_PROP_POS_FRAMES, vid_slider.value())
-                if vid_state['playing']:
-                    vid_state['start_time'] = _time.time()
-                    vid_state['start_frame'] = vid_slider.value()
-                else:
-                    ret, frame = vid_state['cap'].read()
-                    if ret:
-                        display_vid_frame(frame)
-                        vid_state['cap'].set(cv2.CAP_PROP_POS_FRAMES, vid_slider.value())
+            comp_slider_dragging['v'] = False
+            comp_player.setPosition(vid_slider.value())
+        
+        vid_slider.sliderMoved.connect(comp_player.setPosition)
         
         play_btn.clicked.connect(toggle_play)
         restart_btn.clicked.connect(restart_vid)
         vid_slider.sliderPressed.connect(slider_pressed)
         vid_slider.sliderReleased.connect(slider_released)
+        
+        # Load video
+        url = QUrl.fromLocalFile(os.path.abspath(self.ref_video_path))
+        comp_player.setMedia(QMediaContent(url))
+        comp_player.pause()  # Load and show first frame
         
         # Live camera update timer
         def update_live():
@@ -3732,10 +3684,8 @@ class WorkflowExecutionScreen(QWidget):
         """)
         
         def close_dialog():
-            vid_timer.stop()
+            comp_player.stop()
             live_timer.stop()
-            if vid_state['cap']:
-                vid_state['cap'].release()
             if comp_rec['active'] and comp_rec['writer']:
                 comp_rec['writer'].release()
                 if comp_rec['path'] and os.path.exists(comp_rec['path']):
@@ -3743,7 +3693,7 @@ class WorkflowExecutionScreen(QWidget):
             dialog.close()
         
         close_btn.clicked.connect(close_dialog)
-        dialog.destroyed.connect(lambda: (vid_timer.stop(), live_timer.stop()))
+        dialog.destroyed.connect(lambda: (comp_player.stop(), live_timer.stop()))
         layout.addWidget(close_btn)
         
         # Size dialog
@@ -3755,156 +3705,77 @@ class WorkflowExecutionScreen(QWidget):
 
     def _open_ref_video(self, path):
         """Open a reference video file for playback."""
-        self._close_ref_video()
-        cap = cv2.VideoCapture(path)
-        if not cap.isOpened():
-            logger.error(f"Could not open reference video: {path}")
-            return
-        self.ref_video_cap = cap
+        from PyQt5.QtMultimedia import QMediaContent
+        from PyQt5.QtCore import QUrl
         self.ref_video_path = path
-        self.ref_video_playing = False
-        fps = cap.get(cv2.CAP_PROP_FPS) or 30
-        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        self.ref_video_slider.setMaximum(max(total - 1, 0))
-        self._ref_video_fps = fps
-        self._ref_video_total_frames = total
-        self._ref_video_start_time = None
-        self._ref_video_start_frame = 0
-        self._update_ref_video_time_label()
-        # Show first frame
-        ret, frame = cap.read()
-        if ret:
-            self._display_ref_frame(frame)
-        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        url = QUrl.fromLocalFile(os.path.abspath(path))
+        self.ref_video_player.setMedia(QMediaContent(url))
+        self.ref_video_player.pause()  # Load and show first frame
         self.ref_video_play_btn.setText("▶ Play")
 
     def _close_ref_video(self):
-        """Release reference video resources."""
-        self.ref_video_timer.stop()
-        self.ref_video_playing = False
-        if self.ref_video_cap:
-            self.ref_video_cap.release()
-            self.ref_video_cap = None
+        """Stop and release reference video."""
+        self.ref_video_player.stop()
+        from PyQt5.QtMultimedia import QMediaContent
+        self.ref_video_player.setMedia(QMediaContent())
 
     def _toggle_ref_video(self):
         """Play or pause the reference video."""
-        if not self.ref_video_cap:
-            return
-        if self.ref_video_playing:
-            self.ref_video_timer.stop()
-            self.ref_video_playing = False
-            self.ref_video_play_btn.setText("▶ Play")
+        from PyQt5.QtMultimedia import QMediaPlayer
+        if self.ref_video_player.state() == QMediaPlayer.PlayingState:
+            self.ref_video_player.pause()
         else:
-            import time
-            self._ref_video_start_time = time.time()
-            self._ref_video_start_frame = int(self.ref_video_cap.get(cv2.CAP_PROP_POS_FRAMES))
-            self.ref_video_timer.start(33)  # ~30 display updates/sec
-            self.ref_video_playing = True
-            self.ref_video_play_btn.setText("⏸ Pause")
+            self.ref_video_player.play()
 
     def _restart_ref_video(self):
         """Restart the reference video from the beginning."""
-        if not self.ref_video_cap:
-            return
-        self.ref_video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-        self.ref_video_slider.setValue(0)
-        import time
-        self._ref_video_start_time = time.time()
-        self._ref_video_start_frame = 0
-        if not self.ref_video_playing:
-            ret, frame = self.ref_video_cap.read()
-            if ret:
-                self._display_ref_frame(frame)
-            self.ref_video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            self._toggle_ref_video()
+        self.ref_video_player.setPosition(0)
+        self.ref_video_player.play()
 
-    def _update_ref_video_frame(self):
-        """Timer callback — seek to the correct frame based on wall clock elapsed time."""
-        if not self.ref_video_cap or not self._ref_video_start_time:
-            return
-        import time
-        elapsed = time.time() - self._ref_video_start_time
-        target_frame = self._ref_video_start_frame + int(elapsed * self._ref_video_fps)
-        
-        if target_frame >= self._ref_video_total_frames:
-            # End of video
-            self.ref_video_timer.stop()
-            self.ref_video_playing = False
+    def _ref_video_state_changed(self, state):
+        """Update play button text based on player state."""
+        from PyQt5.QtMultimedia import QMediaPlayer
+        if state == QMediaPlayer.PlayingState:
+            self.ref_video_play_btn.setText("⏸ Pause")
+        else:
             self.ref_video_play_btn.setText("▶ Play")
-            self.ref_video_cap.set(cv2.CAP_PROP_POS_FRAMES, self._ref_video_total_frames - 1)
-            ret, frame = self.ref_video_cap.read()
-            if ret:
-                self._display_ref_frame(frame)
-            self._update_ref_video_time_label()
-            return
-        
-        current_frame = int(self.ref_video_cap.get(cv2.CAP_PROP_POS_FRAMES))
-        # Only seek if we need to skip ahead; sequential read is faster for small gaps
-        if target_frame > current_frame + 1:
-            self.ref_video_cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
-        elif target_frame <= current_frame:
-            # Already past this frame, skip display update
-            return
-        
-        ret, frame = self.ref_video_cap.read()
-        if not ret:
-            self.ref_video_timer.stop()
-            self.ref_video_playing = False
-            self.ref_video_play_btn.setText("▶ Play")
-            return
-        self._display_ref_frame(frame)
+
+    def _ref_video_position_changed(self, position):
+        """Update slider and time label as video plays."""
         if not self._ref_video_slider_dragging:
             self.ref_video_slider.blockSignals(True)
-            self.ref_video_slider.setValue(target_frame)
+            self.ref_video_slider.setValue(position)
             self.ref_video_slider.blockSignals(False)
-        self._update_ref_video_time_label()
+        duration = self.ref_video_player.duration()
+        self.ref_video_time_label.setText(
+            f"{self._fmt_ms(position)} / {self._fmt_ms(duration)}")
 
-    def _display_ref_frame(self, frame):
-        """Convert an OpenCV frame and display it on the ref video label."""
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        h, w, ch = rgb.shape
-        qimg = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888).copy()
-        pixmap = QPixmap.fromImage(qimg).scaled(
-            self.ref_video_display.size(),
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.FastTransformation
-        )
-        self.ref_video_display.setPixmap(pixmap)
+    def _ref_video_duration_changed(self, duration):
+        """Update slider range when video duration is known."""
+        self.ref_video_slider.setMaximum(duration)
+        self.ref_video_time_label.setText(
+            f"0:00 / {self._fmt_ms(duration)}")
 
     def _ref_video_slider_pressed(self):
         self._ref_video_slider_dragging = True
 
     def _ref_video_slider_released(self):
         self._ref_video_slider_dragging = False
-        if self.ref_video_cap:
-            self.ref_video_cap.set(cv2.CAP_PROP_POS_FRAMES, self.ref_video_slider.value())
-            if not self.ref_video_playing:
-                ret, frame = self.ref_video_cap.read()
-                if ret:
-                    self._display_ref_frame(frame)
-                    self.ref_video_cap.set(cv2.CAP_PROP_POS_FRAMES, self.ref_video_slider.value())
-            else:
-                # Reset wall-clock reference to new position
-                import time
-                self._ref_video_start_time = time.time()
-                self._ref_video_start_frame = self.ref_video_slider.value()
-            self._update_ref_video_time_label()
+        self.ref_video_player.setPosition(self.ref_video_slider.value())
 
-    def _update_ref_video_time_label(self):
-        """Update the time display label."""
-        if not self.ref_video_cap:
-            self.ref_video_time_label.setText("0:00 / 0:00")
-            return
-        fps = self._ref_video_fps or 30
-        current = int(self.ref_video_cap.get(cv2.CAP_PROP_POS_FRAMES))
-        total = self._ref_video_total_frames
-        cur_s = int(current / fps)
-        tot_s = int(total / fps)
-        self.ref_video_time_label.setText(f"{cur_s // 60}:{cur_s % 60:02d} / {tot_s // 60}:{tot_s % 60:02d}")
+    def _ref_video_slider_moved(self, position):
+        """Seek while dragging the slider."""
+        self.ref_video_player.setPosition(position)
+
+    @staticmethod
+    def _fmt_ms(ms):
+        """Format milliseconds as m:ss."""
+        s = max(0, ms) // 1000
+        return f"{s // 60}:{s % 60:02d}"
 
     def cleanup_resources(self):
         """Clean up camera resources."""
-        self._close_ref_video()
+        self.ref_video_player.stop()
         
         if self.timer.isActive():
             self.timer.stop()
