@@ -634,6 +634,8 @@ class Mode1CaptureScreen(QWidget):
         
         frame = self.current_camera.capture_frame()
         if frame is not None:
+            self._consecutive_frame_failures = 0
+            
             # Feed frame to QR scanner (thread-safe)
             if self.qr_scanner:
                 self.qr_scanner.update_frame(frame)
@@ -661,6 +663,26 @@ class Mode1CaptureScreen(QWidget):
                 Qt.TransformationMode.SmoothTransformation
             )
             self.preview_label.set_frame(scaled_pixmap)
+        else:
+            # Frame was None — camera may have disconnected
+            self._consecutive_frame_failures = getattr(self, '_consecutive_frame_failures', 0) + 1
+            if self._consecutive_frame_failures == 90:  # ~3 seconds at 30fps
+                self.timer.stop()
+                self.capture_button.setEnabled(False)
+                self.record_button.setEnabled(False)
+                result = QMessageBox.warning(
+                    self, "Camera Not Responding",
+                    f"Camera '{self.current_camera.name}' has stopped providing frames.\n\n"
+                    "This may be caused by a disconnected cable or the camera being used by another application.\n\n"
+                    "Would you like to try reconnecting?",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+                if result == QMessageBox.Yes:
+                    self._consecutive_frame_failures = 0
+                    cam_index = self.camera_combo.currentIndex()
+                    self.on_camera_changed(cam_index)
+                else:
+                    self.preview_label.setText("⚠️ Camera disconnected")
     
     def capture_image(self):
         """Capture and save a single image with annotations."""

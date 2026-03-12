@@ -17,6 +17,12 @@ class OpenCVCamera(CameraInterface):
     
     def open(self) -> bool:
         """Open camera connection."""
+        # Release any existing capture to avoid resource leaks
+        if self.capture:
+            self.capture.release()
+            self.capture = None
+            self.is_open = False
+
         # Use DirectShow backend on Windows for faster initialization
         if platform.system() == "Windows":
             self.capture = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)
@@ -25,6 +31,8 @@ class OpenCVCamera(CameraInterface):
         
         # Quick timeout check - if camera doesn't open, it's not available
         if not self.capture.isOpened():
+            self.capture.release()
+            self.capture = None
             return False
         
         # Try to read a frame to verify camera actually works
@@ -52,6 +60,7 @@ class OpenCVCamera(CameraInterface):
         """Close camera connection."""
         if self.capture:
             self.capture.release()
+            self.capture = None
             self.is_open = False
     
     def capture_frame(self) -> Optional[np.ndarray]:
