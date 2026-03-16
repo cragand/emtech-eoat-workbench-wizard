@@ -9,6 +9,7 @@ import json
 import numpy as np
 import subprocess
 import platform
+import tempfile
 from datetime import datetime
 from camera import CameraManager
 from reports import generate_reports
@@ -1019,6 +1020,14 @@ class WorkflowExecutionScreen(QWidget):
                 self.compare_button.setText("⚙️ Overlay Settings/Zoom View")
                 self.hide_overlay_checkbox.setVisible(True)
                 self.hide_overlay_checkbox.setChecked(False)
+                # Load persisted overlay transforms for this step
+                saved = step.get('overlay_transforms', {})
+                self.overlay_scale = saved.get('scale', 100)
+                self.overlay_x_offset = saved.get('x_offset', 0)
+                self.overlay_y_offset = saved.get('y_offset', 0)
+                self.overlay_rotation = saved.get('rotation', 0)
+                self.overlay_transparency = saved.get('transparency', 100)
+                self._overlay_cache_params = None  # Invalidate cache
             else:
                 self.compare_button.setText("🔍 Reference Comparison View")
                 self.hide_overlay_checkbox.setVisible(False)
@@ -1641,13 +1650,26 @@ class WorkflowExecutionScreen(QWidget):
                                f"Step {self.current_step + 1} marked as {result_text}")
     
     def _save_current_step_state(self):
-        """Save checkbox state for the current step before navigating away."""
+        """Save checkbox state and overlay transforms for the current step before navigating away."""
         step = self.workflow['steps'][self.current_step]
         if step.get('inspection_checkboxes'):
             self.step_checkbox_states[self.current_step] = [
                 {'x': cb['x'], 'y': cb['y'], 'checked': cb['checked']}
                 for cb in self.reference_image.checkboxes
             ]
+        # Persist overlay transforms to workflow JSON if this step uses an overlay
+        if step.get('transparent_overlay') and self.reference_image_path:
+            transforms = {
+                'scale': self.overlay_scale,
+                'x_offset': self.overlay_x_offset,
+                'y_offset': self.overlay_y_offset,
+                'rotation': self.overlay_rotation,
+                'transparency': self.overlay_transparency
+            }
+            defaults = {'scale': 100, 'x_offset': 0, 'y_offset': 0, 'rotation': 0, 'transparency': 100}
+            if transforms != defaults or 'overlay_transforms' in step:
+                step['overlay_transforms'] = transforms
+                self._save_workflow_json()
         self.save_progress()
 
     def _load_step_data(self, step_index):
@@ -1655,6 +1677,21 @@ class WorkflowExecutionScreen(QWidget):
         step_num = step_index + 1
         self.step_images = [img for img in self.captured_images if img.get('step') == step_num]
         self.step_barcode_scans = [s for s in getattr(self, 'all_barcode_scans', []) if s.get('step') == step_num]
+
+    def _save_workflow_json(self):
+        """Atomically write the workflow back to its JSON file."""
+        try:
+            dir_name = os.path.dirname(self.workflow_path)
+            fd, tmp_path = tempfile.mkstemp(suffix='.json', dir=dir_name)
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                json.dump(self.workflow, f, indent=2, ensure_ascii=False)
+            os.replace(tmp_path, self.workflow_path)
+        except Exception as e:
+            logger.warning(f"Could not save overlay transforms to workflow: {e}")
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
     def previous_step(self):
         """Go to previous step."""
