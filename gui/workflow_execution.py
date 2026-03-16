@@ -7,8 +7,6 @@ import cv2
 import os
 import json
 import numpy as np
-import subprocess
-import platform
 import tempfile
 from datetime import datetime
 from camera import CameraManager
@@ -19,6 +17,14 @@ from gui.camera_settings_dialog import CameraSettingsDialog
 from gui.video_decoder import VideoDecoderThread
 from gui.checkbox_widgets import InteractiveReferenceImage, CombinedReferenceImage
 from gui.comparison_dialog import show_reference_fullsize
+from gui.overlay_renderer import (render_overlay_on_frame, draw_markers_on_frame,
+                                  draw_reference_annotations)
+from gui.overlay_comparison_dialog import show_overlay_comparison
+from gui.video_comparison_dialog import show_video_comparison
+from gui.workflow_progress import (save_workflow_progress, load_workflow_progress,
+                                   clear_workflow_progress)
+from gui.workflow_report import (generate_workflow_report, show_report_dialog,
+                                 generate_checkbox_image)
 from logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -1480,165 +1486,23 @@ class WorkflowExecutionScreen(QWidget):
 
     def _draw_markers_on_frame(self, frame, markers, color=(0, 0, 255)):
         """Draw annotation markers on frame."""
-        frame_h, frame_w = frame.shape[:2]
-        
-        for marker in markers:
-            # Markers are now stored as relative coordinates (0-1)
-            x = int(marker['x'] * frame_w)
-            y = int(marker['y'] * frame_h)
-            label = marker['label']
-            angle = marker.get('angle', 45)
-            arrow_length = marker.get('length', 30)
-            
-            angle_rad = np.radians(angle)
-            end_x = int(x + arrow_length * np.cos(angle_rad))
-            end_y = int(y + arrow_length * np.sin(angle_rad))
-            
-            # Simple line instead of arrow
-            cv2.line(frame, (x, y), (end_x, end_y), color, 2)
-            cv2.circle(frame, (x, y), 4, color, -1)  # Small dot at point
-            cv2.circle(frame, (end_x, end_y), 12, (255, 255, 255), -1)
-            cv2.circle(frame, (end_x, end_y), 12, color, 2)
-            
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            text_size = cv2.getTextSize(label, font, 0.5, 2)[0]
-            text_x = end_x - text_size[0] // 2
-            text_y = end_y + text_size[1] // 2
-            cv2.putText(frame, label, (text_x, text_y), font, 0.5, color, 2)
-        
-        return frame
+        return draw_markers_on_frame(frame, markers, color)
     
     def _render_overlay_on_frame(self, frame, reference_image_path, has_alpha=False):
-        """Render overlay on frame using current transform settings.
-        
-        Returns the blended frame with overlay applied, or original frame if overlay fails.
-        Caches the transformed overlay and only recomputes when parameters change.
-        """
-        if not reference_image_path or not os.path.exists(reference_image_path):
-            return frame
-        
-        try:
-            h, w = frame.shape[:2]
-            
-            if has_alpha:
-                scale = self.overlay_scale / 100.0
-                x_offset = self.overlay_x_offset
-                y_offset = self.overlay_y_offset
-                rotation = self.overlay_rotation
-                
-                cache_key = (reference_image_path, scale, x_offset, y_offset, rotation, w, h)
-                
-                if self._overlay_cache_params != cache_key:
-                    # Recompute transformed overlay canvas
-                    ref_img = cv2.imread(reference_image_path, cv2.IMREAD_UNCHANGED)
-                    
-                    if ref_img is not None and len(ref_img.shape) == 3 and ref_img.shape[2] == 4:
-                        new_w = int(ref_img.shape[1] * scale)
-                        new_h = int(ref_img.shape[0] * scale)
-                        
-                        if new_w > 0 and new_h > 0:
-                            ref_scaled = cv2.resize(ref_img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
-                            
-                            if rotation != 0:
-                                center = (new_w // 2, new_h // 2)
-                                rot_matrix = cv2.getRotationMatrix2D(center, rotation, 1.0)
-                                ref_scaled = cv2.warpAffine(ref_scaled, rot_matrix, (new_w, new_h),
-                                                           borderMode=cv2.BORDER_CONSTANT, 
-                                                           borderValue=(0, 0, 0, 0))
-                            
-                            canvas = np.zeros((h, w, 4), dtype=np.uint8)
-                            x_pos = (w - new_w) // 2 + x_offset
-                            y_pos = (h - new_h) // 2 + y_offset
-                            
-                            x_start = max(0, x_pos)
-                            y_start = max(0, y_pos)
-                            x_end = min(w, x_pos + new_w)
-                            y_end = min(h, y_pos + new_h)
-                            
-                            src_x_start = max(0, -x_pos)
-                            src_y_start = max(0, -y_pos)
-                            src_x_end = src_x_start + (x_end - x_start)
-                            src_y_end = src_y_start + (y_end - y_start)
-                            
-                            if x_end > x_start and y_end > y_start:
-                                canvas[y_start:y_end, x_start:x_end] = ref_scaled[src_y_start:src_y_end, src_x_start:src_x_end]
-                            
-                            self._overlay_cache = canvas
-                            self._overlay_cache_params = cache_key
-                        else:
-                            self._overlay_cache = None
-                            self._overlay_cache_params = cache_key
-                    else:
-                        self._overlay_cache = None
-                        self._overlay_cache_params = cache_key
-                
-                # Blend cached overlay onto frame
-                if self._overlay_cache is not None:
-                    overlay_bgr = self._overlay_cache[:, :, :3]
-                    overlay_alpha = self._overlay_cache[:, :, 3].astype(float) / 255.0
-                    overlay_alpha = overlay_alpha * (self.overlay_transparency / 100.0)
-                    alpha_3ch = np.stack([overlay_alpha] * 3, axis=2)
-                    
-                    blended = (overlay_bgr.astype(float) * alpha_3ch + 
-                             frame.astype(float) * (1 - alpha_3ch)).astype(np.uint8)
-                    return blended
-            else:
-                ref_img = cv2.imread(reference_image_path)
-                if ref_img is not None:
-                    ref_resized = cv2.resize(ref_img, (w, h))
-                    alpha = self.overlay_transparency / 100.0
-                    blended = cv2.addWeighted(ref_resized, alpha, frame, 1 - alpha, 0)
-                    return blended
-        except Exception as e:
-            logger.error(f"Error rendering overlay: {e}")
-        
-        return frame
+        """Render overlay on frame using current transform settings."""
+        cache = {'params': self._overlay_cache_params, 'canvas': self._overlay_cache}
+        result = render_overlay_on_frame(
+            frame, reference_image_path, has_alpha,
+            self.overlay_scale, self.overlay_x_offset,
+            self.overlay_y_offset, self.overlay_rotation,
+            self.overlay_transparency, cache)
+        self._overlay_cache_params = cache.get('params')
+        self._overlay_cache = cache.get('canvas')
+        return result
     
     def _draw_reference_annotations(self, img, checkboxes, markers):
         """Draw checkboxes and markers on reference image."""
-        img_h, img_w = img.shape[:2]
-        
-        # Draw checkboxes
-        for cb in checkboxes:
-            x = int(cb['x'] * img_w)
-            y = int(cb['y'] * img_h)
-            
-            if cb['checked']:
-                # Checked: filled yellow box with checkmark
-                cv2.rectangle(img, (x-16, y-16), (x+16, y+16), (0, 193, 255), -1)
-                cv2.rectangle(img, (x-16, y-16), (x+16, y+16), (0, 193, 255), 4)
-                cv2.line(img, (x-8, y), (x-3, y+8), (0, 0, 0), 4)
-                cv2.line(img, (x-3, y+8), (x+10, y-8), (0, 0, 0), 4)
-            else:
-                # Unchecked: white box with yellow border
-                cv2.rectangle(img, (x-16, y-16), (x+16, y+16), (255, 255, 255), -1)
-                cv2.rectangle(img, (x-16, y-16), (x+16, y+16), (0, 193, 255), 3)
-        
-        # Draw markers (green for reference)
-        for marker in markers:
-            x = int(marker['x'] * img_w)
-            y = int(marker['y'] * img_h)
-            label = marker['label']
-            angle = marker.get('angle', 45)
-            arrow_length = marker.get('length', 30)
-            
-            angle_rad = np.radians(angle)
-            end_x = int(x + arrow_length * np.cos(angle_rad))
-            end_y = int(y + arrow_length * np.sin(angle_rad))
-            
-            # Simple line instead of arrow (green for reference - BGR: 94, 194, 119)
-            cv2.line(img, (x, y), (end_x, end_y), (94, 194, 119), 2)
-            cv2.circle(img, (x, y), 4, (94, 194, 119), -1)  # Small dot at point
-            cv2.circle(img, (end_x, end_y), 12, (255, 255, 255), -1)
-            cv2.circle(img, (end_x, end_y), 12, (94, 194, 119), 2)
-            
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            text_size = cv2.getTextSize(label, font, 0.5, 2)[0]
-            text_x = end_x - text_size[0] // 2
-            text_y = end_y + text_size[1] // 2
-            cv2.putText(img, label, (text_x, text_y), font, 0.5, (94, 194, 119), 2)
-        
-        return img
+        return draw_reference_annotations(img, checkboxes, markers)
     
     def mark_step_result(self, passed):
         """Mark current step as pass or fail."""
@@ -1725,27 +1589,14 @@ class WorkflowExecutionScreen(QWidget):
     
     def save_progress(self):
         """Save current workflow progress."""
-        try:
-            progress_file = os.path.join(self.output_dir, "_workflow_progress.json")
-            progress_data = {
-                'workflow_path': self.workflow_path,
-                'current_step': self.current_step,
-                'step_results': self.step_results,
-                'step_checkbox_states': self.step_checkbox_states,
-                'captured_images': self.captured_images,
-                'recorded_videos': self.recorded_videos,
-                'serial_number': self.serial_number,
-                'technician': self.technician,
-                'description': self.description
-            }
-            with open(progress_file, 'w') as f:
-                json.dump(progress_data, f, indent=2)
-            
-            # Show brief save confirmation
+        success = save_workflow_progress(
+            self.output_dir, self.workflow_path, self.current_step,
+            self.step_results, self.step_checkbox_states,
+            self.captured_images, self.recorded_videos,
+            self.serial_number, self.technician, self.description)
+        if success:
             self.autosave_label.setText("✓ Progress saved")
             QTimer.singleShot(2000, lambda: self.autosave_label.setText(""))
-        except Exception as e:
-            logger.error(f"Error saving progress: {e}", exc_info=True)
     
     def _deferred_load_progress(self):
         """Load progress after widget is fully constructed and signals connected."""
@@ -1755,120 +1606,72 @@ class WorkflowExecutionScreen(QWidget):
 
     def load_progress(self):
         """Load saved workflow progress if exists."""
-        progress_file = os.path.join(self.output_dir, "_workflow_progress.json")
+        result = load_workflow_progress(self.output_dir, self.workflow_path)
+
+        if result is None:
+            return
         
-        try:
-            if not os.path.exists(progress_file):
-                return
-            
-            # Check if progress file is older than 30 days
-            file_age_days = (datetime.now().timestamp() - os.path.getmtime(progress_file)) / 86400
-            if file_age_days > 30:
-                logger.info(f"Progress file is {file_age_days:.1f} days old, removing")
-                os.remove(progress_file)
-                return
-            
-            logger.info(f"Found progress file: {progress_file}")
-            
-            with open(progress_file, 'r') as f:
-                progress_data = json.load(f)
-            
-            # Validate progress data structure
-            if not isinstance(progress_data, dict):
-                raise ValueError("Progress file is not a valid JSON object")
-            
-            # Verify it's the same workflow
-            if progress_data.get('workflow_path') != self.workflow_path:
-                logger.warning("Progress file is for a different workflow, ignoring")
-                return
-            
-            msg = QMessageBox(self)
-            msg.setWindowTitle("Resume Progress?")
-            msg.setText(f"Found saved progress at step {progress_data.get('current_step', 0) + 1}.")
-            msg.setInformativeText("What would you like to do?")
-            
-            resume_btn = msg.addButton("Resume", QMessageBox.AcceptRole)
-            report_btn = msg.addButton("Generate Partial Report", QMessageBox.ActionRole)
-            start_fresh_btn = msg.addButton("Start from Beginning", QMessageBox.DestructiveRole)
-            back_btn = msg.addButton("Back to Menu", QMessageBox.RejectRole)
-            
-            msg.exec_()
-            
-            if msg.clickedButton() == resume_btn:
-                # Resume progress
-                logger.info("Resuming workflow progress")
-                self.current_step = progress_data.get('current_step', 0)
-                self.max_step_reached = self.current_step
-                self.step_results = progress_data.get('step_results', {})
-                self.step_results = {int(k): v for k, v in self.step_results.items()}
-                self.step_checkbox_states = progress_data.get('step_checkbox_states', {})
-                self.step_checkbox_states = {int(k): v for k, v in self.step_checkbox_states.items()}
-                self.captured_images = progress_data.get('captured_images', [])
-                self.recorded_videos = progress_data.get('recorded_videos', [])
-            elif msg.clickedButton() == report_btn:
-                # Generate partial report
-                logger.info("Generating partial report from progress")
-                self.step_results = progress_data.get('step_results', {})
-                self.step_results = {int(k): v for k, v in self.step_results.items()}
-                self.step_checkbox_states = progress_data.get('step_checkbox_states', {})
-                self.step_checkbox_states = {int(k): v for k, v in self.step_checkbox_states.items()}
-                self.captured_images = progress_data.get('captured_images', [])
-                self.recorded_videos = progress_data.get('recorded_videos', [])
-                
-                # Generate report with partial data
-                self.generate_workflow_report()
-                
-                # Delete progress and exit
-                os.remove(progress_file)
-                QMessageBox.information(self, "Partial Report Generated", 
-                                      "Partial report has been generated.\n\nReturning to menu...")
-                self.cleanup_resources()
-                self.back_requested.emit()
-                return
-            elif msg.clickedButton() == start_fresh_btn:
-                # Start from beginning - delete progress file
-                logger.info("User chose to start from beginning, deleting progress file")
-                os.remove(progress_file)
-                QMessageBox.information(self, "Starting Fresh", 
-                                      "Progress file deleted. Starting workflow from the beginning.")
-                # Continue with workflow initialization (don't return)
-            else:
-                # Back to menu - keep progress file and return to menu
-                logger.info("User chose to go back to menu, keeping progress file")
-                self.cleanup_resources()
-                self.back_requested.emit()
-                return
-                
-        except json.JSONDecodeError as e:
-            logger.error(f"Progress file is corrupted (invalid JSON): {e}")
+        if result == 'corrupted':
             QMessageBox.warning(self, "Corrupted Progress File",
                               "The saved progress file is corrupted and cannot be loaded.\n\n"
                               "Starting workflow from the beginning.")
-            # Try to remove corrupted file
-            try:
-                os.remove(progress_file)
-            except OSError:
-                pass
-        except Exception as e:
-            logger.error(f"Error loading progress: {e}", exc_info=True)
-            QMessageBox.warning(self, "Progress Load Error",
-                              f"Failed to load saved progress:\n{str(e)}\n\n"
-                              "Starting workflow from the beginning.")
-            # Try to remove problematic file
-            try:
-                os.remove(progress_file)
-            except OSError:
-                pass
+            return
+
+        progress_data = result
+
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Resume Progress?")
+        msg.setText(f"Found saved progress at step {progress_data.get('current_step', 0) + 1}.")
+        msg.setInformativeText("What would you like to do?")
+
+        resume_btn = msg.addButton("Resume", QMessageBox.AcceptRole)
+        report_btn = msg.addButton("Generate Partial Report", QMessageBox.ActionRole)
+        start_fresh_btn = msg.addButton("Start from Beginning", QMessageBox.DestructiveRole)
+        back_btn = msg.addButton("Back to Menu", QMessageBox.RejectRole)
+
+        msg.exec_()
+
+        if msg.clickedButton() == resume_btn:
+            logger.info("Resuming workflow progress")
+            self.current_step = progress_data.get('current_step', 0)
+            self.max_step_reached = self.current_step
+            self.step_results = progress_data.get('step_results', {})
+            self.step_results = {int(k): v for k, v in self.step_results.items()}
+            self.step_checkbox_states = progress_data.get('step_checkbox_states', {})
+            self.step_checkbox_states = {int(k): v for k, v in self.step_checkbox_states.items()}
+            self.captured_images = progress_data.get('captured_images', [])
+            self.recorded_videos = progress_data.get('recorded_videos', [])
+        elif msg.clickedButton() == report_btn:
+            logger.info("Generating partial report from progress")
+            self.step_results = progress_data.get('step_results', {})
+            self.step_results = {int(k): v for k, v in self.step_results.items()}
+            self.step_checkbox_states = progress_data.get('step_checkbox_states', {})
+            self.step_checkbox_states = {int(k): v for k, v in self.step_checkbox_states.items()}
+            self.captured_images = progress_data.get('captured_images', [])
+            self.recorded_videos = progress_data.get('recorded_videos', [])
+
+            self.generate_workflow_report()
+
+            clear_workflow_progress(self.output_dir)
+            QMessageBox.information(self, "Partial Report Generated",
+                                  "Partial report has been generated.\n\nReturning to menu...")
+            self.cleanup_resources()
+            self.back_requested.emit()
+            return
+        elif msg.clickedButton() == start_fresh_btn:
+            logger.info("User chose to start from beginning, deleting progress file")
+            clear_workflow_progress(self.output_dir)
+            QMessageBox.information(self, "Starting Fresh",
+                                  "Progress file deleted. Starting workflow from the beginning.")
+        else:
+            logger.info("User chose to go back to menu, keeping progress file")
+            self.cleanup_resources()
+            self.back_requested.emit()
+            return
     
     def clear_progress(self):
         """Clear saved progress file."""
-        try:
-            progress_file = os.path.join(self.output_dir, "_workflow_progress.json")
-            if os.path.exists(progress_file):
-                os.remove(progress_file)
-                logger.info("Progress file cleared")
-        except Exception as e:
-            logger.error(f"Error clearing progress: {e}", exc_info=True)
+        clear_workflow_progress(self.output_dir)
     
     def validate_step(self):
         """Validate current step requirements."""
@@ -1992,260 +1795,20 @@ class WorkflowExecutionScreen(QWidget):
     
     def show_report_dialog(self, pdf_path, docx_path, image_count):
         """Show enhanced report dialog with view options."""
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Reports Generated")
-        dialog.setModal(True)
-        dialog.setMinimumWidth(500)
-        
-        layout = QVBoxLayout()
-        
-        # Success message
-        success_label = QLabel("✓ PDF and DOCX reports generated successfully!")
-        success_label.setStyleSheet("font-size: 14px; font-weight: bold; color: green;")
-        layout.addWidget(success_label)
-        
-        layout.addSpacing(10)
-        
-        # File paths
-        info_label = QLabel(
-            f"PDF: {pdf_path}\n\n"
-            f"DOCX: {docx_path}\n\n"
-            f"Images included: {image_count}"
-        )
-        info_label.setWordWrap(True)
-        info_label.setStyleSheet("font-size: 11px;")
-        layout.addWidget(info_label)
-        
-        layout.addSpacing(15)
-        
-        # Format selection
-        format_label = QLabel("Select format to view:")
-        format_label.setStyleSheet("font-weight: bold;")
-        layout.addWidget(format_label)
-        
-        format_group = QButtonGroup(dialog)
-        pdf_radio = QRadioButton("PDF")
-        pdf_radio.setChecked(True)
-        docx_radio = QRadioButton("DOCX")
-        
-        format_group.addButton(pdf_radio, 1)
-        format_group.addButton(docx_radio, 2)
-        
-        format_layout = QHBoxLayout()
-        format_layout.addWidget(pdf_radio)
-        format_layout.addWidget(docx_radio)
-        format_layout.addStretch()
-        layout.addLayout(format_layout)
-        
-        layout.addSpacing(15)
-        
-        # Buttons
-        button_layout = QHBoxLayout()
-        
-        view_button = QPushButton("View Report")
-        view_button.setStyleSheet("""
-            QPushButton {
-                background-color: #77C25E;
-                color: white;
-                border: none;
-                border-radius: 3px;
-                padding: 8px 15px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #5FA84A;
-            }
-        """)
-        
-        def open_report():
-            file_path = pdf_path if pdf_radio.isChecked() else docx_path
-            try:
-                if platform.system() == "Windows":
-                    os.startfile(file_path)
-                elif platform.system() == "Darwin":
-                    subprocess.Popen(["open", file_path])
-                else:
-                    subprocess.Popen(["xdg-open", file_path])
-                dialog.accept()
-            except Exception as e:
-                QMessageBox.warning(dialog, "Error", f"Could not open file:\n{str(e)}")
-        
-        view_button.clicked.connect(open_report)
-        button_layout.addWidget(view_button)
-        
-        menu_button = QPushButton("Return to Menu")
-        menu_button.setStyleSheet("""
-            QPushButton {
-                background-color: #333333;
-                color: white;
-                border: none;
-                border-radius: 3px;
-                padding: 8px 15px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #555555;
-            }
-        """)
-        menu_button.clicked.connect(dialog.accept)
-        button_layout.addWidget(menu_button)
-        
-        layout.addLayout(button_layout)
-        dialog.setLayout(layout)
-        dialog.exec_()
+        show_report_dialog(self, pdf_path, docx_path, image_count)
     
     def _generate_checkbox_image(self, ref_image_path, checkboxes, step_index):
-        """Generate an image showing the reference with checkbox completion status.
-        
-        Args:
-            ref_image_path: Path to reference image
-            checkboxes: List of checkbox data with x, y percentages and checked status
-            step_index: Step number for filename
-            
-        Returns:
-            Path to generated checkbox image
-        """
-        if not os.path.exists(ref_image_path):
-            return None
-        
-        try:
-            # Load reference image
-            img = cv2.imread(ref_image_path)
-            if img is None:
-                return None
-            
-            h, w = img.shape[:2]
-            
-            # Draw checkboxes on image
-            for cb in checkboxes:
-                x = int(cb['x'] * w)
-                y = int(cb['y'] * h)
-                is_checked = cb.get('checked', False)
-                
-                # Use bright amber/yellow for visibility
-                if is_checked:
-                    color = (7, 193, 255)  # BGR format of #FFC107 (amber)
-                    fill_alpha = 0.7
-                    checkmark_color = (0, 0, 0)  # Black checkmark
-                else:
-                    color = (7, 193, 255)  # BGR format of #FFC107 (amber)
-                    fill_alpha = 0.4
-                    checkmark_color = None
-                
-                # Draw checkbox square - larger
-                cv2.rectangle(img, (x-16, y-16), (x+16, y+16), color, 3)
-                
-                # Fill with semi-transparent color
-                overlay = img.copy()
-                cv2.rectangle(overlay, (x-16, y-16), (x+16, y+16), color, -1)
-                cv2.addWeighted(overlay, fill_alpha, img, 1-fill_alpha, 0, img)
-                
-                # Draw checkmark if checked
-                if is_checked:
-                    cv2.line(img, (x-8, y), (x-3, y+8), checkmark_color, 3)
-                    cv2.line(img, (x-3, y+8), (x+10, y-8), checkmark_color, 3)
-            
-            # Save to output directory
-            serial_prefix = self.serial_number if self.serial_number else "unknown"
-            filename = f"{serial_prefix}_step{step_index+1}_checkboxes.jpg"
-            output_path = os.path.join(self.output_dir, filename)
-            cv2.imwrite(output_path, img)
-            
-            return output_path
-            
-        except Exception as e:
-            print(f"Error generating checkbox image: {e}")
-            return None
+        """Generate an image showing the reference with checkbox completion status."""
+        return generate_checkbox_image(ref_image_path, checkboxes, step_index,
+                                       self.output_dir, self.serial_number)
     
     def generate_workflow_report(self):
         """Generate PDF report for completed workflow."""
         try:
-            # Store final step's checkbox state
-            step = self.workflow['steps'][self.current_step]
-            if step.get('inspection_checkboxes'):
-                self.step_checkbox_states[self.current_step] = [
-                    {'x': cb['x'], 'y': cb['y'], 'checked': cb['checked']} 
-                    for cb in self.reference_image.checkboxes
-                ]
-            
-            # Determine mode name for report
-            workflow_name = self.workflow.get('name', 'Workflow')
-            
-            # Create checklist from steps with descriptions and checkbox images
-            checklist_data = []
-            for i, step in enumerate(self.workflow['steps']):
-                step_title = step.get('title', f'Step {i+1}')
-                step_description = step.get('instructions', '')
-                has_pass_fail = step.get('require_pass_fail', False) or bool(step.get('inspection_checkboxes'))
-                
-                # Determine pass/fail status
-                if i in self.step_results:
-                    # User explicitly marked pass/fail (takes priority)
-                    passed = self.step_results[i]
-                else:
-                    # Default to pass
-                    passed = True
-                    
-                    # Check checkboxes (background criteria - always applies)
-                    if i in self.step_checkbox_states:
-                        checkbox_states = self.step_checkbox_states[i]
-                        if isinstance(checkbox_states, list):
-                            checked_count = sum(1 for cb in checkbox_states if cb.get('checked', False))
-                            # Fail if not all checkboxes checked
-                            if checked_count < len(checkbox_states):
-                                passed = False
-                
-                # Generate checkbox completion image if checkboxes exist
-                checkbox_image = None
-                if step.get('reference_image') and os.path.exists(step.get('reference_image', '')):
-                    # Use stored checkbox states if available, otherwise use template
-                    if i in self.step_checkbox_states:
-                        checkbox_states = self.step_checkbox_states[i]
-                    else:
-                        # No stored state - use unchecked template
-                        checkbox_states = [{'x': cb['x'], 'y': cb['y'], 'checked': False} 
-                                         for cb in step.get('inspection_checkboxes', [])]
-                    
-                    if checkbox_states:
-                        checkbox_image = self._generate_checkbox_image(
-                            step.get('reference_image'),
-                            checkbox_states,
-                            i
-                        )
-                
-                checklist_data.append({
-                    'name': step_title,
-                    'description': step_description,
-                    'passed': passed,
-                    'has_pass_fail': has_pass_fail,
-                    'checkbox_image': checkbox_image,
-                    'step_number': i + 1
-                })
-            
-            # Collect all barcode scans from images
-            all_barcode_scans = []
-            for img in self.captured_images:
-                if 'barcode_scans' in img:
-                    all_barcode_scans.extend(img['barcode_scans'])
-            
-            # Generate both PDF and DOCX reports
-            pdf_path, docx_path = generate_reports(
-                serial_number=self.serial_number,
-                technician=self.technician,
-                description=self.description,
-                images=self.captured_images,
-                mode_name=workflow_name,
-                workflow_name=workflow_name,
-                checklist_data=checklist_data,
-                video_paths=self.recorded_videos,
-                barcode_scans=all_barcode_scans if all_barcode_scans else None
-            )
-            
-            return pdf_path, docx_path
-        
+            return generate_workflow_report(self)
         except Exception as e:
-            QMessageBox.critical(self, "Report Error", 
-                               f"Failed to generate report:\n{str(e)}")
+            QMessageBox.critical(self, "Report Error",
+                                f"Failed to generate report:\n{str(e)}")
             raise
     
     def show_reference_fullsize(self):
@@ -2256,1027 +1819,17 @@ class WorkflowExecutionScreen(QWidget):
         """Show side-by-side comparison of reference and live camera."""
         if not self.current_camera:
             return
-        
-        current_step = self.workflow['steps'][self.current_step]
+
         has_ref_video = bool(self.ref_video_path and os.path.exists(self.ref_video_path))
         has_ref_image = bool(self.reference_image_path and os.path.exists(self.reference_image_path))
-        
+
         if not has_ref_video and not has_ref_image:
             return
-        
-        # If reference video, show video comparison dialog
-        if has_ref_video:
-            self._show_video_comparison()
-            return
-        
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Reference vs Live Camera Comparison")
-        dialog.setModal(False)
-        
-        layout = QVBoxLayout(dialog)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(5)
-        
-        # Compact header with labels
-        header_layout = QHBoxLayout()
-        ref_label = QLabel("Reference Image")
-        ref_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        ref_label.setAlignment(Qt.AlignCenter)
-        header_layout.addWidget(ref_label)
-        
-        live_label = QLabel("Live Camera")
-        live_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        live_label.setAlignment(Qt.AlignCenter)
-        header_layout.addWidget(live_label)
-        
-        layout.addLayout(header_layout)
-        
-        # Overlay mode controls
-        overlay_controls_layout = QVBoxLayout()
-        
-        # First row: Overlay mode toggle and transparency
-        first_row = QHBoxLayout()
-        
-        overlay_checkbox = QCheckBox("Overlay Mode")
-        overlay_checkbox.setStyleSheet("font-weight: bold;")
-        first_row.addWidget(overlay_checkbox)
-        
-        first_row.addWidget(QLabel("Transparency:"))
-        
-        transparency_slider = QSlider(Qt.Horizontal)
-        transparency_slider.setMinimum(0)
-        transparency_slider.setMaximum(100)
-        transparency_slider.setValue(self.overlay_transparency)  # Use stored value
-        transparency_slider.setMaximumWidth(150)
-        transparency_slider.setEnabled(False)
-        first_row.addWidget(transparency_slider)
-        
-        transparency_label = QLabel(f"{self.overlay_transparency}%")
-        transparency_label.setMinimumWidth(40)
-        transparency_label.setMinimumWidth(40)
-        first_row.addWidget(transparency_label)
-        
-        first_row.addStretch()
-        overlay_controls_layout.addLayout(first_row)
-        
-        # Second row: Overlay adjustments (only visible in transparent overlay mode)
-        adjustment_row = QHBoxLayout()
-        
-        adjustment_row.addWidget(QLabel("Scale:"))
-        scale_slider = QSlider(Qt.Horizontal)
-        scale_slider.setMinimum(50)
-        scale_slider.setMaximum(200)
-        scale_slider.setValue(self.overlay_scale)
-        scale_slider.setMaximumWidth(120)
-        scale_slider.setEnabled(False)
-        adjustment_row.addWidget(scale_slider)
-        
-        scale_label = QLabel("100%")
-        scale_label.setMinimumWidth(45)
-        adjustment_row.addWidget(scale_label)
-        
-        adjustment_row.addWidget(QLabel("X:"))
-        x_offset_slider = QSlider(Qt.Horizontal)
-        x_offset_slider.setMinimum(-100)
-        x_offset_slider.setMaximum(100)
-        x_offset_slider.setValue(self.overlay_x_offset)
-        x_offset_slider.setMaximumWidth(100)
-        x_offset_slider.setEnabled(False)
-        adjustment_row.addWidget(x_offset_slider)
-        
-        x_offset_label = QLabel("0px")
-        x_offset_label.setMinimumWidth(40)
-        adjustment_row.addWidget(x_offset_label)
-        
-        adjustment_row.addWidget(QLabel("Y:"))
-        y_offset_slider = QSlider(Qt.Horizontal)
-        y_offset_slider.setMinimum(-100)
-        y_offset_slider.setMaximum(100)
-        y_offset_slider.setValue(self.overlay_y_offset)
-        y_offset_slider.setMaximumWidth(100)
-        y_offset_slider.setEnabled(False)
-        adjustment_row.addWidget(y_offset_slider)
-        
-        y_offset_label = QLabel("0px")
-        y_offset_label.setMinimumWidth(40)
-        adjustment_row.addWidget(y_offset_label)
-        
-        adjustment_row.addWidget(QLabel("Rotation:"))
-        rotation_slider = QSlider(Qt.Horizontal)
-        rotation_slider.setMinimum(-180)
-        rotation_slider.setMaximum(180)
-        rotation_slider.setValue(self.overlay_rotation)
-        rotation_slider.setMaximumWidth(100)
-        rotation_slider.setEnabled(False)
-        adjustment_row.addWidget(rotation_slider)
-        
-        rotation_label = QLabel("0°")
-        rotation_label.setMinimumWidth(35)
-        adjustment_row.addWidget(rotation_label)
-        
-        reset_adjustments_btn = QPushButton("Reset")
-        reset_adjustments_btn.setMaximumWidth(60)
-        reset_adjustments_btn.setEnabled(False)
-        adjustment_row.addWidget(reset_adjustments_btn)
-        
-        adjustment_row.addStretch()
-        
-        # Create a widget to hold adjustment controls so we can show/hide them
-        adjustment_widget = QWidget()
-        adjustment_widget.setLayout(adjustment_row)
-        adjustment_widget.setVisible(False)  # Hidden by default
-        overlay_controls_layout.addWidget(adjustment_widget)
-        
-        layout.addLayout(overlay_controls_layout)
-        
-        # Container for either split view or overlay view
-        view_container = QWidget()
-        view_layout = QVBoxLayout(view_container)
-        view_layout.setContentsMargins(0, 0, 0, 0)
-        
-        # Split view for images
-        from PyQt5.QtWidgets import QSplitter
-        splitter = QSplitter(Qt.Horizontal)
-        
-        # Left: Reference image with checkboxes and markers
-        ref_display = CombinedReferenceImage()
-        ref_display.setStyleSheet("border: 2px solid #77C25E; background-color: #2b2b2b;")
-        ref_display.setMinimumSize(400, 300)
-        
-        # Load reference image with checkboxes - copy current state from main view
-        checkbox_data = []
-        if hasattr(self, 'workflow') and self.workflow:
-            current_step = self.workflow['steps'][self.current_step]
-            checkbox_data = current_step.get('inspection_checkboxes', [])
-        ref_display.set_image_and_checkboxes(self.reference_image_path, checkbox_data)
-        
-        # Copy current checkbox states from main view
-        if hasattr(self.reference_image, 'checkboxes'):
-            for i, cb in enumerate(self.reference_image.checkboxes):
-                if i < len(ref_display.checkboxes):
-                    ref_display.checkboxes[i]['checked'] = cb['checked']
-            ref_display.update()
-        
-        # Sync checkboxes back to main view when changed
-        def sync_checkboxes():
-            if hasattr(self.reference_image, 'checkboxes'):
-                for i, cb in enumerate(ref_display.checkboxes):
-                    if i < len(self.reference_image.checkboxes):
-                        self.reference_image.checkboxes[i]['checked'] = cb['checked']
-                self.reference_image.update()
-                self.reference_image.emit_status()
-                self.update_step_status()
-        
-        ref_display.checkboxes_changed.connect(sync_checkboxes)
-        
-        splitter.addWidget(ref_display)
-        
-        # Right side: Live camera with annotations and action buttons
-        right_container = QWidget()
-        right_layout = QVBoxLayout(right_container)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(5)
-        
-        # Live camera preview
-        live_display = AnnotatablePreview()
-        live_display.setStyleSheet("border: 2px solid #2196F3; background-color: #2b2b2b;")
-        live_display.setMinimumSize(400, 300)
-        
-        # Copy current markers from main preview
-        if hasattr(self.preview_label, 'markers'):
-            live_display.markers = [m.copy() for m in self.preview_label.markers]
-            live_display.update()
-        
-        # Sync markers back to main preview when changed
-        def sync_markers():
-            if hasattr(self.preview_label, 'markers'):
-                self.preview_label.markers = [m.copy() for m in live_display.markers]
-                self.preview_label.update()
-        
-        live_display.markers_changed.connect(sync_markers)
-        
-        right_layout.addWidget(live_display, 1)
-        
-        # Action buttons for live camera
-        action_layout = QHBoxLayout()
-        
-        # Capture button
-        capture_btn = QPushButton("📷 Capture Image")
-        capture_btn.setMinimumHeight(35)
-        capture_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #77C25E;
-                color: white;
-                border: none;
-                border-radius: 3px;
-                padding: 8px 15px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #5FA84A;
-            }
-        """)
-        
-        def capture_from_comparison():
-            """Capture image from comparison view."""
-            if self.current_camera:
-                frame = self.current_camera.capture_frame()
-                if frame is not None:
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    
-                    # If in overlay mode, render the overlay on the frame
-                    if overlay_checkbox.isChecked() and has_alpha:
-                        frame = self._render_overlay_on_frame(frame, self.reference_image_path, has_alpha)
-                        markers_to_use = overlay_display.markers
-                    else:
-                        markers_to_use = live_display.markers
-                    
-                    # Draw markers on frame
-                    if markers_to_use:
-                        frame = self._draw_markers_on_frame(frame, markers_to_use, self._get_marker_bgr_color())
-                    
-                    # Save camera image
-                    camera_name = self.current_camera.name.replace(" ", "_")
-                    filename = f"step{self.current_step + 1}_{camera_name}_{timestamp}.jpg"
-                    filepath = os.path.join(self.output_dir, filename)
-                    cv2.imwrite(filepath, frame)
-                    
-                    # Store camera image data
-                    image_data = {
-                        'path': filepath,
-                        'camera': self.current_camera.name,
-                        'notes': '',
-                        'markers': markers_to_use if markers_to_use else [],
-                        'step': self.current_step + 1
-                    }
-                    
-                    self.captured_images.append(image_data)
-                    self.step_images.append(image_data)
-                    
-                    # Clear markers after capture
-                    if overlay_checkbox.isChecked():
-                        overlay_display.clear_markers()
-                    else:
-                        live_display.clear_markers()
-                        ref_display.markers = []
-                        ref_display.update()
-                    
-                    # Sync cleared markers back to main view
-                    if hasattr(self.preview_label, 'markers'):
-                        self.preview_label.markers = []
-                        self.preview_label.update()
-                    
-                    self.update_step_status()
-                    
-                    QMessageBox.information(dialog, "Image Captured", 
-                                          f"Image saved for step {self.current_step + 1}")
-        
-        capture_btn.clicked.connect(capture_from_comparison)
-        action_layout.addWidget(capture_btn)
-        
-        # Scan barcode button
-        scan_btn = QPushButton("📱 Scan Barcode/QR")
-        scan_btn.setMinimumHeight(35)
-        scan_btn.setEnabled(False)  # Disabled by default, enabled when barcode detected
-        scan_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #FF9800;
-                color: white;
-                border: none;
-                border-radius: 3px;
-                padding: 8px 15px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #F57C00;
-            }
-            QPushButton:disabled {
-                background-color: #CCCCCC;
-                color: #666666;
-            }
-        """)
-        scan_btn.clicked.connect(self.scan_barcode)
-        action_layout.addWidget(scan_btn)
-        
-        # Record button
-        record_btn = QPushButton("🔴 Start Recording")
-        record_btn.setMinimumHeight(35)
-        comparison_recording = {'active': False, 'writer': None, 'path': None, 'start_time': None}
-        
-        def toggle_comparison_recording():
-            """Toggle video recording in comparison view."""
-            try:
-                if not comparison_recording['active']:
-                    # Start recording
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    video_filename = f"video_{timestamp}.mp4"
-                    video_path = os.path.join(self.output_dir, video_filename)
-                    
-                    frame = self.current_camera.capture_frame()
-                    if frame is None:
-                        raise Exception("Cannot start recording: no frame available")
-                    
-                    h, w = frame.shape[:2]
-                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                    writer = cv2.VideoWriter(video_path, fourcc, 30.0, (w, h))
-                    
-                    if not writer.isOpened():
-                        raise Exception("Failed to initialize video writer")
-                    
-                    comparison_recording['active'] = True
-                    comparison_recording['writer'] = writer
-                    comparison_recording['path'] = video_path
-                    comparison_recording['start_time'] = datetime.now()
-                    
-                    record_btn.setText("⏹ Stop Recording")
-                    record_btn.setStyleSheet("""
-                        QPushButton {
-                            background-color: #28A745;
-                            color: white;
-                            border: none;
-                            border-radius: 3px;
-                            padding: 8px 15px;
-                            font-weight: bold;
-                        }
-                        QPushButton:hover {
-                            background-color: #218838;
-                        }
-                    """)
-                    logger.info(f"Started recording in comparison view: {video_path}")
-                else:
-                    # Stop recording
-                    if comparison_recording['writer']:
-                        comparison_recording['writer'].release()
-                    
-                    comparison_recording['active'] = False
-                    record_btn.setText("🔴 Start Recording")
-                    record_btn.setStyleSheet("""
-                        QPushButton {
-                            background-color: #DC3545;
-                            color: white;
-                            border: none;
-                            border-radius: 3px;
-                            padding: 8px 15px;
-                            font-weight: bold;
-                        }
-                        QPushButton:hover {
-                            background-color: #C82333;
-                        }
-                    """)
-                    
-                    if comparison_recording['path'] and os.path.exists(comparison_recording['path']):
-                        self.recorded_videos.append(comparison_recording['path'])
-                        logger.info(f"Stopped recording in comparison view: {comparison_recording['path']}")
-                        QMessageBox.information(dialog, "Recording Stopped", 
-                                              f"Video saved:\n{os.path.basename(comparison_recording['path'])}")
-                    
-                    comparison_recording['writer'] = None
-                    comparison_recording['path'] = None
-                    comparison_recording['start_time'] = None
-                    
-            except Exception as e:
-                logger.error(f"Comparison recording error: {e}", exc_info=True)
-                QMessageBox.warning(dialog, "Recording Error", f"Failed to record video:\n{str(e)}")
-                comparison_recording['active'] = False
-                if comparison_recording['writer']:
-                    comparison_recording['writer'].release()
-        
-        record_btn.clicked.connect(toggle_comparison_recording)
-        action_layout.addWidget(record_btn)
-        
-        # Don't add action_layout to right_layout - will add to main layout later
-        # right_layout.addLayout(action_layout)
-        
-        # Add right container to splitter
-        splitter.addWidget(right_container)
-        
-        view_layout.addWidget(splitter, 1)
-        
-        # Overlay display (hidden by default)
-        overlay_display = AnnotatablePreview()
-        overlay_display.setStyleSheet("border: 2px solid #9C27B0; background-color: #2b2b2b;")
-        overlay_display.setMinimumSize(800, 600)
-        overlay_display.setVisible(False)
-        
-        # Copy markers to overlay display
-        if hasattr(self.preview_label, 'markers'):
-            overlay_display.markers = [m.copy() for m in self.preview_label.markers]
-        
-        # Sync markers from overlay back to main
-        def sync_overlay_markers():
-            if hasattr(self.preview_label, 'markers'):
-                self.preview_label.markers = [m.copy() for m in overlay_display.markers]
-                self.preview_label.update()
-        
-        overlay_display.markers_changed.connect(sync_overlay_markers)
-        view_layout.addWidget(overlay_display, 1)
-        
-        layout.addWidget(view_container, 1)
-        
-        # Add action buttons below view (always visible)
-        layout.addLayout(action_layout)
-        
-        # Check if this step uses transparent overlay
-        current_step = self.workflow['steps'][self.current_step]
-        use_transparent_overlay = current_step.get('transparent_overlay', False)
-        
-        # Check if reference image has alpha channel
-        has_alpha = False
-        if self.reference_image_path and os.path.exists(self.reference_image_path):
-            ref_test = cv2.imread(self.reference_image_path, cv2.IMREAD_UNCHANGED)
-            has_alpha = ref_test is not None and len(ref_test.shape) == 3 and ref_test.shape[2] == 4
-            logger.info(f"Reference image: {self.reference_image_path}")
-            logger.info(f"Image loaded: {ref_test is not None}, Shape: {ref_test.shape if ref_test is not None else 'None'}, Has alpha: {has_alpha}")
-        
-        # Toggle between split and overlay mode
-        def toggle_overlay_mode(checked):
-            splitter.setVisible(not checked)
-            overlay_display.setVisible(checked)
-            transparency_slider.setEnabled(checked)
-            
-            # Show/enable adjustment controls if overlay mode is on and image has alpha
-            if checked and has_alpha:
-                adjustment_widget.setVisible(True)
-                scale_slider.setEnabled(True)
-                x_offset_slider.setEnabled(True)
-                y_offset_slider.setEnabled(True)
-                rotation_slider.setEnabled(True)
-                reset_adjustments_btn.setEnabled(True)
-            else:
-                adjustment_widget.setVisible(False)
-            
-            if checked:
-                # Copy markers from live display to overlay
-                overlay_display.markers = [m.copy() for m in live_display.markers]
-                overlay_display.update()
-        
-        overlay_checkbox.toggled.connect(toggle_overlay_mode)
-        
-        # Auto-enable overlay mode for PNG images with alpha
-        if has_alpha:
-            overlay_checkbox.setChecked(True)
-        
-        # Update label functions
-        def update_transparency_label(value):
-            transparency_label.setText(f"{value}%")
-            self.overlay_transparency = value
-        
-        def update_scale_label(value):
-            scale_label.setText(f"{value}%")
-            self.overlay_scale = value
-        
-        def update_x_offset_label(value):
-            x_offset_label.setText(f"{value}px")
-            self.overlay_x_offset = value
-        
-        def update_y_offset_label(value):
-            y_offset_label.setText(f"{value}px")
-            self.overlay_y_offset = value
-        
-        def update_rotation_label(value):
-            rotation_label.setText(f"{value}°")
-            self.overlay_rotation = value
-        
-        def reset_adjustments():
-            scale_slider.setValue(100)
-            x_offset_slider.setValue(0)
-            y_offset_slider.setValue(0)
-            rotation_slider.setValue(0)
-            self.overlay_scale = 100
-            self.overlay_x_offset = 0
-            self.overlay_y_offset = 0
-            self.overlay_rotation = 0
-        
-        transparency_slider.valueChanged.connect(update_transparency_label)
-        scale_slider.valueChanged.connect(update_scale_label)
-        x_offset_slider.valueChanged.connect(update_x_offset_label)
-        y_offset_slider.valueChanged.connect(update_y_offset_label)
-        rotation_slider.valueChanged.connect(update_rotation_label)
-        reset_adjustments_btn.clicked.connect(reset_adjustments)
-        
-        # Update timer for live feed
-        def update_comparison():
-            if self.current_camera:
-                frame = self.current_camera.capture_frame()
-                if frame is not None:
-                    # Update scan button state based on barcode detection
-                    if self.qr_scanner:
-                        barcode_type, barcode_data = self.qr_scanner.get_current_barcode()
-                        scan_btn.setEnabled(barcode_type is not None)
-                    
-                    # If recording in comparison view, write frame with overlay and annotations
-                    if comparison_recording['active'] and comparison_recording['writer']:
-                        annotated_frame = frame.copy()
-                        
-                        # Apply overlay if in overlay mode
-                        if overlay_checkbox.isChecked() and has_alpha:
-                            annotated_frame = self._render_overlay_on_frame(annotated_frame, self.reference_image_path, has_alpha)
-                            markers_to_use = overlay_display.markers
-                        else:
-                            markers_to_use = live_display.markers
-                        
-                        # Draw markers
-                        if markers_to_use:
-                            annotated_frame = self._draw_markers_on_frame(annotated_frame, markers_to_use, self._get_marker_bgr_color())
-                        
-                        comparison_recording['writer'].write(annotated_frame)
-                    
-                    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    h, w, ch = rgb_frame.shape
-                    bytes_per_line = ch * w
-                    qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
-                    live_pixmap = QPixmap.fromImage(qt_image)
-                    
-                    if overlay_checkbox.isChecked():
-                        # Overlay mode
-                        if has_alpha and self.reference_image_path:
-                            # Transparent overlay mode - respect alpha channel
-                            try:
-                                ref_img = cv2.imread(self.reference_image_path, cv2.IMREAD_UNCHANGED)
-                                
-                                if ref_img is not None and len(ref_img.shape) == 3 and ref_img.shape[2] == 4:
-                                    # Get transformation values
-                                    scale = scale_slider.value() / 100.0
-                                    x_offset = x_offset_slider.value()
-                                    y_offset = y_offset_slider.value()
-                                    rotation = rotation_slider.value()
-                                    
-                                    # Apply scale
-                                    new_w = int(ref_img.shape[1] * scale)
-                                    new_h = int(ref_img.shape[0] * scale)
-                                    
-                                    if new_w > 0 and new_h > 0:
-                                        ref_scaled = cv2.resize(ref_img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
-                                        
-                                        # Apply rotation
-                                        if rotation != 0:
-                                            center = (new_w // 2, new_h // 2)
-                                            rot_matrix = cv2.getRotationMatrix2D(center, rotation, 1.0)
-                                            ref_scaled = cv2.warpAffine(ref_scaled, rot_matrix, (new_w, new_h),
-                                                                       borderMode=cv2.BORDER_CONSTANT, 
-                                                                       borderValue=(0, 0, 0, 0))
-                                        
-                                        # Create canvas for positioning
-                                        canvas = np.zeros((h, w, 4), dtype=np.uint8)
-                                        
-                                        # Calculate centered position with offset
-                                        x_pos = (w - new_w) // 2 + x_offset
-                                        y_pos = (h - new_h) // 2 + y_offset
-                                        
-                                        # Calculate valid regions
-                                        x_start = max(0, x_pos)
-                                        y_start = max(0, y_pos)
-                                        x_end = min(w, x_pos + new_w)
-                                        y_end = min(h, y_pos + new_h)
-                                        
-                                        src_x_start = max(0, -x_pos)
-                                        src_y_start = max(0, -y_pos)
-                                        src_x_end = src_x_start + (x_end - x_start)
-                                        src_y_end = src_y_start + (y_end - y_start)
-                                        
-                                        # Place overlay on canvas
-                                        if x_end > x_start and y_end > y_start:
-                                            canvas[y_start:y_end, x_start:x_end] = ref_scaled[src_y_start:src_y_end, src_x_start:src_x_end]
-                                        
-                                        # Split into BGR and alpha
-                                        overlay_bgr = canvas[:, :, :3]
-                                        overlay_alpha = canvas[:, :, 3].astype(float) / 255.0
-                                    else:
-                                        # Fallback if scale is too small
-                                        ref_resized = cv2.resize(ref_img, (w, h))
-                                        overlay_bgr = ref_resized[:, :, :3]
-                                        overlay_alpha = ref_resized[:, :, 3].astype(float) / 255.0
-                                    
-                                    # Apply transparency slider
-                                    overlay_alpha = overlay_alpha * (transparency_slider.value() / 100.0)
-                                    
-                                    # Expand alpha to 3 channels
-                                    alpha_3ch = np.stack([overlay_alpha] * 3, axis=2)
-                                    
-                                    # Blend
-                                    blended = (overlay_bgr.astype(float) * alpha_3ch + 
-                                             frame.astype(float) * (1 - alpha_3ch)).astype(np.uint8)
-                                    
-                                    # Convert to Qt image
-                                    rgb_blended = cv2.cvtColor(blended, cv2.COLOR_BGR2RGB)
-                                    # Make contiguous copy to prevent garbage collection issues
-                                    rgb_blended = np.ascontiguousarray(rgb_blended)
-                                    qt_blended = QImage(rgb_blended.data, w, h, bytes_per_line, QImage.Format.Format_RGB888).copy()
-                                    overlay_pixmap = QPixmap.fromImage(qt_blended)
-                                    overlay_display.set_frame(overlay_pixmap)
-                                else:
-                                    # Fallback to regular blending if no alpha
-                                    ref_img_bgr = cv2.imread(self.reference_image_path)
-                                    if ref_img_bgr is not None:
-                                        ref_resized = cv2.resize(ref_img_bgr, (w, h))
-                                        alpha_val = transparency_slider.value() / 100.0
-                                        blended = cv2.addWeighted(ref_resized, alpha_val, frame, 1 - alpha_val, 0)
-                                        rgb_blended = cv2.cvtColor(blended, cv2.COLOR_BGR2RGB)
-                                        qt_blended = QImage(rgb_blended.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
-                                        overlay_pixmap = QPixmap.fromImage(qt_blended)
-                                        overlay_display.set_frame(overlay_pixmap)
-                            except Exception as e:
-                                logger.error(f"Error in transparent overlay: {e}")
-                                import traceback
-                                traceback.print_exc()
-                        else:
-                            # Regular blend mode
-                            if self.reference_image_path:
-                                ref_img = cv2.imread(self.reference_image_path)
-                                if ref_img is not None:
-                                    # Resize reference to match camera frame
-                                    ref_resized = cv2.resize(ref_img, (w, h))
-                                    
-                                    # Blend images based on transparency slider
-                                    alpha = transparency_slider.value() / 100.0
-                                    blended = cv2.addWeighted(ref_resized, alpha, frame, 1 - alpha, 0)
-                                    
-                                    # Convert to Qt image
-                                    rgb_blended = cv2.cvtColor(blended, cv2.COLOR_BGR2RGB)
-                                    qt_blended = QImage(rgb_blended.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
-                                    overlay_pixmap = QPixmap.fromImage(qt_blended)
-                                    overlay_display.set_frame(overlay_pixmap)
-                    else:
-                        # Split mode: update live display
-                        live_display.set_frame(live_pixmap)
-        
-        comparison_timer = QTimer()
-        comparison_timer.timeout.connect(update_comparison)
-        comparison_timer.start(100)  # Update every 100ms
-        # Close button - compact
-        close_button = QPushButton("Close")
-        close_button.setMaximumHeight(30)
-        close_button.setFocusPolicy(Qt.NoFocus)
-        close_button.setStyleSheet("""
-            QPushButton {
-                background-color: #77C25E;
-                color: white;
-                border: none;
-                border-radius: 3px;
-                padding: 6px 15px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #5FA84A;
-            }
-        """)
-        
-        def close_dialog():
-            # Stop any active recording
-            if comparison_recording['active'] and comparison_recording['writer']:
-                comparison_recording['writer'].release()
-                if comparison_recording['path'] and os.path.exists(comparison_recording['path']):
-                    self.recorded_videos.append(comparison_recording['path'])
-                    logger.info(f"Auto-saved recording on dialog close: {comparison_recording['path']}")
-            
-            comparison_timer.stop()
-            dialog.close()
-        
-        close_button.clicked.connect(close_dialog)
-        
-        # Stop timer and recording when dialog is destroyed
-        def cleanup_comparison():
-            comparison_timer.stop()
-            if comparison_recording['active'] and comparison_recording['writer']:
-                comparison_recording['writer'].release()
-        
-        dialog.destroyed.connect(cleanup_comparison)
-        
-        layout.addWidget(close_button)
-        
-        # Set initial size based on actual image dimensions
-        ref_pixmap = QPixmap(self.reference_image_path)
-        if not ref_pixmap.isNull():
-            # Calculate dialog size based on image aspect ratio
-            img_width = ref_pixmap.width()
-            img_height = ref_pixmap.height()
-            
-            # Target width for each panel (2 panels side by side)
-            screen = self.screen().geometry()
-            max_width = int(screen.width() * 0.9)
-            max_height = int(screen.height() * 0.8)
-            
-            # Calculate size to fit both images side by side
-            panel_width = min(img_width, max_width // 2 - 50)
-            panel_height = min(img_height, max_height - 100)
-            
-            dialog.resize(panel_width * 2 + 100, panel_height + 100)
-        else:
-            # Fallback to percentage-based sizing
-            screen = self.screen().geometry()
-            dialog.resize(int(screen.width() * 0.7), int(screen.height() * 0.6))
-        
-        dialog.show()
-    
-    # --- Reference video comparison dialog ---
 
-    def _show_video_comparison(self):
-        """Show side-by-side comparison with reference video on left, live camera on right."""
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Reference Video vs Live Camera")
-        dialog.setModal(False)
-        
-        layout = QVBoxLayout(dialog)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(5)
-        
-        # Header
-        header_layout = QHBoxLayout()
-        ref_label = QLabel("Reference Video")
-        ref_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        ref_label.setAlignment(Qt.AlignCenter)
-        header_layout.addWidget(ref_label)
-        live_label = QLabel("Live Camera")
-        live_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        live_label.setAlignment(Qt.AlignCenter)
-        header_layout.addWidget(live_label)
-        layout.addLayout(header_layout)
-        
-        # Splitter with video on left, camera on right
-        from PyQt5.QtWidgets import QSplitter
-        splitter = QSplitter(Qt.Horizontal)
-        
-        # Left: video player (threaded OpenCV)
-        left_container = QWidget()
-        left_layout = QVBoxLayout(left_container)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(3)
-        
-        comp_video_display = QLabel()
-        comp_video_display.setMinimumSize(200, 200)
-        comp_video_display.setStyleSheet("border: 2px solid #FF9800; background-color: #2b2b2b;")
-        comp_video_display.setAlignment(Qt.AlignCenter)
-        left_layout.addWidget(comp_video_display, 1)
-        
-        # Video controls
-        vc_layout = QHBoxLayout()
-        play_btn = QPushButton("▶ Play")
-        play_btn.setMaximumWidth(80)
-        play_btn.setStyleSheet("""
-            QPushButton { background-color: #FF9800; color: white; border: none;
-                border-radius: 3px; font-weight: bold; padding: 4px 8px; }
-            QPushButton:hover { background-color: #F57C00; }
-        """)
-        vc_layout.addWidget(play_btn)
-        
-        restart_btn = QPushButton("⏮ Restart")
-        restart_btn.setMaximumWidth(80)
-        restart_btn.setStyleSheet("""
-            QPushButton { background-color: #666; color: white; border: none;
-                border-radius: 3px; font-weight: bold; padding: 4px 8px; }
-            QPushButton:hover { background-color: #555; }
-        """)
-        vc_layout.addWidget(restart_btn)
-        
-        vid_slider = QSlider(Qt.Horizontal)
-        vid_slider.setMinimum(0)
-        vc_layout.addWidget(vid_slider)
-        
-        time_label = QLabel("0:00 / 0:00")
-        time_label.setMinimumWidth(90)
-        vc_layout.addWidget(time_label)
-        left_layout.addLayout(vc_layout)
-        
-        splitter.addWidget(left_container)
-        
-        # Right: live camera with annotations and action buttons
-        right_container = QWidget()
-        right_layout = QVBoxLayout(right_container)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(5)
-        
-        live_display = AnnotatablePreview()
-        live_display.setStyleSheet("border: 2px solid #2196F3; background-color: #2b2b2b;")
-        live_display.setMinimumSize(400, 300)
-        if hasattr(self.preview_label, 'markers'):
-            live_display.markers = [m.copy() for m in self.preview_label.markers]
-        
-        def sync_markers():
-            if hasattr(self.preview_label, 'markers'):
-                self.preview_label.markers = [m.copy() for m in live_display.markers]
-                self.preview_label.update()
-        live_display.markers_changed.connect(sync_markers)
-        right_layout.addWidget(live_display, 1)
-        splitter.addWidget(right_container)
-        
-        layout.addWidget(splitter, 1)
-        
-        # Action buttons
-        action_layout = QHBoxLayout()
-        
-        capture_btn = QPushButton("📷 Capture Image")
-        capture_btn.setMinimumHeight(35)
-        capture_btn.setStyleSheet("""
-            QPushButton { background-color: #77C25E; color: white; border: none;
-                border-radius: 3px; padding: 8px 15px; font-weight: bold; }
-            QPushButton:hover { background-color: #5FA84A; }
-        """)
-        
-        def capture_from_video_comparison():
-            if self.current_camera:
-                frame = self.current_camera.capture_frame()
-                if frame is not None:
-                    markers = live_display.markers
-                    if markers:
-                        frame = self._draw_markers_on_frame(frame, markers, self._get_marker_bgr_color())
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    camera_name = self.current_camera.name.replace(" ", "_")
-                    filename = f"step{self.current_step + 1}_{camera_name}_{timestamp}.jpg"
-                    filepath = os.path.join(self.output_dir, filename)
-                    cv2.imwrite(filepath, frame)
-                    image_data = {
-                        'path': filepath, 'camera': self.current_camera.name,
-                        'notes': '', 'markers': markers if markers else [],
-                        'step': self.current_step + 1
-                    }
-                    self.captured_images.append(image_data)
-                    self.step_images.append(image_data)
-                    live_display.clear_markers()
-                    if hasattr(self.preview_label, 'markers'):
-                        self.preview_label.markers = []
-                        self.preview_label.update()
-                    self.update_step_status()
-                    QMessageBox.information(dialog, "Image Captured",
-                                          f"Image saved for step {self.current_step + 1}")
-        
-        capture_btn.clicked.connect(capture_from_video_comparison)
-        action_layout.addWidget(capture_btn)
-        
-        scan_btn = QPushButton("📱 Scan Barcode/QR")
-        scan_btn.setMinimumHeight(35)
-        scan_btn.setEnabled(False)
-        scan_btn.setStyleSheet("""
-            QPushButton { background-color: #FF9800; color: white; border: none;
-                border-radius: 3px; padding: 8px 15px; font-weight: bold; }
-            QPushButton:hover { background-color: #F57C00; }
-            QPushButton:disabled { background-color: #CCCCCC; color: #666666; }
-        """)
-        scan_btn.clicked.connect(self.scan_barcode)
-        action_layout.addWidget(scan_btn)
-        
-        record_btn = QPushButton("🔴 Start Recording")
-        record_btn.setMinimumHeight(35)
-        record_btn.setStyleSheet("""
-            QPushButton { background-color: #DC3545; color: white; border: none;
-                border-radius: 3px; padding: 8px 15px; font-weight: bold; }
-            QPushButton:hover { background-color: #C82333; }
-        """)
-        comp_rec = {'active': False, 'writer': None, 'path': None}
-        
-        def toggle_comp_rec():
-            try:
-                if not comp_rec['active']:
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    video_path = os.path.join(self.output_dir, f"video_{timestamp}.mp4")
-                    frame = self.current_camera.capture_frame()
-                    if frame is None:
-                        raise Exception("No frame available")
-                    h, w = frame.shape[:2]
-                    writer = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*'mp4v'), 30.0, (w, h))
-                    if not writer.isOpened():
-                        raise Exception("Failed to init video writer")
-                    comp_rec.update({'active': True, 'writer': writer, 'path': video_path})
-                    record_btn.setText("⏹ Stop Recording")
-                    record_btn.setStyleSheet("""
-                        QPushButton { background-color: #28A745; color: white; border: none;
-                            border-radius: 3px; padding: 8px 15px; font-weight: bold; }
-                        QPushButton:hover { background-color: #218838; }
-                    """)
-                else:
-                    if comp_rec['writer']:
-                        comp_rec['writer'].release()
-                    comp_rec['active'] = False
-                    record_btn.setText("🔴 Start Recording")
-                    record_btn.setStyleSheet("""
-                        QPushButton { background-color: #DC3545; color: white; border: none;
-                            border-radius: 3px; padding: 8px 15px; font-weight: bold; }
-                        QPushButton:hover { background-color: #C82333; }
-                    """)
-                    if comp_rec['path'] and os.path.exists(comp_rec['path']):
-                        self.recorded_videos.append(comp_rec['path'])
-                        QMessageBox.information(dialog, "Recording Stopped",
-                                              f"Video saved:\n{os.path.basename(comp_rec['path'])}")
-                    comp_rec.update({'writer': None, 'path': None})
-            except Exception as e:
-                logger.error(f"Video comparison recording error: {e}")
-                QMessageBox.warning(dialog, "Recording Error", str(e))
-                if comp_rec['writer']:
-                    comp_rec['writer'].release()
-                comp_rec.update({'active': False, 'writer': None, 'path': None})
-        
-        record_btn.clicked.connect(toggle_comp_rec)
-        action_layout.addWidget(record_btn)
-        layout.addLayout(action_layout)
-        
-        # Video player setup (threaded)
-        comp_slider_dragging = {'v': False}
-        comp_vid_playing = {'v': False}
-        
-        def fmt_ms(ms):
-            s = max(0, ms) // 1000
-            return f"{s // 60}:{s % 60:02d}"
-        
-        comp_vid_thread = VideoDecoderThread(self.ref_video_path, dialog)
-        
-        def on_comp_frame(qimg, pos_ms, duration_ms):
-            pixmap = QPixmap.fromImage(qimg).scaled(
-                comp_video_display.size(), Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.FastTransformation)
-            comp_video_display.setPixmap(pixmap)
-            if not comp_slider_dragging['v']:
-                vid_slider.blockSignals(True)
-                vid_slider.setMaximum(max(duration_ms, 1))
-                vid_slider.setValue(pos_ms)
-                vid_slider.blockSignals(False)
-            time_label.setText(f"{fmt_ms(pos_ms)} / {fmt_ms(duration_ms)}")
-            if comp_vid_playing['v'] and not comp_vid_thread._playing:
-                comp_vid_playing['v'] = False
-                play_btn.setText("▶ Play")
-        
-        comp_vid_thread.frame_ready.connect(on_comp_frame)
-        comp_vid_thread.start()
-        
-        def toggle_play():
-            if comp_vid_playing['v']:
-                comp_vid_thread.pause()
-                comp_vid_playing['v'] = False
-                play_btn.setText("▶ Play")
-            else:
-                comp_vid_thread.play()
-                comp_vid_playing['v'] = True
-                play_btn.setText("⏸ Pause")
-        
-        def restart_vid():
-            comp_vid_thread.seek(0)
-            comp_vid_thread.play()
-            comp_vid_playing['v'] = True
-            play_btn.setText("⏸ Pause")
-        
-        def slider_pressed():
-            comp_slider_dragging['v'] = True
-        
-        def slider_released():
-            comp_slider_dragging['v'] = False
-            comp_vid_thread.seek(vid_slider.value())
-        
-        vid_slider.sliderMoved.connect(lambda pos: comp_vid_thread.seek(pos))
-        
-        play_btn.clicked.connect(toggle_play)
-        restart_btn.clicked.connect(restart_vid)
-        vid_slider.sliderPressed.connect(slider_pressed)
-        vid_slider.sliderReleased.connect(slider_released)
-        
-        # Live camera update timer
-        def update_live():
-            if self.current_camera:
-                frame = self.current_camera.capture_frame()
-                if frame is not None:
-                    if self.qr_scanner:
-                        barcode_type, _ = self.qr_scanner.get_current_barcode()
-                        scan_btn.setEnabled(barcode_type is not None)
-                    if comp_rec['active'] and comp_rec['writer']:
-                        rec_frame = frame.copy()
-                        if live_display.markers:
-                            rec_frame = self._draw_markers_on_frame(rec_frame, live_display.markers, self._get_marker_bgr_color())
-                        comp_rec['writer'].write(rec_frame)
-                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    h, w, ch = rgb.shape
-                    qimg = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888)
-                    pixmap = QPixmap.fromImage(qimg).scaled(
-                        live_display.size(), Qt.AspectRatioMode.KeepAspectRatio,
-                        Qt.TransformationMode.SmoothTransformation)
-                    live_display.set_frame(pixmap)
-        
-        live_timer = QTimer()
-        live_timer.timeout.connect(update_live)
-        live_timer.start(33)
-        
-        # Close button
-        close_btn = QPushButton("Close")
-        close_btn.setMaximumHeight(30)
-        close_btn.setStyleSheet("""
-            QPushButton { background-color: #77C25E; color: white; border: none;
-                border-radius: 3px; padding: 6px 15px; font-weight: bold; }
-            QPushButton:hover { background-color: #5FA84A; }
-        """)
-        
-        def close_dialog():
-            comp_vid_thread.stop_thread()
-            live_timer.stop()
-            if comp_rec['active'] and comp_rec['writer']:
-                comp_rec['writer'].release()
-                if comp_rec['path'] and os.path.exists(comp_rec['path']):
-                    self.recorded_videos.append(comp_rec['path'])
-            dialog.close()
-        
-        close_btn.clicked.connect(close_dialog)
-        dialog.destroyed.connect(lambda: (comp_vid_thread.stop_thread(), live_timer.stop()))
-        layout.addWidget(close_btn)
-        
-        # Size dialog
-        screen = self.screen().geometry()
-        dialog.resize(int(screen.width() * 0.8), int(screen.height() * 0.7))
-        dialog.show()
+        if has_ref_video:
+            show_video_comparison(self)
+        else:
+            show_overlay_comparison(self)
 
     # --- Reference video player methods ---
 
