@@ -78,8 +78,5 @@ class QRScannerThread(QThread):
     def stop(self):
         """Stop the scanner thread."""
         self.running = False
-        
-        if not self.wait(500):
-            print("QR scanner thread timeout, terminating...")
-            self.terminate()
-            self.wait(100)
+        if not self.wait(2000):
+            print("QR scanner thread did not stop in time, abandoning")

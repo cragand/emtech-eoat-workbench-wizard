@@ -30,7 +30,6 @@ class CameraManager:
                 cameras.append(cam)
             else:
                 cam.close()
-                break
         
         return cameras
     
