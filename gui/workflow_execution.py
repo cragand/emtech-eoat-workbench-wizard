@@ -71,6 +71,10 @@ class WorkflowExecutionScreen(QWidget):
         self.overlay_rotation = 0
         self.overlay_transparency = 100  # Default to 100% for overlays
         
+        # Cached transformed overlay to avoid recomputing every frame
+        self._overlay_cache = None  # The transformed BGRA canvas
+        self._overlay_cache_params = None  # (path, scale, x, y, rot, w, h)
+        
         # Use cached cameras if provided, otherwise discover
         self.available_cameras = cached_cameras if cached_cameras is not None else []
         self.recording_start_time = None
@@ -1232,7 +1236,8 @@ class WorkflowExecutionScreen(QWidget):
             event.accept()
         # Ctrl+Z: Undo checkbox
         elif event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
-            self.undo_checkbox_click()
+            if hasattr(self, 'reference_image') and hasattr(self.reference_image, 'undo_checkbox'):
+                self.reference_image.undo_checkbox()
             event.accept()
         else:
             super().keyPressEvent(event)
@@ -1498,6 +1503,7 @@ class WorkflowExecutionScreen(QWidget):
         """Render overlay on frame using current transform settings.
         
         Returns the blended frame with overlay applied, or original frame if overlay fails.
+        Caches the transformed overlay and only recomputes when parameters change.
         """
         if not reference_image_path or not os.path.exists(reference_image_path):
             return frame
@@ -1506,61 +1512,68 @@ class WorkflowExecutionScreen(QWidget):
             h, w = frame.shape[:2]
             
             if has_alpha:
-                # PNG with alpha channel - use transparent blending
-                ref_img = cv2.imread(reference_image_path, cv2.IMREAD_UNCHANGED)
+                scale = self.overlay_scale / 100.0
+                x_offset = self.overlay_x_offset
+                y_offset = self.overlay_y_offset
+                rotation = self.overlay_rotation
                 
-                if ref_img is not None and len(ref_img.shape) == 3 and ref_img.shape[2] == 4:
-                    # Apply transforms
-                    scale = self.overlay_scale / 100.0
-                    x_offset = self.overlay_x_offset
-                    y_offset = self.overlay_y_offset
-                    rotation = self.overlay_rotation
+                cache_key = (reference_image_path, scale, x_offset, y_offset, rotation, w, h)
+                
+                if self._overlay_cache_params != cache_key:
+                    # Recompute transformed overlay canvas
+                    ref_img = cv2.imread(reference_image_path, cv2.IMREAD_UNCHANGED)
                     
-                    # Scale
-                    new_w = int(ref_img.shape[1] * scale)
-                    new_h = int(ref_img.shape[0] * scale)
+                    if ref_img is not None and len(ref_img.shape) == 3 and ref_img.shape[2] == 4:
+                        new_w = int(ref_img.shape[1] * scale)
+                        new_h = int(ref_img.shape[0] * scale)
+                        
+                        if new_w > 0 and new_h > 0:
+                            ref_scaled = cv2.resize(ref_img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+                            
+                            if rotation != 0:
+                                center = (new_w // 2, new_h // 2)
+                                rot_matrix = cv2.getRotationMatrix2D(center, rotation, 1.0)
+                                ref_scaled = cv2.warpAffine(ref_scaled, rot_matrix, (new_w, new_h),
+                                                           borderMode=cv2.BORDER_CONSTANT, 
+                                                           borderValue=(0, 0, 0, 0))
+                            
+                            canvas = np.zeros((h, w, 4), dtype=np.uint8)
+                            x_pos = (w - new_w) // 2 + x_offset
+                            y_pos = (h - new_h) // 2 + y_offset
+                            
+                            x_start = max(0, x_pos)
+                            y_start = max(0, y_pos)
+                            x_end = min(w, x_pos + new_w)
+                            y_end = min(h, y_pos + new_h)
+                            
+                            src_x_start = max(0, -x_pos)
+                            src_y_start = max(0, -y_pos)
+                            src_x_end = src_x_start + (x_end - x_start)
+                            src_y_end = src_y_start + (y_end - y_start)
+                            
+                            if x_end > x_start and y_end > y_start:
+                                canvas[y_start:y_end, x_start:x_end] = ref_scaled[src_y_start:src_y_end, src_x_start:src_x_end]
+                            
+                            self._overlay_cache = canvas
+                            self._overlay_cache_params = cache_key
+                        else:
+                            self._overlay_cache = None
+                            self._overlay_cache_params = cache_key
+                    else:
+                        self._overlay_cache = None
+                        self._overlay_cache_params = cache_key
+                
+                # Blend cached overlay onto frame
+                if self._overlay_cache is not None:
+                    overlay_bgr = self._overlay_cache[:, :, :3]
+                    overlay_alpha = self._overlay_cache[:, :, 3].astype(float) / 255.0
+                    overlay_alpha = overlay_alpha * (self.overlay_transparency / 100.0)
+                    alpha_3ch = np.stack([overlay_alpha] * 3, axis=2)
                     
-                    if new_w > 0 and new_h > 0:
-                        ref_scaled = cv2.resize(ref_img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
-                        
-                        # Rotate
-                        if rotation != 0:
-                            center = (new_w // 2, new_h // 2)
-                            rot_matrix = cv2.getRotationMatrix2D(center, rotation, 1.0)
-                            ref_scaled = cv2.warpAffine(ref_scaled, rot_matrix, (new_w, new_h),
-                                                       borderMode=cv2.BORDER_CONSTANT, 
-                                                       borderValue=(0, 0, 0, 0))
-                        
-                        # Position on canvas
-                        canvas = np.zeros((h, w, 4), dtype=np.uint8)
-                        x_pos = (w - new_w) // 2 + x_offset
-                        y_pos = (h - new_h) // 2 + y_offset
-                        
-                        # Calculate valid regions
-                        x_start = max(0, x_pos)
-                        y_start = max(0, y_pos)
-                        x_end = min(w, x_pos + new_w)
-                        y_end = min(h, y_pos + new_h)
-                        
-                        src_x_start = max(0, -x_pos)
-                        src_y_start = max(0, -y_pos)
-                        src_x_end = src_x_start + (x_end - x_start)
-                        src_y_end = src_y_start + (y_end - y_start)
-                        
-                        if x_end > x_start and y_end > y_start:
-                            canvas[y_start:y_end, x_start:x_end] = ref_scaled[src_y_start:src_y_end, src_x_start:src_x_end]
-                        
-                        # Blend with alpha
-                        overlay_bgr = canvas[:, :, :3]
-                        overlay_alpha = canvas[:, :, 3].astype(float) / 255.0
-                        overlay_alpha = overlay_alpha * (self.overlay_transparency / 100.0)
-                        alpha_3ch = np.stack([overlay_alpha] * 3, axis=2)
-                        
-                        blended = (overlay_bgr.astype(float) * alpha_3ch + 
-                                 frame.astype(float) * (1 - alpha_3ch)).astype(np.uint8)
-                        return blended
+                    blended = (overlay_bgr.astype(float) * alpha_3ch + 
+                             frame.astype(float) * (1 - alpha_3ch)).astype(np.uint8)
+                    return blended
             else:
-                # Regular image - simple blend
                 ref_img = cv2.imread(reference_image_path)
                 if ref_img is not None:
                     ref_resized = cv2.resize(ref_img, (w, h))

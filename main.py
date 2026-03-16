@@ -1,9 +1,12 @@
 """Main application entry point."""
 import sys
 import os
+import math
 import logging
-from PyQt5.QtWidgets import QApplication, QMainWindow, QStackedWidget, QMessageBox, QPushButton, QHBoxLayout, QWidget
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QStackedWidget, QMessageBox, 
+                             QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QLabel, QDialog)
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QPointF, QRectF
+from PyQt5.QtGui import QPainter, QPainterPath, QColor, QPen, QBrush
 from gui import ModeSelectionScreen, Mode1CaptureScreen
 from gui.workflow_selection import WorkflowSelectionScreen
 from gui.workflow_execution import WorkflowExecutionScreen
@@ -13,6 +16,107 @@ from logger_config import setup_logging, get_logger
 from usb_barcode_scanner import USBBarcodeScanner
 
 logger = get_logger(__name__)
+
+
+class CameraDiscoveryThread(QThread):
+    """Discovers cameras in a background thread."""
+    cameras_found = pyqtSignal(list)
+    
+    def run(self):
+        from camera import CameraManager
+        cameras = CameraManager.discover_cameras()
+        self.cameras_found.emit(cameras)
+
+
+class GearSpinnerWidget(QWidget):
+    """Animated spinning gear widget."""
+    
+    def __init__(self, size=80, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(size, size)
+        self._angle = 0
+        self._size = size
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._rotate)
+        self._timer.start(30)
+    
+    def _rotate(self):
+        self._angle = (self._angle + 3) % 360
+        self.update()
+    
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.translate(self._size / 2, self._size / 2)
+        p.rotate(self._angle)
+        
+        r = self._size * 0.4  # outer radius
+        ir = r * 0.55  # inner radius (tooth valley)
+        hr = r * 0.3  # center hole radius
+        teeth = 8
+        
+        # Build gear path
+        path = QPainterPath()
+        for i in range(teeth):
+            a1 = math.radians(i * 360 / teeth - 360 / teeth / 4)
+            a2 = math.radians(i * 360 / teeth + 360 / teeth / 4)
+            a3 = math.radians((i + 0.5) * 360 / teeth - 360 / teeth / 4)
+            a4 = math.radians((i + 0.5) * 360 / teeth + 360 / teeth / 4)
+            
+            if i == 0:
+                path.moveTo(r * math.cos(a1), r * math.sin(a1))
+            else:
+                path.lineTo(r * math.cos(a1), r * math.sin(a1))
+            path.lineTo(r * math.cos(a2), r * math.sin(a2))
+            path.lineTo(ir * math.cos(a3), ir * math.sin(a3))
+            path.lineTo(ir * math.cos(a4), ir * math.sin(a4))
+        path.closeSubpath()
+        
+        # Cut center hole
+        hole = QPainterPath()
+        hole.addEllipse(QPointF(0, 0), hr, hr)
+        path = path.subtracted(hole)
+        
+        p.setPen(QPen(QColor("#5FA84A"), 1.5))
+        p.setBrush(QBrush(QColor("#77C25E")))
+        p.drawPath(path)
+        p.end()
+    
+    def stop(self):
+        self._timer.stop()
+
+
+class CameraDiscoveryDialog(QDialog):
+    """Modal overlay shown during camera discovery."""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent, Qt.FramelessWindowHint | Qt.Dialog)
+        self.setModal(True)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignCenter)
+        
+        self.gear = GearSpinnerWidget(80, self)
+        layout.addWidget(self.gear, alignment=Qt.AlignCenter)
+        
+        label = QLabel("Discovering cameras...")
+        label.setStyleSheet("color: #77C25E; font-size: 16px; font-weight: bold; background: transparent;")
+        label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label)
+        
+        self.setFixedSize(250, 160)
+    
+    def showEvent(self, event):
+        # Center on parent
+        if self.parent():
+            pr = self.parent().geometry()
+            self.move(pr.center() - self.rect().center())
+        super().showEvent(event)
+    
+    def closeEvent(self, event):
+        self.gear.stop()
+        super().closeEvent(event)
 
 class MainWindow(QMainWindow):
     """Main application window."""
@@ -29,11 +133,9 @@ class MainWindow(QMainWindow):
         # Cache discovered cameras (shared across all screens)
         self.cached_cameras = None
         
-        # Create central widget with layout for stack and theme button
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
-        from PyQt5.QtWidgets import QVBoxLayout
         main_layout = QVBoxLayout(central_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
@@ -207,25 +309,28 @@ class MainWindow(QMainWindow):
 
 def main():
     """Application entry point."""
-    # Initialize logging first
     setup_logging()
     logger.info("Starting Camera QC Application")
     
     try:
         app = QApplication(sys.argv)
-        
-        # Apply initial theme (light mode)
         app.setStyleSheet(theme_manager.get_stylesheet())
         
         window = MainWindow()
-        
-        # Discover cameras once at startup (cached for all screens)
-        logger.info("Discovering cameras at startup...")
-        from camera import CameraManager
-        window.cached_cameras = CameraManager.discover_cameras()
-        logger.info(f"Found {len(window.cached_cameras)} camera(s)")
-        
         window.show()
+        
+        # Discover cameras in background thread with spinner
+        discovery_dialog = CameraDiscoveryDialog(window)
+        discovery_thread = CameraDiscoveryThread()
+        
+        def on_cameras_found(cameras):
+            window.cached_cameras = cameras
+            logger.info(f"Found {len(cameras)} camera(s)")
+            discovery_dialog.close()
+        
+        discovery_thread.cameras_found.connect(on_cameras_found)
+        discovery_thread.start()
+        discovery_dialog.exec_()
         
         logger.info("Application window displayed successfully")
         sys.exit(app.exec_())
