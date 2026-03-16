@@ -13,6 +13,9 @@ import platform
 from datetime import datetime
 from camera import CameraManager
 from reports import generate_reports
+from logger_config import get_logger
+
+logger = get_logger(__name__)
 from gui.annotatable_preview import AnnotatablePreview
 from gui.review_captures_dialog import ReviewCapturesDialog
 from gui.camera_settings_dialog import CameraSettingsDialog
@@ -632,7 +635,12 @@ class Mode1CaptureScreen(QWidget):
         if not self.current_camera:
             return
         
-        frame = self.current_camera.capture_frame()
+        try:
+            frame = self.current_camera.capture_frame()
+        except Exception as e:
+            logger.error(f"Camera read error: {e}")
+            frame = None
+        
         if frame is not None:
             self._consecutive_frame_failures = 0
             
