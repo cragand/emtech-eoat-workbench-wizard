@@ -210,6 +210,7 @@ def show_overlay_comparison(screen):
     # Capture button
     capture_btn = QPushButton("📷 Capture Image")
     capture_btn.setMinimumHeight(35)
+    capture_btn.setToolTip("Capture an image from the camera (Space)")
     capture_btn.setStyleSheet("""
         QPushButton {
             background-color: #77C25E; color: white; border: none;
@@ -290,6 +291,7 @@ def show_overlay_comparison(screen):
     scan_btn = QPushButton("📱 Scan Barcode/QR")
     scan_btn.setMinimumHeight(35)
     scan_btn.setEnabled(False)
+    scan_btn.setToolTip("Scan a barcode or QR code (B)")
     scan_btn.setStyleSheet("""
         QPushButton {
             background-color: #FF9800; color: white; border: none;
@@ -304,6 +306,7 @@ def show_overlay_comparison(screen):
     # Record button
     record_btn = QPushButton("🔴 Start Recording")
     record_btn.setMinimumHeight(35)
+    record_btn.setToolTip("Start/stop video recording (R)")
     comparison_recording = {'active': False, 'writer': None, 'path': None, 'start_time': None}
 
     def toggle_comparison_recording():
@@ -627,5 +630,21 @@ def show_overlay_comparison(screen):
     else:
         scr = screen.screen().geometry()
         dialog.resize(int(scr.width() * 0.7), int(scr.height() * 0.6))
+
+    # Keyboard shortcuts
+    def dialog_key_press(event):
+        if event.key() == Qt.Key_Space and capture_btn.isEnabled():
+            capture_from_comparison()
+            event.accept()
+        elif event.key() == Qt.Key_R and record_btn.isEnabled():
+            toggle_comparison_recording()
+            event.accept()
+        elif event.key() == Qt.Key_B and scan_btn.isEnabled():
+            screen.scan_barcode()
+            event.accept()
+        else:
+            QDialog.keyPressEvent(dialog, event)
+
+    dialog.keyPressEvent = dialog_key_press
 
     dialog.show()

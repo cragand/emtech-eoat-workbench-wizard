@@ -233,6 +233,7 @@ class Mode1CaptureScreen(QWidget):
         
         self.capture_button = QPushButton("Capture Image")
         self.capture_button.setMinimumHeight(40)
+        self.capture_button.setToolTip("Capture an image from the camera (Space)")
         self.capture_button.clicked.connect(self.capture_image)
         self.capture_button.setEnabled(False)
         button_layout.addWidget(self.capture_button)
@@ -240,6 +241,7 @@ class Mode1CaptureScreen(QWidget):
         self.scan_button = QPushButton("Scan Barcode/QR")
         self.scan_button.setMinimumHeight(40)
         self.scan_button.setMaximumWidth(150)
+        self.scan_button.setToolTip("Scan a barcode or QR code (B)")
         self.scan_button.setStyleSheet("""
             QPushButton {
                 background-color: #FF9800;
@@ -262,6 +264,7 @@ class Mode1CaptureScreen(QWidget):
         
         self.record_button = QPushButton("🔴 Start Recording")
         self.record_button.setMinimumHeight(40)
+        self.record_button.setToolTip("Start/stop video recording (R)")
         self.record_button.setStyleSheet("""
             QPushButton {
                 background-color: #DC3545;
@@ -358,6 +361,23 @@ class Mode1CaptureScreen(QWidget):
         layout.addWidget(self.status_label)
         
         self.setLayout(layout)
+    
+    def keyPressEvent(self, event):
+        """Handle keyboard shortcuts."""
+        # Space: Capture image
+        if event.key() == Qt.Key_Space and self.capture_button.isEnabled() and not self.notes_input.hasFocus():
+            self.capture_image()
+            event.accept()
+        # R: Toggle recording
+        elif event.key() == Qt.Key_R and self.record_button.isEnabled() and not self.notes_input.hasFocus():
+            self.toggle_recording()
+            event.accept()
+        # B: Scan barcode
+        elif event.key() == Qt.Key_B and self.scan_button.isEnabled() and not self.notes_input.hasFocus():
+            self.scan_barcode()
+            event.accept()
+        else:
+            super().keyPressEvent(event)
     
     def discover_cameras(self):
         """Discover available cameras."""

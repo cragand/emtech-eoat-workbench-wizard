@@ -547,6 +547,7 @@ class WorkflowExecutionScreen(QWidget):
         # Capture button
         self.capture_button = QPushButton("Capture Image")
         self.capture_button.setMinimumHeight(40)
+        self.capture_button.setToolTip("Capture an image from the camera (Space)")
         self.capture_button.clicked.connect(self.capture_image)
         self.capture_button.setEnabled(False)
         capture_layout.addWidget(self.capture_button)
@@ -555,6 +556,7 @@ class WorkflowExecutionScreen(QWidget):
         self.scan_button = QPushButton("Scan Barcode/QR")
         self.scan_button.setMinimumHeight(40)
         self.scan_button.setMaximumWidth(150)
+        self.scan_button.setToolTip("Scan a barcode or QR code (B)")
         self.scan_button.clicked.connect(self.scan_barcode)
         self.scan_button.setEnabled(False)
         self.scan_button.setStyleSheet("""
@@ -578,6 +580,7 @@ class WorkflowExecutionScreen(QWidget):
         # Record button
         self.record_button = QPushButton("🔴 Start Recording")
         self.record_button.setMinimumHeight(40)
+        self.record_button.setToolTip("Start/stop video recording (R)")
         self.record_button.clicked.connect(self.toggle_recording)
         self.record_button.setEnabled(False)
         self.record_button.setStyleSheet("""
@@ -673,6 +676,7 @@ class WorkflowExecutionScreen(QWidget):
         self.prev_button = QPushButton("← Previous Step")
         self.prev_button.setMinimumHeight(50)
         self.prev_button.setFocusPolicy(Qt.NoFocus)
+        self.prev_button.setToolTip("Go to the previous step")
         self.prev_button.setStyleSheet("""
             QPushButton {
                 background-color: #666666;
@@ -695,6 +699,7 @@ class WorkflowExecutionScreen(QWidget):
         self.next_button = QPushButton("Next Step →")
         self.next_button.setMinimumHeight(50)
         self.next_button.setFocusPolicy(Qt.NoFocus)
+        self.next_button.setToolTip("Advance to the next step (Enter)")
         self.next_button.setStyleSheet("""
             QPushButton {
                 background-color: #77C25E;
@@ -717,6 +722,7 @@ class WorkflowExecutionScreen(QWidget):
         self.finish_button = QPushButton("Finish Workflow")
         self.finish_button.setMinimumHeight(50)
         self.finish_button.setFocusPolicy(Qt.NoFocus)
+        self.finish_button.setToolTip("Complete the workflow and generate report (Enter)")
         self.finish_button.setStyleSheet("""
             QPushButton {
                 background-color: #4CAF50;
@@ -1239,7 +1245,7 @@ class WorkflowExecutionScreen(QWidget):
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts."""
         # Space: Capture image
-        if event.key() == Qt.Key_Space and self.capture_button.isEnabled():
+        if event.key() == Qt.Key_Space and self.capture_button.isEnabled() and not self.notes_input.hasFocus():
             self.capture_image()
             event.accept()
         # Enter/Return: Advance to next step (only if not typing in notes)
@@ -1248,6 +1254,14 @@ class WorkflowExecutionScreen(QWidget):
                 self.finish_workflow()
             elif self.next_button.isEnabled():
                 self.next_step()
+            event.accept()
+        # R: Toggle recording
+        elif event.key() == Qt.Key_R and self.record_button.isEnabled() and not self.notes_input.hasFocus():
+            self.toggle_recording()
+            event.accept()
+        # B: Scan barcode
+        elif event.key() == Qt.Key_B and self.scan_button.isEnabled() and not self.notes_input.hasFocus():
+            self.scan_barcode()
             event.accept()
         # Ctrl+Z: Undo checkbox
         elif event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
