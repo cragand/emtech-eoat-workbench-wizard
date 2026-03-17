@@ -1045,118 +1045,170 @@ class WorkflowEditorScreen(QWidget):
             QMessageBox.critical(self, "Export Failed", f"Failed to export workflow:\n{e}")
     
     def import_workflow(self):
-        """Import workflow from a zip file."""
+        """Import workflow from a zip package or JSON file."""
         # Ask user to select file
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "Import Workflow",
             "",
-            "Workflow Package (*.zip)"
+            "Workflow Files (*.zip *.json);;Workflow Package (*.zip);;Workflow JSON (*.json)"
         )
         
         if not file_path:
             return
         
         try:
-            # Determine resource directory based on mode
-            if self.mode_number == 2:
-                resource_dir = "resources/qc_reference_images"
+            if file_path.lower().endswith('.json'):
+                self._import_workflow_json(file_path)
             else:
-                resource_dir = "resources/maintenance_reference_images"
-            
-            # Create absolute paths
-            app_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            resource_abs_path = os.path.join(app_root, resource_dir)
-            os.makedirs(resource_abs_path, exist_ok=True)
-            
-            # Extract and validate zip
-            with zipfile.ZipFile(file_path, 'r') as zipf:
-                # Check for required files
-                if 'workflow.json' not in zipf.namelist():
-                    raise ValueError("Invalid workflow package: missing workflow.json")
-                
-                # Read manifest if available
-                manifest = None
-                if 'manifest.json' in zipf.namelist():
-                    manifest_data = zipf.read('manifest.json')
-                    manifest = json.loads(manifest_data)
-                    
-                    # Check mode compatibility
-                    if manifest.get('mode') != self.mode_number:
-                        mode_name = "QC" if self.mode_number == 2 else "Maintenance"
-                        reply = QMessageBox.question(
-                            self,
-                            "Mode Mismatch",
-                            f"This workflow was exported from a different mode.\n\n"
-                            f"Current mode: {mode_name}\n"
-                            f"Workflow mode: {'QC' if manifest.get('mode') == 2 else 'Maintenance'}\n\n"
-                            f"Import anyway?",
-                            QMessageBox.Yes | QMessageBox.No
-                        )
-                        if reply != QMessageBox.Yes:
-                            return
-                
-                # Read workflow JSON
-                workflow_data = zipf.read('workflow.json')
-                workflow = json.loads(workflow_data)
-                
-                # Check for name conflict
-                workflow_name = workflow.get('name', 'imported_workflow')
-                safe_name = workflow_name.replace(' ', '_').lower()
+                self._import_workflow_zip(file_path)
+        except Exception as e:
+            QMessageBox.critical(self, "Import Failed", f"Failed to import workflow:\n{e}")
+
+    def _import_workflow_json(self, file_path):
+        """Import a raw workflow JSON file."""
+        with open(file_path, 'r', encoding='utf-8') as f:
+            workflow = json.load(f)
+
+        if not isinstance(workflow, dict) or 'steps' not in workflow:
+            raise ValueError("Invalid workflow file: must contain a 'steps' array")
+
+        workflow_name = workflow.get('name', os.path.splitext(os.path.basename(file_path))[0])
+        workflow.setdefault('name', workflow_name)
+        safe_name = workflow_name.replace(' ', '_').lower()
+        target_path = os.path.join(self.workflow_dir, f"{safe_name}.json")
+
+        if os.path.exists(target_path):
+            reply = QMessageBox.question(
+                self, "Workflow Exists",
+                f"A workflow named '{workflow_name}' already exists.\n\nOverwrite it?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                safe_name = f"{safe_name}_{timestamp}"
+                workflow['name'] = f"{workflow_name} ({timestamp})"
                 target_path = os.path.join(self.workflow_dir, f"{safe_name}.json")
+
+        # Check for reference images with invalid paths
+        missing_images = []
+        for step in workflow.get('steps', []):
+            ref = step.get('reference_image', '')
+            if ref and not os.path.exists(ref):
+                missing_images.append(f"Step '{step.get('title', '?')}': {ref}")
+
+        with open(target_path, 'w', encoding='utf-8') as f:
+            json.dump(workflow, f, indent=2)
+
+        self.load_workflows()
+
+        msg = f"Workflow imported successfully!\n\nName: {workflow['name']}\nSteps: {len(workflow.get('steps', []))}"
+        if missing_images:
+            msg += f"\n\n⚠️ {len(missing_images)} reference image(s) not found:\n"
+            msg += "\n".join(missing_images[:5])
+            if len(missing_images) > 5:
+                msg += f"\n...and {len(missing_images) - 5} more"
+            msg += "\n\nYou can update image paths in the workflow editor."
+        QMessageBox.information(self, "Import Successful", msg)
+
+    def _import_workflow_zip(self, file_path):
+        """Import workflow from a zip package with bundled images."""
+        # Determine resource directory based on mode
+        if self.mode_number == 2:
+            resource_dir = "resources/qc_reference_images"
+        else:
+            resource_dir = "resources/maintenance_reference_images"
+        
+        # Create absolute paths
+        app_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        resource_abs_path = os.path.join(app_root, resource_dir)
+        os.makedirs(resource_abs_path, exist_ok=True)
+        
+        # Extract and validate zip
+        with zipfile.ZipFile(file_path, 'r') as zipf:
+            # Check for required files
+            if 'workflow.json' not in zipf.namelist():
+                raise ValueError("Invalid workflow package: missing workflow.json")
+            
+            # Read manifest if available
+            manifest = None
+            if 'manifest.json' in zipf.namelist():
+                manifest_data = zipf.read('manifest.json')
+                manifest = json.loads(manifest_data)
                 
-                if os.path.exists(target_path):
+                # Check mode compatibility
+                if manifest.get('mode') != self.mode_number:
+                    mode_name = "QC" if self.mode_number == 2 else "Maintenance"
                     reply = QMessageBox.question(
                         self,
-                        "Workflow Exists",
-                        f"A workflow named '{workflow_name}' already exists.\n\n"
-                        f"Overwrite it?",
+                        "Mode Mismatch",
+                        f"This workflow was exported from a different mode.\n\n"
+                        f"Current mode: {mode_name}\n"
+                        f"Workflow mode: {'QC' if manifest.get('mode') == 2 else 'Maintenance'}\n\n"
+                        f"Import anyway?",
                         QMessageBox.Yes | QMessageBox.No
                     )
                     if reply != QMessageBox.Yes:
-                        # Append timestamp to make unique
-                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                        safe_name = f"{safe_name}_{timestamp}"
-                        workflow['name'] = f"{workflow_name} ({timestamp})"
-                        target_path = os.path.join(self.workflow_dir, f"{safe_name}.json")
-                
-                # Extract images and update paths
-                image_mapping = {}
-                for item in zipf.namelist():
-                    if item.startswith('images/'):
-                        img_filename = os.path.basename(item)
-                        target_img_path = os.path.join(resource_abs_path, img_filename)
-                        
-                        # Extract image
-                        with zipf.open(item) as source, open(target_img_path, 'wb') as target:
-                            shutil.copyfileobj(source, target)
-                        
-                        # Store mapping for path updates
-                        image_mapping[img_filename] = os.path.join(resource_dir, img_filename)
-                
-                # Update reference image paths in workflow
-                for step in workflow.get('steps', []):
-                    ref_image = step.get('reference_image', '')
-                    if ref_image:
-                        img_filename = os.path.basename(ref_image)
-                        if img_filename in image_mapping:
-                            step['reference_image'] = image_mapping[img_filename]
-                
-                # Save workflow
-                with open(target_path, 'w') as f:
-                    json.dump(workflow, f, indent=2)
-                
-                # Reload workflows list
-                self.load_workflows()
-                
-                QMessageBox.information(
+                        return
+            
+            # Read workflow JSON
+            workflow_data = zipf.read('workflow.json')
+            workflow = json.loads(workflow_data)
+            
+            # Check for name conflict
+            workflow_name = workflow.get('name', 'imported_workflow')
+            safe_name = workflow_name.replace(' ', '_').lower()
+            target_path = os.path.join(self.workflow_dir, f"{safe_name}.json")
+            
+            if os.path.exists(target_path):
+                reply = QMessageBox.question(
                     self,
-                    "Import Successful",
-                    f"Workflow imported successfully!\n\n"
-                    f"Name: {workflow['name']}\n"
-                    f"Images imported: {len(image_mapping)}\n"
-                    f"Steps: {len(workflow.get('steps', []))}"
+                    "Workflow Exists",
+                    f"A workflow named '{workflow_name}' already exists.\n\n"
+                    f"Overwrite it?",
+                    QMessageBox.Yes | QMessageBox.No
                 )
-        
-        except Exception as e:
-            QMessageBox.critical(self, "Import Failed", f"Failed to import workflow:\n{e}")
+                if reply != QMessageBox.Yes:
+                    # Append timestamp to make unique
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    safe_name = f"{safe_name}_{timestamp}"
+                    workflow['name'] = f"{workflow_name} ({timestamp})"
+                    target_path = os.path.join(self.workflow_dir, f"{safe_name}.json")
+            
+            # Extract images and update paths
+            image_mapping = {}
+            for item in zipf.namelist():
+                if item.startswith('images/'):
+                    img_filename = os.path.basename(item)
+                    target_img_path = os.path.join(resource_abs_path, img_filename)
+                    
+                    # Extract image
+                    with zipf.open(item) as source, open(target_img_path, 'wb') as target:
+                        shutil.copyfileobj(source, target)
+                    
+                    # Store mapping for path updates
+                    image_mapping[img_filename] = os.path.join(resource_dir, img_filename)
+            
+            # Update reference image paths in workflow
+            for step in workflow.get('steps', []):
+                ref_image = step.get('reference_image', '')
+                if ref_image:
+                    img_filename = os.path.basename(ref_image)
+                    if img_filename in image_mapping:
+                        step['reference_image'] = image_mapping[img_filename]
+            
+            # Save workflow
+            with open(target_path, 'w') as f:
+                json.dump(workflow, f, indent=2)
+            
+            # Reload workflows list
+            self.load_workflows()
+            
+            QMessageBox.information(
+                self,
+                "Import Successful",
+                f"Workflow imported successfully!\n\n"
+                f"Name: {workflow['name']}\n"
+                f"Images imported: {len(image_mapping)}\n"
+                f"Steps: {len(workflow.get('steps', []))}"
+            )
