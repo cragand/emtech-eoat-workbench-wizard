@@ -255,7 +255,8 @@ class MainWindow(QMainWindow):
             workflow_path, 
             self.current_serial,
             self.current_technician,
-            self.current_description
+            self.current_description,
+            cached_cameras=self.cached_cameras
         )
         self.current_mode_widget.back_requested.connect(self.return_to_mode_selection)
         
@@ -311,6 +312,15 @@ def main():
     """Application entry point."""
     setup_logging()
     logger.info("Starting Camera QC Application")
+
+    # Global exception hook — log crashes that would otherwise be silent
+    def _unhandled_exception(exc_type, exc_value, exc_tb):
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc_value, exc_tb)
+            return
+        logger.critical("Unhandled exception", exc_info=(exc_type, exc_value, exc_tb))
+
+    sys.excepthook = _unhandled_exception
     
     try:
         app = QApplication(sys.argv)

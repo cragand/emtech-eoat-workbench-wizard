@@ -25,6 +25,20 @@ if [ ! -d "venv" ]; then
         exit 1
     fi
     
+    # Try to install pyzbar for barcode scanning (optional)
+    echo
+    echo "Installing optional barcode scanning support..."
+    pip install pyzbar >/dev/null 2>&1
+    if python -c "from pyzbar import pyzbar" >/dev/null 2>&1; then
+        echo "Barcode/QR scanning support installed successfully."
+    else
+        echo "NOTE: Camera-based barcode/QR scanning is not available on this system."
+        echo "      USB handheld barcode scanners will still work."
+        echo "      The app will work fine without camera-based scanning."
+        echo "      To enable it, install the zbar library:"
+        echo "      sudo apt-get install libzbar0  (Debian/Ubuntu)"
+    fi
+    
     echo
     echo "Setup complete!"
     echo

@@ -33,8 +33,17 @@ class QRScannerThread(QThread):
         
         try:
             from pyzbar import pyzbar
-        except ImportError:
-            print("pyzbar not available, barcode scanning disabled")
+        except Exception as e:
+            import platform
+            print(f"pyzbar not available: {e}")
+            print("Camera-based barcode/QR scanning disabled (USB handheld scanners still work)")
+            if platform.system() == "Windows":
+                print("To enable camera-based scanning, install the ZBar Windows package from:")
+                print("  https://sourceforge.net/projects/zbar/files/zbar/0.10/zbar-0.10-setup.exe/download")
+                print("Then restart the application.")
+            else:
+                print("To enable camera-based scanning, install libzbar0:")
+                print("  sudo apt-get install libzbar0  (Debian/Ubuntu)")
             return
         
         while self.running:

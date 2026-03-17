@@ -27,6 +27,21 @@ if not exist venv (
         exit /b 1
     )
     
+    REM Try to install pyzbar for barcode scanning (optional)
+    echo.
+    echo Installing optional barcode scanning support...
+    pip install pyzbar>nul 2>&1
+    python -c "from pyzbar import pyzbar" >nul 2>&1
+    if errorlevel 1 (
+        echo NOTE: Camera-based barcode/QR scanning is not available on this system.
+        echo       USB handheld barcode scanners will still work.
+        echo       The app will work fine without camera-based scanning.
+        echo       To enable it, install the ZBar library from:
+        echo       https://sourceforge.net/projects/zbar/files/zbar/0.10/
+    ) else (
+        echo Barcode/QR scanning support installed successfully.
+    )
+    
     echo.
     echo Setup complete!
     echo.

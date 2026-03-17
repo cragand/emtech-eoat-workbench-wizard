@@ -35,7 +35,7 @@ try:
     QR_SCANNER_AVAILABLE = True
 except ImportError:
     QR_SCANNER_AVAILABLE = False
-    logger.warning("QR scanner not available")
+    logger.warning("QR scanner not available - camera-based barcode scanning disabled (USB handheld scanners still work)")
     QRScannerThread = None
 
 
@@ -71,6 +71,9 @@ class WorkflowExecutionScreen(QWidget):
         self.current_video_path = None
         self.recorded_videos = []  # List of recorded video paths
         
+        # Cached per-step overlay flag (set in show_current_step, used in update_frame)
+        self._step_has_alpha = False
+
         # Overlay transform state (persistent across views)
         self.overlay_scale = 100
         self.overlay_x_offset = 0
@@ -831,19 +834,14 @@ class WorkflowExecutionScreen(QWidget):
                 if self.qr_scanner:
                     self.qr_scanner.update_frame(frame)
                 
-                # Check if current step has PNG overlay with alpha
-                has_overlay = False
-                has_alpha = False
-                if self.workflow and self.reference_image_path and os.path.exists(self.reference_image_path):
-                    ref_test = cv2.imread(self.reference_image_path, cv2.IMREAD_UNCHANGED)
-                    has_alpha = ref_test is not None and len(ref_test.shape) == 3 and ref_test.shape[2] == 4
-                    # Only apply overlay if checkbox is not checked (i.e., not hidden)
-                    has_overlay = has_alpha and not self.hide_overlay_checkbox.isChecked()
+                # Use cached alpha flag (set in show_current_step) instead of re-reading image every frame
+                has_overlay = (self._step_has_alpha and self.reference_image_path
+                               and not self.hide_overlay_checkbox.isChecked())
                 
                 # Apply overlay if present and not hidden
                 display_frame = frame.copy()
                 if has_overlay:
-                    display_frame = self._render_overlay_on_frame(display_frame, self.reference_image_path, has_alpha)
+                    display_frame = self._render_overlay_on_frame(display_frame, self.reference_image_path, True)
                 
                 # If recording, write frame with overlay and annotations to video
                 if self.is_recording and self.video_writer:
@@ -1029,9 +1027,14 @@ class WorkflowExecutionScreen(QWidget):
             self.reference_image.set_image_and_checkboxes(ref_image_path, checkbox_data)
             self.compare_button.setEnabled(True)
             
-            # Update button label based on image type
-            ref_test = cv2.imread(ref_image_path, cv2.IMREAD_UNCHANGED)
-            has_alpha = ref_test is not None and len(ref_test.shape) == 3 and ref_test.shape[2] == 4
+            # Check image type and cache the result for update_frame/capture_image
+            try:
+                ref_test = cv2.imread(ref_image_path, cv2.IMREAD_UNCHANGED)
+                has_alpha = ref_test is not None and len(ref_test.shape) == 3 and ref_test.shape[2] == 4
+            except Exception as e:
+                logger.warning(f"Could not read reference image for alpha check: {e}")
+                has_alpha = False
+            self._step_has_alpha = has_alpha
             if has_alpha:
                 self.compare_button.setText("⚙️ Overlay Settings/Zoom View")
                 self.hide_overlay_checkbox.setVisible(True)
@@ -1050,6 +1053,7 @@ class WorkflowExecutionScreen(QWidget):
         else:
             # Clear reference image completely
             self.reference_image_path = None
+            self._step_has_alpha = False
             self.reference_image.image_pixmap = None
             self.reference_image.checkboxes = []
             self.reference_image.clear()
@@ -1282,11 +1286,8 @@ class WorkflowExecutionScreen(QWidget):
         
         frame = self.current_camera.capture_frame()
         if frame is not None:
-            # Check if current step has PNG overlay with alpha
-            has_alpha = False
-            if self.workflow and self.reference_image_path and os.path.exists(self.reference_image_path):
-                ref_test = cv2.imread(self.reference_image_path, cv2.IMREAD_UNCHANGED)
-                has_alpha = ref_test is not None and len(ref_test.shape) == 3 and ref_test.shape[2] == 4
+            # Use cached alpha flag instead of re-reading image
+            has_alpha = self._step_has_alpha
             
             # Apply overlay if present and not hidden
             if has_alpha and not self.hide_overlay_checkbox.isChecked():
