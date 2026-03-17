@@ -545,7 +545,7 @@ class WorkflowExecutionScreen(QWidget):
         capture_layout = QHBoxLayout()
         
         # Capture button
-        self.capture_button = QPushButton("Capture Image")
+        self.capture_button = QPushButton("Capture Image (Space)")
         self.capture_button.setMinimumHeight(40)
         self.capture_button.setToolTip("Capture an image from the camera (Space)")
         self.capture_button.clicked.connect(self.capture_image)
@@ -553,9 +553,9 @@ class WorkflowExecutionScreen(QWidget):
         capture_layout.addWidget(self.capture_button)
         
         # Scan barcode button
-        self.scan_button = QPushButton("Scan Barcode/QR")
+        self.scan_button = QPushButton("Scan Barcode/QR (B)")
         self.scan_button.setMinimumHeight(40)
-        self.scan_button.setMaximumWidth(150)
+        self.scan_button.setMaximumWidth(180)
         self.scan_button.setToolTip("Scan a barcode or QR code (B)")
         self.scan_button.clicked.connect(self.scan_barcode)
         self.scan_button.setEnabled(False)
@@ -578,7 +578,7 @@ class WorkflowExecutionScreen(QWidget):
         capture_layout.addWidget(self.scan_button)
         
         # Record button
-        self.record_button = QPushButton("🔴 Start Recording")
+        self.record_button = QPushButton("🔴 Start Recording (R)")
         self.record_button.setMinimumHeight(40)
         self.record_button.setToolTip("Start/stop video recording (R)")
         self.record_button.clicked.connect(self.toggle_recording)
@@ -696,7 +696,7 @@ class WorkflowExecutionScreen(QWidget):
         self.prev_button.clicked.connect(self.previous_step)
         nav_layout.addWidget(self.prev_button)
         
-        self.next_button = QPushButton("Next Step →")
+        self.next_button = QPushButton("Next Step → (Enter)")
         self.next_button.setMinimumHeight(50)
         self.next_button.setFocusPolicy(Qt.NoFocus)
         self.next_button.setToolTip("Advance to the next step (Enter)")
@@ -719,7 +719,7 @@ class WorkflowExecutionScreen(QWidget):
         self.next_button.clicked.connect(self.next_step)
         nav_layout.addWidget(self.next_button)
         
-        self.finish_button = QPushButton("Finish Workflow")
+        self.finish_button = QPushButton("Finish Workflow (Enter)")
         self.finish_button.setMinimumHeight(50)
         self.finish_button.setFocusPolicy(Qt.NoFocus)
         self.finish_button.setToolTip("Complete the workflow and generate report (Enter)")
@@ -923,7 +923,7 @@ class WorkflowExecutionScreen(QWidget):
                 self.is_recording = True
                 self.recording_start_time = datetime.now()
                 self.recording_indicator.setVisible(True)
-                self.record_button.setText("⏹ Stop Recording")
+                self.record_button.setText("⏹ Stop Recording (R)")
                 self.record_button.setStyleSheet("""
                     QPushButton {
                         background-color: #28A745;
@@ -946,7 +946,7 @@ class WorkflowExecutionScreen(QWidget):
                 
                 self.is_recording = False
                 self.recording_indicator.setVisible(False)
-                self.record_button.setText("🔴 Start Recording")
+                self.record_button.setText("🔴 Start Recording (R)")
                 self.record_button.setStyleSheet("""
                     QPushButton {
                         background-color: #DC3545;

@@ -208,7 +208,7 @@ def show_overlay_comparison(screen):
     action_layout = QHBoxLayout()
 
     # Capture button
-    capture_btn = QPushButton("📷 Capture Image")
+    capture_btn = QPushButton("📷 Capture Image (Space)")
     capture_btn.setMinimumHeight(35)
     capture_btn.setToolTip("Capture an image from the camera (Space)")
     capture_btn.setStyleSheet("""
@@ -288,7 +288,7 @@ def show_overlay_comparison(screen):
     action_layout.addWidget(capture_btn)
 
     # Scan button
-    scan_btn = QPushButton("📱 Scan Barcode/QR")
+    scan_btn = QPushButton("📱 Scan Barcode/QR (B)")
     scan_btn.setMinimumHeight(35)
     scan_btn.setEnabled(False)
     scan_btn.setToolTip("Scan a barcode or QR code (B)")
@@ -304,7 +304,7 @@ def show_overlay_comparison(screen):
     action_layout.addWidget(scan_btn)
 
     # Record button
-    record_btn = QPushButton("🔴 Start Recording")
+    record_btn = QPushButton("🔴 Start Recording (R)")
     record_btn.setMinimumHeight(35)
     record_btn.setToolTip("Start/stop video recording (R)")
     comparison_recording = {'active': False, 'writer': None, 'path': None, 'start_time': None}
@@ -331,7 +331,7 @@ def show_overlay_comparison(screen):
                 comparison_recording['path'] = video_path
                 comparison_recording['start_time'] = datetime.now()
 
-                record_btn.setText("⏹ Stop Recording")
+                record_btn.setText("⏹ Stop Recording (R)")
                 record_btn.setStyleSheet("""
                     QPushButton {
                         background-color: #28A745; color: white; border: none;
@@ -345,7 +345,7 @@ def show_overlay_comparison(screen):
                     comparison_recording['writer'].release()
 
                 comparison_recording['active'] = False
-                record_btn.setText("🔴 Start Recording")
+                record_btn.setText("🔴 Start Recording (R)")
                 record_btn.setStyleSheet("""
                     QPushButton {
                         background-color: #DC3545; color: white; border: none;

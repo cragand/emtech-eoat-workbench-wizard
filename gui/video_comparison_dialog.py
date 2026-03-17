@@ -110,7 +110,7 @@ def show_video_comparison(screen):
     # Action buttons
     action_layout = QHBoxLayout()
 
-    capture_btn = QPushButton("📷 Capture Image")
+    capture_btn = QPushButton("📷 Capture Image (Space)")
     capture_btn.setMinimumHeight(35)
     capture_btn.setToolTip("Capture an image from the camera (Space)")
     capture_btn.setStyleSheet("""
@@ -149,7 +149,7 @@ def show_video_comparison(screen):
     capture_btn.clicked.connect(capture_from_video_comparison)
     action_layout.addWidget(capture_btn)
 
-    scan_btn = QPushButton("📱 Scan Barcode/QR")
+    scan_btn = QPushButton("📱 Scan Barcode/QR (B)")
     scan_btn.setMinimumHeight(35)
     scan_btn.setEnabled(False)
     scan_btn.setToolTip("Scan a barcode or QR code (B)")
@@ -162,7 +162,7 @@ def show_video_comparison(screen):
     scan_btn.clicked.connect(screen.scan_barcode)
     action_layout.addWidget(scan_btn)
 
-    record_btn = QPushButton("🔴 Start Recording")
+    record_btn = QPushButton("🔴 Start Recording (R)")
     record_btn.setMinimumHeight(35)
     record_btn.setToolTip("Start/stop video recording (R)")
     record_btn.setStyleSheet("""
@@ -185,7 +185,7 @@ def show_video_comparison(screen):
                 if not writer.isOpened():
                     raise Exception("Failed to init video writer")
                 comp_rec.update({'active': True, 'writer': writer, 'path': video_path})
-                record_btn.setText("⏹ Stop Recording")
+                record_btn.setText("⏹ Stop Recording (R)")
                 record_btn.setStyleSheet("""
                     QPushButton { background-color: #28A745; color: white; border: none;
                         border-radius: 3px; padding: 8px 15px; font-weight: bold; }
@@ -195,7 +195,7 @@ def show_video_comparison(screen):
                 if comp_rec['writer']:
                     comp_rec['writer'].release()
                 comp_rec['active'] = False
-                record_btn.setText("🔴 Start Recording")
+                record_btn.setText("🔴 Start Recording (R)")
                 record_btn.setStyleSheet("""
                     QPushButton { background-color: #DC3545; color: white; border: none;
                         border-radius: 3px; padding: 8px 15px; font-weight: bold; }

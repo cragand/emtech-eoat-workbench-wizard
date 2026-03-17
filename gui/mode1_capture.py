@@ -231,16 +231,16 @@ class Mode1CaptureScreen(QWidget):
         # Capture/Scan/Record buttons below camera
         button_layout = QHBoxLayout()
         
-        self.capture_button = QPushButton("Capture Image")
+        self.capture_button = QPushButton("Capture Image (Space)")
         self.capture_button.setMinimumHeight(40)
         self.capture_button.setToolTip("Capture an image from the camera (Space)")
         self.capture_button.clicked.connect(self.capture_image)
         self.capture_button.setEnabled(False)
         button_layout.addWidget(self.capture_button)
         
-        self.scan_button = QPushButton("Scan Barcode/QR")
+        self.scan_button = QPushButton("Scan Barcode/QR (B)")
         self.scan_button.setMinimumHeight(40)
-        self.scan_button.setMaximumWidth(150)
+        self.scan_button.setMaximumWidth(180)
         self.scan_button.setToolTip("Scan a barcode or QR code (B)")
         self.scan_button.setStyleSheet("""
             QPushButton {
@@ -262,7 +262,7 @@ class Mode1CaptureScreen(QWidget):
         self.scan_button.setEnabled(False)
         button_layout.addWidget(self.scan_button)
         
-        self.record_button = QPushButton("🔴 Start Recording")
+        self.record_button = QPushButton("🔴 Start Recording (R)")
         self.record_button.setMinimumHeight(40)
         self.record_button.setToolTip("Start/stop video recording (R)")
         self.record_button.setStyleSheet("""
@@ -858,7 +858,7 @@ class Mode1CaptureScreen(QWidget):
             self.current_video_timestamp = timestamp
             
             self.is_recording = True
-            self.record_button.setText("⏹ Stop Recording")
+            self.record_button.setText("⏹ Stop Recording (R)")
             self.capture_button.setEnabled(False)
             self.status_label.setText(f"Recording: {filename}")
         else:
@@ -891,7 +891,7 @@ class Mode1CaptureScreen(QWidget):
             self.notes_input.clear()
             self.preview_label.clear_markers()
             
-            self.record_button.setText("🔴 Start Recording")
+            self.record_button.setText("🔴 Start Recording (R)")
             self.capture_button.setEnabled(True)
             self.status_label.setText(f"Recording stopped (Total: {len(self.captured_images)})")
     
