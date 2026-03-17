@@ -18,7 +18,7 @@ This is a Python-based quality control and maintenance application designed for 
 ## Technology Stack
 - **GUI Framework**: PyQt5 (Python 3.7 compatible)
 - **Camera**: OpenCV (webcam and USB borescope only - NO Basler/pypylon)
-- **QR Scanning**: pyzbar (passive background scanning, optional)
+- **QR Scanning**: pyzbar (optional — camera-based scanning requires native ZBar library; gracefully disabled if unavailable)
 - **Reporting**: reportlab 3.6.x (PDF), python-docx (DOCX generation)
 - **Image Processing**: Pillow, OpenCV
 - **Video**: MP4 codec with H264 encoding
@@ -54,10 +54,18 @@ This is a Python-based quality control and maintenance application designed for 
 - Uses relative coordinates for resolution independence
 
 #### QR Code Scanner (`qr_scanner.py`)
+- Camera-based barcode scanning using pyzbar (optional — gracefully disabled if native ZBar library missing)
 - Runs passively in background thread when camera is active
 - Automatically detects and reads QR codes
 - Appends scanned data to serial number field (or sets it if empty)
 - Works across all modes without user intervention
+- Uses broad `except Exception` to handle missing DLLs (e.g., libiconv.dll, libzbar-64.dll on Windows)
+
+#### USB Barcode Scanner (`usb_barcode_scanner.py`)
+- Supports USB handheld barcode scanners in HID keyboard emulation mode
+- No native libraries required — works on all platforms
+- Intercepts rapid keyboard input to distinguish scanner from human typing
+- Independent of pyzbar — works even when camera-based scanning is unavailable
 
 #### Workflow System (`workflows/`)
 - JSON-based workflow definitions

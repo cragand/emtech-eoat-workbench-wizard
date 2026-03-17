@@ -471,9 +471,15 @@ Workflows are stored as JSON files in the `workflows/` directory.
 
 Scan barcodes and QR codes during any workflow step or general capture (if pyzbar library installed).
 
-**Installation:**
+**Two scanning methods:**
+- **Camera-based scanning**: Uses pyzbar to detect barcodes in the camera feed (requires native ZBar library)
+- **USB handheld scanner**: Works automatically with any USB barcode scanner in HID keyboard mode (no extra software needed)
+
+**Camera-based scanning installation:**
 - Linux: `sudo apt-get install libzbar0`
-- Windows: Not available in standard repos (optional feature)
+- Windows: Download and install ZBar from https://sourceforge.net/projects/zbar/files/zbar/0.10/zbar-0.10-setup.exe/download
+
+> **Note:** If camera-based scanning is not available, the app will still work — the scan button will be disabled but USB handheld scanners function independently.
 
 **Supported Formats:**
 - QR Code
@@ -559,8 +565,10 @@ Scan barcodes and QR codes during any workflow step or general capture (if pyzba
 - Pillow: Image manipulation
 - reportlab: PDF generation
 - python-docx: DOCX generation
-- pyzbar: Barcode/QR code scanning (optional - supports QR, EAN, Code128, DataMatrix, etc.)
+- pyzbar: Camera-based barcode/QR scanning (optional — requires native ZBar library; see Optional Features)
 - numpy: Array operations
+
+> **Note:** USB handheld barcode scanners work without pyzbar — they use HID keyboard emulation handled by `usb_barcode_scanner.py`.
 
 ## Project Structure
 
