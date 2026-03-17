@@ -146,7 +146,7 @@ class PDFReportGenerator:
                     status = "✓ Pass" if item.get('passed', False) else "✗ Fail"
                 else:
                     status = "✓ Complete"
-                summary_table_data.append([item['name'], status])
+                summary_table_data.append([Paragraph(item['name'], self.styles['Normal']), status])
             
             summary_table = Table(summary_table_data, colWidths=[4*inch, 2*inch])
             summary_table.setStyle(TableStyle([
@@ -176,7 +176,7 @@ class PDFReportGenerator:
                     status = "✓ Complete"
                     status_color = colors.HexColor('#81C784')  # Light green
                 
-                step_table_data = [[item['name'], status]]
+                step_table_data = [[Paragraph(f"<font color='white'>{item['name']}</font>", self.styles['Normal']), status]]
                 step_table = Table(step_table_data, colWidths=[4*inch, 2*inch])
                 step_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4a4a4a')),
