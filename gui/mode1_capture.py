@@ -37,6 +37,7 @@ class Mode1CaptureScreen(QWidget):
     
     def __init__(self, serial_number: str, technician: str, description: str):
         super().__init__()
+        self.setFocusPolicy(Qt.StrongFocus)
         self.serial_number = serial_number
         self.technician = technician
         self.description = description
@@ -62,6 +63,9 @@ class Mode1CaptureScreen(QWidget):
         
         self.init_ui()
         self.discover_cameras()
+        
+        # Set focus to this widget so keyboard shortcuts work immediately
+        self.setFocus()
     
     def _sanitize_filename(self, filename):
         """Remove invalid characters from filename."""
@@ -117,6 +121,7 @@ class Mode1CaptureScreen(QWidget):
                 background-color: #222222;
             }
         """)
+        self.back_button.setFocusPolicy(Qt.NoFocus)
         self.back_button.clicked.connect(self.on_back_clicked)
         header_layout.addWidget(self.back_button)
         
@@ -149,6 +154,7 @@ class Mode1CaptureScreen(QWidget):
         # Camera settings button
         self.camera_settings_button = QPushButton("⚙️ Settings")
         self.camera_settings_button.setMaximumWidth(100)
+        self.camera_settings_button.setFocusPolicy(Qt.NoFocus)
         self.camera_settings_button.setStyleSheet("""
             QPushButton {
                 background-color: #2196F3;
@@ -178,6 +184,7 @@ class Mode1CaptureScreen(QWidget):
         # Overlay mask editor button
         self.mask_editor_button = QPushButton("🎭 Create Overlay Mask")
         self.mask_editor_button.setMaximumWidth(200)
+        self.mask_editor_button.setFocusPolicy(Qt.NoFocus)
         self.mask_editor_button.setStyleSheet("""
             QPushButton {
                 background-color: #9C27B0;
@@ -197,6 +204,7 @@ class Mode1CaptureScreen(QWidget):
         review_layout.addStretch()
         self.review_button = QPushButton("📋 Review Captures")
         self.review_button.setMaximumWidth(180)
+        self.review_button.setFocusPolicy(Qt.NoFocus)
         self.review_button.setStyleSheet("""
             QPushButton {
                 background-color: #77C25E;
@@ -233,6 +241,7 @@ class Mode1CaptureScreen(QWidget):
         
         self.capture_button = QPushButton("Capture Image (Space)")
         self.capture_button.setMinimumHeight(40)
+        self.capture_button.setFocusPolicy(Qt.NoFocus)
         self.capture_button.setToolTip("Capture an image from the camera (Space)")
         self.capture_button.clicked.connect(self.capture_image)
         self.capture_button.setEnabled(False)
@@ -241,6 +250,7 @@ class Mode1CaptureScreen(QWidget):
         self.scan_button = QPushButton("Scan Barcode/QR (B)")
         self.scan_button.setMinimumHeight(40)
         self.scan_button.setMaximumWidth(180)
+        self.scan_button.setFocusPolicy(Qt.NoFocus)
         self.scan_button.setToolTip("Scan a barcode or QR code (B)")
         self.scan_button.setStyleSheet("""
             QPushButton {
@@ -264,6 +274,7 @@ class Mode1CaptureScreen(QWidget):
         
         self.record_button = QPushButton("🔴 Start Recording (R)")
         self.record_button.setMinimumHeight(40)
+        self.record_button.setFocusPolicy(Qt.NoFocus)
         self.record_button.setToolTip("Start/stop video recording (R)")
         self.record_button.setStyleSheet("""
             QPushButton {
@@ -293,6 +304,7 @@ class Mode1CaptureScreen(QWidget):
         annotation_label.setStyleSheet("font-weight: bold;")
         
         self.clear_markers_button = QPushButton("Clear Markers")
+        self.clear_markers_button.setFocusPolicy(Qt.NoFocus)
         self.clear_markers_button.setStyleSheet("""
             QPushButton {
                 background-color: #FF6B6B;
@@ -312,6 +324,7 @@ class Mode1CaptureScreen(QWidget):
         self.marker_color_button = QPushButton("🎨 Marker Color")
         self.marker_color_button.setFixedHeight(self.clear_markers_button.sizeHint().height())
         self.marker_color_button.setMaximumWidth(120)
+        self.marker_color_button.setFocusPolicy(Qt.NoFocus)
         self.marker_color_button.setToolTip("Change annotation arrow color")
         self._update_marker_color_button()
         self.marker_color_button.clicked.connect(self._pick_marker_color)
@@ -335,6 +348,7 @@ class Mode1CaptureScreen(QWidget):
         self.overlay_label.setStyleSheet("color: #666666; font-size: 10px;")
         self.overlay_clear_button = QPushButton("✕")
         self.overlay_clear_button.setMaximumWidth(30)
+        self.overlay_clear_button.setFocusPolicy(Qt.NoFocus)
         self.overlay_clear_button.setToolTip("Remove overlay")
         self.overlay_clear_button.setVisible(False)
         self.overlay_clear_button.clicked.connect(self._clear_overlay)

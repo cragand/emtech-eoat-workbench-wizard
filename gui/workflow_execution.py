@@ -400,6 +400,7 @@ class WorkflowExecutionScreen(QWidget):
         # Review captures button (right-aligned)
         self.review_button = QPushButton("📋 Review Captures")
         self.review_button.setMaximumWidth(180)
+        self.review_button.setFocusPolicy(Qt.NoFocus)
         self.review_button.setStyleSheet("""
             QPushButton {
                 background-color: #77C25E;
@@ -547,6 +548,7 @@ class WorkflowExecutionScreen(QWidget):
         # Capture button
         self.capture_button = QPushButton("Capture Image (Space)")
         self.capture_button.setMinimumHeight(40)
+        self.capture_button.setFocusPolicy(Qt.NoFocus)
         self.capture_button.setToolTip("Capture an image from the camera (Space)")
         self.capture_button.clicked.connect(self.capture_image)
         self.capture_button.setEnabled(False)
@@ -556,6 +558,7 @@ class WorkflowExecutionScreen(QWidget):
         self.scan_button = QPushButton("Scan Barcode/QR (B)")
         self.scan_button.setMinimumHeight(40)
         self.scan_button.setMaximumWidth(180)
+        self.scan_button.setFocusPolicy(Qt.NoFocus)
         self.scan_button.setToolTip("Scan a barcode or QR code (B)")
         self.scan_button.clicked.connect(self.scan_barcode)
         self.scan_button.setEnabled(False)
@@ -580,6 +583,7 @@ class WorkflowExecutionScreen(QWidget):
         # Record button
         self.record_button = QPushButton("🔴 Start Recording (R)")
         self.record_button.setMinimumHeight(40)
+        self.record_button.setFocusPolicy(Qt.NoFocus)
         self.record_button.setToolTip("Start/stop video recording (R)")
         self.record_button.clicked.connect(self.toggle_recording)
         self.record_button.setEnabled(False)
