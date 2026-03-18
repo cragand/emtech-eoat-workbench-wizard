@@ -13,7 +13,7 @@ This is a Python-based quality control and maintenance application designed for 
 - Guide technicians through maintenance/repair procedures
 - Capture images/video during processes for documentation
 - Generate PDF/DOCX reports with captured media and workflow results
-- Track work by serial number (optional) with QR code scanning support
+- Track work by serial number and technician name with QR code scanning support
 
 ## Technology Stack
 - **GUI Framework**: PyQt5 (Python 3.7 compatible)
@@ -36,15 +36,29 @@ This is a Python-based quality control and maintenance application designed for 
 - **camera_interface.py** - Abstract base class for camera implementations
 - **opencv_camera.py** - OpenCV camera implementation (webcam/borescope)
 - **camera_manager.py** - Discovers and manages available cameras
+- **camera_config_manager.py** - Camera settings profiles (Logitech, Microsoft, borescope, generic) and per-camera persistence
 - Uses OpenCV VideoCapture for all camera access
+- Discovered cameras are cached in `MainWindow.cached_cameras` and shared across mode switches to avoid re-discovery
+- Async camera discovery with `CameraDiscoveryThread` and `GearSpinnerWidget` loading animation
 
 #### GUI (`gui/`)
-- **mode_selection.py** - Initial screen for mode selection and job info entry
+- **mode_selection.py** - Initial screen for mode selection, job info entry, and `SerialScanDialog` for barcode-based serial number input
 - **mode1_capture.py** - General capture interface with annotations
 - **workflow_selection.py** - Workflow selection screen for Mode 2/3
 - **workflow_execution.py** - Step-by-step workflow execution with split-screen view
 - **workflow_editor.py** - Password-protected workflow editor with unsaved changes protection
 - **annotatable_preview.py** - Camera preview widget with annotation system
+- **mask_editor.py** - Overlay mask creation tool
+- **camera_settings_dialog.py** - Camera settings UI (brightness, contrast, resolution, etc.)
+- **review_captures_dialog.py** - Dialog for reviewing/editing captured images and videos
+- **overlay_comparison_dialog.py** - Side-by-side overlay comparison view
+- **video_comparison_dialog.py** - Side-by-side video comparison view
+- **comparison_dialog.py** - Full-size reference image view
+- **overlay_renderer.py** - Shared overlay/marker rendering functions
+- **video_decoder.py** - Threaded OpenCV video decoder (`VideoDecoderThread`)
+- **checkbox_widgets.py** - Interactive inspection checkbox widgets (`InteractiveReferenceImage`, `CombinedReferenceImage`)
+- **workflow_progress.py** - Progress save/load/clear functions
+- **workflow_report.py** - Report generation and display helpers
 
 #### Annotation System
 - Rotatable arrow markers with sequential labels (A, B, C...)
@@ -120,6 +134,21 @@ This is a Python-based quality control and maintenance application designed for 
 - Users can toggle overlay on/off at any time without losing the overlay path
 - Overlay scales to fit camera frame using PNG alpha channel blending
 
+#### Mode Selection Screen (`gui/mode_selection.py`)
+- Required fields: serial number, technician name; optional: description
+- **SerialScanDialog**: Opens camera preview for scanning serial number via barcode/QR code
+- **View Reports button**: Opens `output/reports/` folder in system file explorer
+- **Check for Updates button**: Runs `git fetch`/`git log` to check for and apply updates
+- **Resume Incomplete Workflow button**: Lists saved progress files with delete option
+- **Camera Settings button**: Opens `CameraSettingsDialog` for camera configuration
+
+#### Review Captures (`gui/review_captures_dialog.py`)
+- Dialog for reviewing all captured images and videos during a session
+- Thumbnail list with full-size preview
+- Edit per-image notes after capture
+- Delete unwanted captures
+- Shows step context for Mode 2/3 captures
+
 #### Workflow Editor
 - Password-protected (default: "admin")
 - Create, edit, delete workflows
@@ -137,6 +166,31 @@ This is a Python-based quality control and maintenance application designed for 
 - Professional layout with tables, styling, and automatic pagination
 - Procedure summary table with step status (Complete/Pass/Fail)
 - Reference images with inspection checkboxes in reports
+
+#### Theme System (`theme_manager.py`)
+- `ThemeManager` class with light and dark mode stylesheets
+- Toggle via "🌙 Dark Mode" / "☀️ Light Mode" button in top bar of `MainWindow`
+- Uses Emtech brand colors (green #77C25E, hover #5FA84A, pressed #4D8A3C)
+- Applied globally to all widgets and dialogs
+
+#### Logging (`logger_config.py`)
+- Daily log files in `logs/` directory (auto-created)
+- Filename format: `camera_qc_YYYYMMDD.log`
+- Logs to both file and console
+- Third-party loggers (PIL, matplotlib) set to WARNING to reduce noise
+- All modules use `get_logger(name)` for module-specific loggers
+
+#### Global Exception Hook
+- `main.py` installs `sys.excepthook` to catch unhandled exceptions
+- Logs full tracebacks to prevent silent crashes
+- Ensures errors are captured in log files for troubleshooting
+
+#### Keyboard Shortcuts
+- Space: Capture image (Mode 1, Mode 2/3, comparison dialogs)
+- R: Toggle video recording
+- B: Scan barcode/QR code
+- All buttons use `Qt.NoFocus` policy to prevent Space from activating focused buttons
+- Capture widgets use `Qt.StrongFocus` to receive key events
 
 #### Progress Save/Resume
 - Automatic progress saving during workflow execution
@@ -161,23 +215,27 @@ output/
 └── progress/                 # Workflow progress files (auto-cleanup 30+ days)
 ```
 
-## Serial Number Handling
-- **Optional** - User can proceed without entering a serial number
-- Can be manually entered at startup
-- Can be automatically populated by QR code scanner
+## Serial Number & Technician Handling
+- **Required** - Both serial number and technician name must be entered before starting
+- Serial number can be manually entered at startup
+- Serial number can be scanned via the "Scan Serial QR/Barcode" button on the mode selection screen (opens `SerialScanDialog` with camera preview)
+- Can also be scanned by USB handheld barcode scanner on the mode selection screen
 - Multiple QR scans append to existing serial number with underscore separator
 - Used for organizing output files and in report generation
-- Defaults to "unknown" for file organization if not provided
+- Technician name is included in reports and progress files
 
 ## Current Implementation Status
 
 ### ✅ Fully Implemented
 - All three operating modes (Mode 1, 2, 3)
-- Mode selection screen with optional serial number
+- Mode selection screen with required serial number and technician name
+- Serial number scanning via camera (SerialScanDialog) or USB handheld scanner
+- Dark/light mode theme toggle
 - Camera discovery and management (OpenCV only)
-- Multi-camera support (auto-discovery)
+- Multi-camera support (auto-discovery with async loading spinner)
+- Camera settings dialog with profiles and per-camera persistence
 - Passive QR code scanning across all modes (optional, graceful degradation)
-- Annotation system with variable-length rotatable arrows
+- Annotation system with variable-length rotatable arrows and color picker
 - Image capture with annotations
 - Video recording with annotation overlays (MP4/H264)
 - Workflow JSON parsing and execution
@@ -190,11 +248,17 @@ output/
 - Step requirements validation (photo/annotations/pass-fail)
 - Workflow editor with password protection
 - Unsaved changes protection in editor
+- Workflow import/export (zip packages and direct JSON)
 - Progress save/resume functionality
 - Progress file management (delete selected, auto-cleanup)
+- Review captures dialog (edit notes, delete captures)
 - PDF and DOCX report generation
 - Procedure summary tables with status indicators
-- Comprehensive logging and error handling
+- View Reports button (opens reports folder in file explorer)
+- Check for Updates button (git-based)
+- Keyboard shortcuts (Space/R/B) across all capture views
+- Comprehensive logging to daily log files
+- Global exception hook for crash prevention
 - File organization by serial number
 
 ## Important Design Decisions
@@ -217,6 +281,7 @@ output/
 - Markers overlaid on videos in real-time during recording
 - Variable arrow length (50-300px) adjustable with Shift+Scroll
 - Sequential labeling (A, B, C...) with automatic reordering on deletion
+- Customizable marker color via color picker button (default red)
 
 ### Video Recording
 - MP4 container with H264 codec for compatibility
@@ -267,11 +332,12 @@ output/
 - Markers stored as list of dicts: {label, x, y, angle, length}
 - Coordinates are relative (0.0-1.0) to image dimensions
 - Drawing handled in `annotatable_preview.py`
-- Video overlay rendering in `workflow_execution.py`
+- Shared rendering functions in `gui/overlay_renderer.py`
+- Color picker in Mode 1 (`mode1_capture.py`) and Mode 2/3 (`workflow_execution.py`)
 
 ## Common Pitfall Warnings
 - ⚠️ Do NOT add pypylon or Basler camera support
-- ⚠️ Serial number is OPTIONAL - never require it
+- ⚠️ Serial number and technician name are REQUIRED - validated before starting any mode
 - ⚠️ QR scanner must run in separate thread (don't block UI)
 - ⚠️ Always stop QR scanner thread in cleanup/closeEvent
 - ⚠️ Camera indices may not be sequential - test each index
@@ -294,6 +360,34 @@ output/
 - Test inspection checkbox state preservation in fullsize view
 
 ## Recent Enhancements
+
+### 2026-03-17: Polish, Hardening & Import Improvements
+- **Keyboard Shortcuts**: Space (capture), R (record), B (barcode scan) across all capture views
+- **Focus Management**: NoFocus on buttons, StrongFocus on capture widgets to prevent Space activating Back button
+- **Shortcut Labels**: Keyboard shortcuts shown in button text (e.g., "📸 Capture Image (Space)")
+- **Direct JSON Import**: Workflow editor can now import `.json` files directly, not just `.zip` packages
+- **PDF Fix**: Long step titles wrap in table cells instead of clipping
+- **pyzbar DLL Crash Fix**: Graceful handling of missing native ZBar libraries
+- **Global Exception Hook**: `sys.excepthook` installed to catch and log unhandled exceptions
+
+### 2026-03-16: Major Refactor & Stability
+- **Module Extraction**: Extracted 5 modules from `workflow_execution.py` (3383→1936 lines): `overlay_comparison_dialog.py`, `overlay_renderer.py`, `video_comparison_dialog.py`, `workflow_progress.py`, `workflow_report.py`
+- **Overlay Transform Persistence**: Per-step overlay transforms saved to workflow JSON and persist across sessions
+- **Async Camera Discovery**: Background thread with gear spinner animation during camera detection
+- **Ctrl+Z Crash Fix**: Fixed undo crash in mask editor
+- **Camera Disconnect Handling**: Detect and recover from camera disconnects during capture
+
+### 2026-03-12: Camera Reliability & Code Quality
+- **Silent Camera Failure Prevention**: Detect double-open, handle disconnects gracefully
+- **Module Extraction**: Extracted `checkbox_widgets.py`, `comparison_dialog.py`, `video_decoder.py` from `workflow_execution.py`
+- **Bare Except Cleanup**: Replaced bare `except:` clauses with specific exception handling
+
+### 2026-03-11: Reference Video & USB Barcode Scanner
+- **USB HID Barcode Scanner**: Global keystroke interceptor for handheld scanners (`usb_barcode_scanner.py`)
+- **Reference Videos in Workflows**: Steps can include reference videos with built-in player
+- **VideoDecoderThread**: Background OpenCV decoder for smooth playback without codec dependencies
+- **Video Comparison Dialog**: Side-by-side reference video + live camera with capture/record
+- **Video Player Iteration**: Went through QMediaPlayer → OpenCV threaded decoder for cross-platform reliability
 
 ### 2026-03-10: Reference Video Support & Mode 1 Overlay Tools
 - **Reference Videos in Workflows**: Steps can now include reference videos (mp4, avi, mov, etc.) alongside reference images

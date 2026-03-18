@@ -112,6 +112,46 @@ pip install -r requirements.txt
 python main.py
 ```
 
+## Application Features
+
+### Mode Selection Screen
+
+The main screen where you configure each session before starting.
+
+**Required Fields:**
+- **Serial Number**: Identifies the unit being worked on. Can be typed manually or scanned via the "Scan Serial QR/Barcode" button, which opens a camera preview for barcode scanning.
+- **Technician Name**: Name of the person performing the work.
+- **Description**: Purpose of the work session (optional but recommended).
+
+**Bottom Bar Buttons:**
+- **⚙️ Camera Settings**: Open camera configuration dialog (brightness, contrast, resolution, etc.)
+- **📁 View Reports**: Open the `output/reports/` folder in your system file explorer
+- **📂 Resume Incomplete Workflow**: Resume a previously saved workflow session
+- **🔄 Check for Updates**: Check for and apply updates via git (requires git-based installation)
+
+### Dark/Light Mode
+
+Toggle between light and dark themes using the "🌙 Dark Mode" / "☀️ Light Mode" button in the top-right corner. The theme applies to all screens and dialogs. Uses Emtech brand green (#77C25E) for accent colors.
+
+### Camera Settings
+
+Accessible from the mode selection screen or within any capture view via the ⚙️ button.
+
+- Adjust brightness, contrast, saturation, sharpness, exposure, focus, and white balance
+- Built-in camera profiles for Logitech, Microsoft, borescope, and generic webcams
+- Factory reset to restore default settings
+- Restart camera to apply changes
+- Settings are saved per camera and persist across sessions
+
+### Review Captures
+
+Click "📋 Review Captures" during any session to open a dialog showing all captured images and videos.
+
+- Thumbnail list with preview
+- Edit per-image notes after capture
+- View full-size images
+- Delete unwanted captures
+
 ## Application Modes
 
 ### Mode 1: General Image Capture
@@ -129,7 +169,7 @@ Free-form capture mode for quick documentation.
 - Generate PDF and DOCX reports
 
 **How to use:**
-1. Enter serial number (optional) and description
+1. Enter serial number, technician name, and description
 2. Select Mode 1 and click Start
 3. Choose camera from dropdown
 4. Add annotations by clicking on preview
@@ -172,7 +212,7 @@ Guided quality control workflows with step-by-step instructions.
 - Workflow completion checklist in report
 
 **How to use:**
-1. Enter serial number and description
+1. Enter serial number, technician name, and description
 2. Select Mode 2 and click Start
 3. Choose a workflow from the list
 4. Click "Start Workflow"
@@ -343,7 +383,7 @@ The annotation system allows you to mark specific features in images.
 
 **Markers:**
 - Labeled sequentially: A, B, C, D...
-- Red arrows with white label circles
+- Colored arrows with white label circles (default red, customizable via color picker)
 - Rotatable in any direction (0-360°)
 - Saved with images
 - Included in reports
@@ -360,7 +400,7 @@ Professional PDF and DOCX reports are generated with all captured data.
 
 **Report Contents:**
 - **Header**: Emtech EOAT Report - Inspection/QC/Maintenance
-- **Session Information**: Serial number, description, date/time
+- **Session Information**: Serial number, technician name, description, date/time
 - **Workflow Info**: Workflow name (Mode 2/3 only)
 - **Procedure Summary**: Quick overview table of all steps and their status (Mode 2/3 only)
 - **Procedure Steps**: Detailed view of each step with:
@@ -378,11 +418,6 @@ Professional PDF and DOCX reports are generated with all captured data.
 - **✓ Complete** (light green) - Step completed without pass/fail criteria
 - **✓ Pass** (green) - Step passed inspection (all checkboxes checked or explicitly marked pass)
 - **✗ Fail** (red) - Step failed inspection (incomplete checkboxes or explicitly marked fail)
-- **Images**: All captured images with:
-  - Camera source
-  - Per-image notes
-  - Annotation markers
-  - Step context (Mode 2/3)
 
 **Report Location:**
 - Saved to `output/reports/`
@@ -512,6 +547,12 @@ Scan barcodes and QR codes during any workflow step or general capture (if pyzba
 
 ## Keyboard Shortcuts
 
+**All capture views (Mode 1, Mode 2/3, Comparison dialogs):**
+- **Space**: Capture image
+- **R**: Toggle video recording
+- **B**: Scan barcode/QR code
+
+**General:**
 - **Esc**: Close current dialog
 - **Enter**: Confirm dialog (when focused)
 
@@ -550,6 +591,11 @@ Scan barcodes and QR codes during any workflow step or general capture (if pyzba
 - Ensure markers are placed before capturing
 - Check markers are visible in preview
 
+**Application logs:**
+- Log files are written to the `logs/` directory (created automatically)
+- Daily log files named `camera_qc_YYYYMMDD.log`
+- Contains detailed error information for troubleshooting
+
 ## System Requirements
 
 - **Python**: 3.7+ (3.13+ recommended)
@@ -575,27 +621,54 @@ Scan barcodes and QR codes during any workflow step or general capture (if pyzba
 ```
 camera_qc_app/
 ├── main.py                          # Application entry point
+├── theme_manager.py                 # Light/dark mode theme system
+├── logger_config.py                 # Logging configuration
+├── qr_scanner.py                    # Camera-based QR/barcode scanner thread
+├── usb_barcode_scanner.py           # USB HID barcode scanner interceptor
 ├── requirements.txt                 # Python dependencies
+├── runEEWW.bat / runEEWW.sh         # Quick-start launcher scripts
+├── updateEEWW.bat / updateEEWW.sh   # Update scripts (git-based)
 ├── camera/                          # Camera abstraction layer
 │   ├── camera_interface.py         # Base camera interface
 │   ├── opencv_camera.py            # OpenCV implementation
-│   └── camera_manager.py           # Camera discovery
+│   ├── camera_manager.py           # Camera discovery
+│   └── camera_config_manager.py    # Camera settings profiles and persistence
 ├── gui/                             # GUI modules
-│   ├── mode_selection.py           # Mode selection screen
+│   ├── mode_selection.py           # Mode selection screen + serial scan dialog
 │   ├── mode1_capture.py            # Mode 1 interface
-│   ├── workflow_selection.py       # Workflow selection
-│   ├── workflow_execution.py       # Step-by-step execution
-│   ├── workflow_editor.py          # Workflow editor
+│   ├── workflow_selection.py       # Workflow selection for Mode 2/3
+│   ├── workflow_execution.py       # Step-by-step workflow execution
+│   ├── workflow_editor.py          # Workflow editor with import/export
+│   ├── annotatable_preview.py      # Camera preview with annotation system
 │   ├── mask_editor.py              # Overlay mask creation tool
-│   └── annotatable_preview.py      # Camera preview with annotations
+│   ├── camera_settings_dialog.py   # Camera settings UI
+│   ├── review_captures_dialog.py   # Review/edit captured images dialog
+│   ├── overlay_comparison_dialog.py # Side-by-side overlay comparison view
+│   ├── video_comparison_dialog.py  # Side-by-side video comparison view
+│   ├── comparison_dialog.py        # Full-size reference image view
+│   ├── overlay_renderer.py         # Shared overlay/marker rendering functions
+│   ├── video_decoder.py            # Threaded OpenCV video decoder
+│   ├── checkbox_widgets.py         # Interactive inspection checkbox widgets
+│   ├── workflow_progress.py        # Progress save/load/clear functions
+│   └── workflow_report.py          # Report generation and display
 ├── workflows/                       # Workflow definitions
+│   ├── workflow_loader.py          # Workflow JSON loader
 │   ├── qc_workflows/               # QC workflows (JSON)
 │   └── maintenance_workflows/      # Maintenance workflows (JSON)
-├── reports/                         # PDF report generator
-│   └── pdf_generator.py
+├── reports/                         # Report generators
+│   ├── report_generator.py         # Factory for PDF/DOCX generation
+│   ├── pdf_generator.py            # PDF report generation (reportlab)
+│   └── docx_generator.py           # DOCX report generation (python-docx)
+├── resources/                       # Static resources
+│   ├── overlay_masks/              # Saved overlay mask PNGs
+│   ├── qc_reference_images/        # QC workflow reference images
+│   └── maintenance_reference_images/ # Maintenance reference images
+├── settings/                        # Saved camera settings (JSON)
+├── logs/                            # Application log files (daily)
 └── output/                          # Generated files
-    ├── captured_images/
-    └── reports/
+    ├── captured_images/             # Images organized by serial number
+    ├── reports/                     # Generated PDF/DOCX reports
+    └── progress/                    # Workflow progress files
 ```
 
 ## Version History
