@@ -552,7 +552,7 @@ class WorkflowEditorScreen(QWidget):
         self.export_workflow_btn.setEnabled(False)
         wf_btn_layout.addWidget(self.export_workflow_btn)
         
-        self.export_instructions_btn = QPushButton("📋 Export Instructions")
+        self.export_instructions_btn = QPushButton("📋 Export as Document")
         self.export_instructions_btn.setStyleSheet("""
             QPushButton {
                 background-color: #FF9800;

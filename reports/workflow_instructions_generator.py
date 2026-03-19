@@ -122,11 +122,19 @@ def generate_workflow_instructions(workflow, output_dir="output/reports"):
         
         # Overview table
         if steps:
-            overview_data = [["#", "Step", "Requirements"]]
+            cell_style = ParagraphStyle('CellStyle', parent=styles['Normal'], fontSize=9, leading=11)
+            header_style = ParagraphStyle('HeaderCell', parent=cell_style, textColor=colors.whitesmoke, fontName='Helvetica-Bold')
+            overview_data = [
+                [Paragraph("#", header_style), Paragraph("Step", header_style), Paragraph("Requirements", header_style)]
+            ]
             for i, step in enumerate(steps):
                 reqs = _get_requirements_list(step)
                 req_text = ", ".join(reqs) if reqs else "None"
-                overview_data.append([str(i + 1), step.get('title', f'Step {i+1}'), req_text])
+                overview_data.append([
+                    str(i + 1),
+                    Paragraph(step.get('title', f'Step {i+1}'), cell_style),
+                    Paragraph(req_text, cell_style)
+                ])
             
             overview_table = Table(overview_data, colWidths=[0.4*inch, 3.1*inch, 2.5*inch])
             overview_table.setStyle(TableStyle([
