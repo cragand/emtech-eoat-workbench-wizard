@@ -10,6 +10,8 @@ from datetime import datetime
 from camera import CameraManager
 from gui.camera_settings_dialog import CameraSettingsDialog
 from theme_manager import theme_manager
+from workflows.workflow_loader import WorkflowLoader
+from reports.workflow_instructions_generator import generate_workflow_instructions
 
 # Optional barcode scanner support
 try:
@@ -199,6 +201,13 @@ class ModeSelectionScreen(QWidget):
         self.view_reports_button.clicked.connect(self.on_view_reports_clicked)
         bottom_buttons_layout.addWidget(self.view_reports_button)
         
+        # Workflow Instruction Documents button
+        self.instructions_button = QPushButton("📋 Workflow Instruction Documents")
+        self.instructions_button.setMaximumHeight(30)
+        self._update_instructions_button_style()
+        self.instructions_button.clicked.connect(self.on_instructions_clicked)
+        bottom_buttons_layout.addWidget(self.instructions_button)
+        
         # Resume button - small and unobtrusive
         self.resume_button = QPushButton("📂 Resume Incomplete Workflow")
         self.resume_button.setMaximumHeight(30)
@@ -272,6 +281,41 @@ class ModeSelectionScreen(QWidget):
             """)
         else:
             self.update_button.setStyleSheet("""
+                QPushButton {
+                    background-color: transparent;
+                    color: #888888;
+                    border: 1px solid #888888;
+                    border-radius: 3px;
+                    padding: 5px 10px;
+                    font-size: 10px;
+                }
+                QPushButton:hover {
+                    background-color: #f0f0f0;
+                    color: #555555;
+                    border-color: #555555;
+                }
+            """)
+
+    def _update_instructions_button_style(self):
+        """Apply theme-aware style to the instructions button."""
+        if theme_manager.dark_mode:
+            self.instructions_button.setStyleSheet("""
+                QPushButton {
+                    background-color: transparent;
+                    color: #AAAAAA;
+                    border: 1px solid #AAAAAA;
+                    border-radius: 3px;
+                    padding: 5px 10px;
+                    font-size: 10px;
+                }
+                QPushButton:hover {
+                    background-color: #3A3A3A;
+                    color: #E0E0E0;
+                    border-color: #E0E0E0;
+                }
+            """)
+        else:
+            self.instructions_button.setStyleSheet("""
                 QPushButton {
                     background-color: transparent;
                     color: #888888;
@@ -379,6 +423,121 @@ class ModeSelectionScreen(QWidget):
                 subprocess.Popen(["xdg-open", reports_dir])
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Could not open reports folder:\n{str(e)}")
+    
+    def on_instructions_clicked(self):
+        """Open workflow picker dialog and generate instruction PDF."""
+        loader = WorkflowLoader()
+        qc_workflows = loader.get_qc_workflows()
+        maint_workflows = loader.get_maintenance_workflows()
+        
+        if not qc_workflows and not maint_workflows:
+            QMessageBox.information(self, "No Workflows", 
+                "No workflows found. Create workflows in Mode 2 or Mode 3 first.")
+            return
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Workflow Instruction Documents")
+        dialog.setMinimumSize(450, 400)
+        dlayout = QVBoxLayout(dialog)
+        
+        dlayout.addWidget(QLabel("Select a workflow to generate a printable instruction document:"))
+        
+        workflow_list = QListWidget()
+        workflow_map = {}  # list index -> workflow dict
+        
+        if qc_workflows:
+            header = QListWidgetItem("── QC Workflows ──")
+            header.setFlags(Qt.NoItemFlags)
+            header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+            workflow_list.addItem(header)
+            for wf in qc_workflows:
+                name = wf.get('name', os.path.basename(wf.get('_file_path', 'Unknown')))
+                desc = wf.get('description', '')
+                steps = len(wf.get('steps', []))
+                item = QListWidgetItem(f"  {name}  ({steps} steps)")
+                if desc:
+                    item.setToolTip(desc)
+                workflow_list.addItem(item)
+                workflow_map[workflow_list.count() - 1] = wf
+        
+        if maint_workflows:
+            header = QListWidgetItem("── Maintenance Workflows ──")
+            header.setFlags(Qt.NoItemFlags)
+            header.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+            workflow_list.addItem(header)
+            for wf in maint_workflows:
+                name = wf.get('name', os.path.basename(wf.get('_file_path', 'Unknown')))
+                desc = wf.get('description', '')
+                steps = len(wf.get('steps', []))
+                item = QListWidgetItem(f"  {name}  ({steps} steps)")
+                if desc:
+                    item.setToolTip(desc)
+                workflow_list.addItem(item)
+                workflow_map[workflow_list.count() - 1] = wf
+        
+        dlayout.addWidget(workflow_list)
+        
+        btn_layout = QHBoxLayout()
+        generate_btn = QPushButton("Generate PDF")
+        generate_btn.setEnabled(False)
+        generate_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #77C25E; color: white; padding: 8px 20px;
+                border-radius: 3px; font-weight: bold;
+            }
+            QPushButton:hover { background-color: #5FA84A; }
+            QPushButton:disabled { background-color: #CCCCCC; color: #666666; }
+        """)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #888888; color: white; padding: 8px 20px;
+                border-radius: 3px; font-weight: bold;
+            }
+            QPushButton:hover { background-color: #666666; }
+        """)
+        
+        btn_layout.addStretch()
+        btn_layout.addWidget(generate_btn)
+        btn_layout.addWidget(cancel_btn)
+        dlayout.addLayout(btn_layout)
+        
+        def on_selection_changed():
+            row = workflow_list.currentRow()
+            generate_btn.setEnabled(row in workflow_map)
+        
+        def on_generate():
+            row = workflow_list.currentRow()
+            wf = workflow_map.get(row)
+            if not wf:
+                return
+            dialog.accept()
+            
+            output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                       "output", "reports")
+            pdf_path = generate_workflow_instructions(wf, output_dir)
+            if pdf_path and os.path.exists(pdf_path):
+                import subprocess, platform
+                try:
+                    if platform.system() == "Windows":
+                        os.startfile(pdf_path)
+                    elif platform.system() == "Darwin":
+                        subprocess.Popen(["open", pdf_path])
+                    else:
+                        subprocess.Popen(["xdg-open", pdf_path])
+                except Exception:
+                    pass
+                QMessageBox.information(self, "Instructions Generated",
+                    f"Saved to:\n{pdf_path}")
+            else:
+                QMessageBox.warning(self, "Error", "Failed to generate instruction document.")
+        
+        workflow_list.currentRowChanged.connect(on_selection_changed)
+        workflow_list.itemDoubleClicked.connect(lambda: on_generate() if workflow_list.currentRow() in workflow_map else None)
+        generate_btn.clicked.connect(on_generate)
+        cancel_btn.clicked.connect(dialog.reject)
+        
+        dialog.exec_()
     
     def on_check_updates_clicked(self):
         """Check for application updates via git."""

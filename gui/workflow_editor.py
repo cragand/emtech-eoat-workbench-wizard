@@ -9,7 +9,10 @@ import os
 import json
 import zipfile
 import shutil
+import platform
+import subprocess
 from datetime import datetime
+from reports.workflow_instructions_generator import generate_workflow_instructions as _generate_instructions
 
 
 class CheckboxPlacementWidget(QLabel):
@@ -549,6 +552,27 @@ class WorkflowEditorScreen(QWidget):
         self.export_workflow_btn.setEnabled(False)
         wf_btn_layout.addWidget(self.export_workflow_btn)
         
+        self.export_instructions_btn = QPushButton("📋 Export Instructions")
+        self.export_instructions_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                padding: 8px;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #F57C00;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #666666;
+            }
+        """)
+        self.export_instructions_btn.clicked.connect(self.export_instructions)
+        self.export_instructions_btn.setEnabled(False)
+        wf_btn_layout.addWidget(self.export_instructions_btn)
+        
         self.import_workflow_btn = QPushButton("Import Workflow")
         self.import_workflow_btn.setStyleSheet("""
             QPushButton {
@@ -774,6 +798,7 @@ class WorkflowEditorScreen(QWidget):
             self.load_workflow_to_editor()
             self.delete_workflow_btn.setEnabled(True)
             self.export_workflow_btn.setEnabled(True)
+            self.export_instructions_btn.setEnabled(True)
             self.has_unsaved_changes = False
             self.saved_state = self.get_current_state()
         except Exception as e:
@@ -970,6 +995,30 @@ class WorkflowEditorScreen(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save workflow: {e}")
     
+    def export_instructions(self):
+        """Generate a printable instruction PDF for the current workflow."""
+        if not self.current_workflow:
+            QMessageBox.warning(self, "No Workflow", "Select a workflow to export instructions.")
+            return
+        
+        output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                   "output", "reports")
+        pdf_path = _generate_instructions(self.current_workflow, output_dir)
+        if pdf_path and os.path.exists(pdf_path):
+            try:
+                if platform.system() == "Windows":
+                    os.startfile(pdf_path)
+                elif platform.system() == "Darwin":
+                    subprocess.Popen(["open", pdf_path])
+                else:
+                    subprocess.Popen(["xdg-open", pdf_path])
+            except Exception:
+                pass
+            QMessageBox.information(self, "Instructions Generated",
+                f"Saved to:\n{pdf_path}")
+        else:
+            QMessageBox.warning(self, "Error", "Failed to generate instruction document.")
+
     def export_workflow(self):
         """Export workflow as a zip file with all reference images."""
         if not self.current_workflow or not self.current_workflow_path:
