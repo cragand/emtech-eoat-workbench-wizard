@@ -3,6 +3,9 @@ from typing import List, Optional
 from .camera_interface import CameraInterface
 from .opencv_camera import OpenCVCamera
 from .camera_config_manager import CameraConfigManager
+from logger_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class CameraManager:
@@ -25,7 +28,7 @@ class CameraManager:
                     CameraConfigManager.initialize_camera_with_optimal_settings(
                         cam.capture, cam.name)
                 except Exception as e:
-                    print(f"Warning: Could not apply settings to {cam.name}: {e}")
+                    logger.warning(f"Could not apply settings to {cam.name}: {e}")
                 
                 cameras.append(cam)
             else:

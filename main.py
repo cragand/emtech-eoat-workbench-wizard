@@ -220,7 +220,7 @@ class MainWindow(QMainWindow):
         
         # Create appropriate mode widget
         if mode == 1:
-            self.current_mode_widget = Mode1CaptureScreen(serial_number, technician, description)
+            self.current_mode_widget = Mode1CaptureScreen(serial_number, technician, description, cached_cameras=self.cached_cameras)
             self.current_mode_widget.back_requested.connect(self.return_to_mode_selection)
         elif mode == 2:
             # Show workflow selection for QC

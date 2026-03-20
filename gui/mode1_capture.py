@@ -35,7 +35,7 @@ class Mode1CaptureScreen(QWidget):
     
     back_requested = pyqtSignal()  # Signal to request return to menu
     
-    def __init__(self, serial_number: str, technician: str, description: str):
+    def __init__(self, serial_number: str, technician: str, description: str, cached_cameras=None):
         super().__init__()
         self.setFocusPolicy(Qt.StrongFocus)
         self.serial_number = serial_number
@@ -52,6 +52,10 @@ class Mode1CaptureScreen(QWidget):
         self.report_generated = False  # Track if report has been generated
         self.barcode_scans = []  # List of dicts: {type, data, timestamp}
         self.overlay_path = None  # Path to active overlay PNG
+        self._consecutive_frame_failures = 0
+        
+        # Use cached cameras if provided, otherwise discover
+        self.available_cameras = cached_cameras if cached_cameras is not None else []
         
         # Use "unknown" if no serial number provided - sanitize for filesystem
         output_serial = self._sanitize_filename(serial_number) if serial_number else "unknown"
@@ -59,10 +63,18 @@ class Mode1CaptureScreen(QWidget):
                                        "output", "captured_images", output_serial)
         os.makedirs(self.output_dir, exist_ok=True)
         
-        print(f"Output directory: {self.output_dir}")  # Show where files are saved
+        logger.info(f"Output directory: {self.output_dir}")
         
         self.init_ui()
-        self.discover_cameras()
+        
+        # Only discover cameras if not already cached
+        if not self.available_cameras:
+            self.discover_cameras()
+        else:
+            logger.info(f"Using {len(self.available_cameras)} cached camera(s)")
+            self.camera_combo.clear()
+            for cam in self.available_cameras:
+                self.camera_combo.addItem(cam.name)
         
         # Set focus to this widget so keyboard shortcuts work immediately
         self.setFocus()
@@ -425,10 +437,10 @@ class Mode1CaptureScreen(QWidget):
             
             # Stop existing QR scanner before closing camera
             if self.qr_scanner:
-                print("Stopping QR scanner...")
+                logger.debug("Stopping QR scanner...")
                 self.qr_scanner.stop()
                 self.qr_scanner = None
-                print("QR scanner stopped")
+                logger.debug("QR scanner stopped")
             
             if self.current_camera:
                 self.current_camera.close()
@@ -443,7 +455,7 @@ class Mode1CaptureScreen(QWidget):
                         CameraConfigManager.initialize_camera_with_optimal_settings(
                             self.current_camera.capture, self.current_camera.name)
                     except Exception as e:
-                        print(f"Warning: Could not apply camera settings: {e}")
+                        logger.warning(f"Could not apply camera settings: {e}")
                     
                     self.timer.start(30)  # 30ms refresh
                     self.capture_button.setEnabled(True)
@@ -452,7 +464,7 @@ class Mode1CaptureScreen(QWidget):
                     
                     # Start QR scanner if available
                     if QR_SCANNER_AVAILABLE:
-                        print("Starting barcode scanner...")
+                        logger.debug("Starting barcode scanner...")
                         self.qr_scanner = QRScannerThread()
                         self.qr_scanner.barcode_detected.connect(self.on_barcode_detected)
                         self.qr_scanner.start()
@@ -702,7 +714,7 @@ class Mode1CaptureScreen(QWidget):
             scaled_pixmap = QPixmap.fromImage(qt_image).scaled(
                 self.preview_label.size(), 
                 Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
+                Qt.TransformationMode.FastTransformation
             )
             self.preview_label.set_frame(scaled_pixmap)
         else:
@@ -852,7 +864,7 @@ class Mode1CaptureScreen(QWidget):
                     'description': self.description
                 }, f, indent=2)
         except Exception as e:
-            print(f"Failed to save metadata: {e}")
+            logger.error(f"Failed to save metadata: {e}")
     
     def toggle_recording(self):
         """Start or stop video recording."""
@@ -916,11 +928,6 @@ class Mode1CaptureScreen(QWidget):
             try:
                 self.status_label.setText("Generating reports...")
                 
-                # Debug: Print barcode_scans info
-                print(f"DEBUG: barcode_scans type: {type(self.barcode_scans)}")
-                print(f"DEBUG: barcode_scans length: {len(self.barcode_scans) if self.barcode_scans else 0}")
-                print(f"DEBUG: barcode_scans content: {self.barcode_scans}")
-                
                 pdf_path, docx_path = generate_reports(
                     self.serial_number,
                     self.technician,
@@ -934,14 +941,11 @@ class Mode1CaptureScreen(QWidget):
                 # Show enhanced report dialog
                 self.show_report_dialog(pdf_path, docx_path, len(self.captured_images))
             except Exception as e:
-                # Show full error with traceback
-                import traceback
-                error_details = traceback.format_exc()
-                print(f"FULL ERROR:\n{error_details}")
+                logger.error(f"Report generation error", exc_info=True)
                 QMessageBox.warning(
                     self,
                     "Report Error",
-                    f"Failed to generate report:\n{str(e)}\n\nCheck console for full error."
+                    f"Failed to generate report:\n{str(e)}\n\nCheck logs for details."
                 )
         
         self.cleanup_resources()
@@ -1101,7 +1105,7 @@ class Mode1CaptureScreen(QWidget):
                     "Report Error",
                     f"Failed to generate report:\n{str(e)}"
                 )
-                print(f"Report generation error: {e}")
+                logger.error(f"Report generation error", exc_info=True)
         
         self.cleanup_resources()
         event.accept()

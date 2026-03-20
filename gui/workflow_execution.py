@@ -73,6 +73,7 @@ class WorkflowExecutionScreen(QWidget):
         
         # Cached per-step overlay flag (set in show_current_step, used in update_frame)
         self._step_has_alpha = False
+        self._consecutive_frame_failures = 0
 
         # Overlay transform state (persistent across views)
         self.overlay_scale = 100
@@ -867,12 +868,12 @@ class WorkflowExecutionScreen(QWidget):
                 scaled_pixmap = QPixmap.fromImage(qt_image).scaled(
                     self.preview_label.size(), 
                     Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation
+                    Qt.TransformationMode.FastTransformation
                 )
                 self.preview_label.set_frame(scaled_pixmap)
             else:
                 # Frame was None — camera may have disconnected
-                self._consecutive_frame_failures = getattr(self, '_consecutive_frame_failures', 0) + 1
+                self._consecutive_frame_failures = self._consecutive_frame_failures + 1
                 if self._consecutive_frame_failures == 90:  # ~3 seconds at 30fps
                     logger.warning(f"Camera not responding after {self._consecutive_frame_failures} frames")
                     self.timer.stop()
