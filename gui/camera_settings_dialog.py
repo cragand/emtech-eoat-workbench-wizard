@@ -302,6 +302,24 @@ class CameraSettingsDialog(QDialog):
         restart_camera_btn.clicked.connect(self.restart_camera)
         res_layout.addWidget(restart_camera_btn)
         
+        # Refresh camera detection button
+        refresh_detect_btn = QPushButton("🔍 Refresh Camera Detection")
+        refresh_detect_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #9C27B0;
+                color: white;
+                border: none;
+                padding: 8px;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #7B1FA2;
+            }
+        """)
+        refresh_detect_btn.clicked.connect(self.refresh_camera_detection)
+        res_layout.addWidget(refresh_detect_btn)
+        
         res_group.setLayout(res_layout)
         layout.addWidget(res_group)
         
@@ -620,6 +638,37 @@ class CameraSettingsDialog(QDialog):
                 QMessageBox.warning(self, "Error", "Failed to restart camera.")
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Failed to restart camera:\n{e}")
+    
+    def refresh_camera_detection(self):
+        """Re-discover all connected cameras."""
+        from camera import CameraManager
+        
+        # Close all currently open cameras so indices are free
+        for cam in self.available_cameras:
+            cam.close()
+        
+        self.current_camera = None
+        new_cameras = CameraManager.discover_cameras()
+        self.available_cameras[:] = new_cameras
+        
+        # Update the parent screen's camera list if it has one
+        parent = self.parent()
+        if parent and hasattr(parent, 'available_cameras'):
+            parent.available_cameras = self.available_cameras
+            if hasattr(parent, 'camera_combo'):
+                parent.camera_combo.clear()
+                for cam in self.available_cameras:
+                    parent.camera_combo.addItem(cam.name)
+        
+        # Also update MainWindow.cached_cameras
+        main_window = self.window()
+        if main_window and hasattr(main_window, 'cached_cameras'):
+            main_window.cached_cameras = self.available_cameras
+        
+        self.populate_camera_list()
+        
+        QMessageBox.information(self, "Camera Detection",
+                               f"Found {len(self.available_cameras)} camera(s).")
     
     def reset_to_defaults(self):
         """Reset camera to factory defaults by reopening it."""
