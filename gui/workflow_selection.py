@@ -5,6 +5,7 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
 import os
 import json
+from preferences_manager import preferences
 
 
 class PasswordDialog(QDialog):
@@ -45,7 +46,6 @@ class WorkflowSelectionScreen(QWidget):
         super().__init__()
         self.mode_number = mode_number
         self.workflow_dir = workflow_dir
-        self.password = "admin"  # Simple password (can be changed)
         
         self.init_ui()
         self.load_workflows()
@@ -83,6 +83,13 @@ class WorkflowSelectionScreen(QWidget):
         workflows_label = QLabel("Available Workflows:")
         workflows_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         left_layout.addWidget(workflows_label)
+        
+        # Search/filter box
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("🔍 Filter workflows...")
+        self.search_input.setClearButtonEnabled(True)
+        self.search_input.textChanged.connect(self._filter_workflows)
+        left_layout.addWidget(self.search_input)
         
         self.workflow_list = QListWidget()
         self.workflow_list.setFont(QFont("Arial", 13))
@@ -186,17 +193,37 @@ class WorkflowSelectionScreen(QWidget):
                         workflow = json.load(f)
                         workflow['filepath'] = filepath
                         self.workflows.append(workflow)
-                        
-                        # Add to list
-                        display_name = workflow.get('name', filename)
-                        description = workflow.get('description', '')
-                        item_text = f"{display_name}\n  {description}" if description else display_name
-                        self.workflow_list.addItem(item_text)
                 except Exception as e:
                     print(f"Error loading workflow {filename}: {e}")
         
-        if not self.workflows:
-            self.workflow_list.addItem("No workflows found. Click 'Edit Workflows' to create one.")
+        self._populate_list()
+    
+    def _populate_list(self, filter_text=""):
+        """Populate the workflow list, optionally filtered."""
+        self.workflow_list.clear()
+        self._visible_indices = []  # maps list row -> index in self.workflows
+        
+        ft = filter_text.lower()
+        for idx, workflow in enumerate(self.workflows):
+            display_name = workflow.get('name', '')
+            description = workflow.get('description', '')
+            if ft and ft not in display_name.lower() and ft not in description.lower():
+                continue
+            item_text = f"{display_name}\n  {description}" if description else display_name
+            self.workflow_list.addItem(item_text)
+            self._visible_indices.append(idx)
+        
+        if not self._visible_indices:
+            if self.workflows:
+                self.workflow_list.addItem("No workflows match the filter.")
+            else:
+                self.workflow_list.addItem("No workflows found. Click 'Edit Workflows' to create one.")
+    
+    def _filter_workflows(self, text):
+        """Filter workflow list based on search text."""
+        self._populate_list(text)
+        self.steps_preview.clear()
+        self.start_button.setEnabled(False)
     
     def on_workflow_double_clicked(self, item):
         """Handle double-click on workflow."""
@@ -205,15 +232,15 @@ class WorkflowSelectionScreen(QWidget):
     def on_start_clicked(self):
         """Handle start button click."""
         selected_row = self.workflow_list.currentRow()
-        if selected_row >= 0 and selected_row < len(self.workflows):
-            workflow = self.workflows[selected_row]
+        if selected_row >= 0 and selected_row < len(self._visible_indices):
+            workflow = self.workflows[self._visible_indices[selected_row]]
             self.workflow_selected.emit(workflow['filepath'])
     
     def on_edit_clicked(self):
         """Handle edit button click - require password."""
         dialog = PasswordDialog(self)
         if dialog.exec_() == QDialog.Accepted:
-            if dialog.get_password() == self.password:
+            if preferences.check_editor_password(dialog.get_password()):
                 self.edit_workflows.emit()
             else:
                 QMessageBox.warning(self, "Access Denied", "Incorrect password.")
@@ -221,11 +248,12 @@ class WorkflowSelectionScreen(QWidget):
     def on_selection_changed(self):
         """Enable start button and show step preview when workflow is selected."""
         selected_row = self.workflow_list.currentRow()
-        self.start_button.setEnabled(selected_row >= 0 and len(self.workflows) > 0)
+        has_visible = hasattr(self, '_visible_indices') and self._visible_indices
+        self.start_button.setEnabled(selected_row >= 0 and has_visible and selected_row < len(self._visible_indices))
         
         # Show step preview
-        if selected_row >= 0 and selected_row < len(self.workflows):
-            workflow = self.workflows[selected_row]
+        if selected_row >= 0 and has_visible and selected_row < len(self._visible_indices):
+            workflow = self.workflows[self._visible_indices[selected_row]]
             steps = workflow.get('steps', [])
             
             if steps:

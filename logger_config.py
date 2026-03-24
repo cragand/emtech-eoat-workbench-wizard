@@ -43,8 +43,13 @@ def setup_logging():
 
 
 def _cleanup_old_logs(log_dir, logger):
-    """Delete log files older than LOG_RETENTION_DAYS."""
-    cutoff = time.time() - (LOG_RETENTION_DAYS * 86400)
+    """Delete log files older than the configured retention period."""
+    try:
+        from preferences_manager import preferences
+        retention_days = preferences.get("log_retention_days") or 30
+    except Exception:
+        retention_days = 30
+    cutoff = time.time() - (retention_days * 86400)
     removed = 0
     for log_path in glob.glob(os.path.join(log_dir, "camera_qc_*.log")):
         try:
@@ -54,7 +59,7 @@ def _cleanup_old_logs(log_dir, logger):
         except OSError:
             pass
     if removed:
-        logger.info(f"Cleaned up {removed} log file(s) older than {LOG_RETENTION_DAYS} days")
+        logger.info(f"Cleaned up {removed} log file(s) older than {retention_days} days")
 
 
 def get_logger(name):

@@ -6,6 +6,7 @@ import cv2
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QMessageBox, QRadioButton, QButtonGroup)
 from reports import generate_reports
+from preferences_manager import preferences
 from logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -134,7 +135,8 @@ def generate_workflow_report(screen):
         workflow_name=workflow_name,
         checklist_data=checklist_data,
         video_paths=screen.recorded_videos,
-        barcode_scans=all_barcode_scans if all_barcode_scans else None
+        barcode_scans=all_barcode_scans if all_barcode_scans else None,
+        output_dir=preferences.get_reports_dir()
     )
 
     return pdf_path, docx_path

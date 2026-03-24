@@ -44,7 +44,8 @@ This is a Python-based quality control and maintenance application designed for 
 #### GUI (`gui/`)
 - **mode_selection.py** - Initial screen for mode selection, job info entry, and `SerialScanDialog` for barcode-based serial number input
 - **mode1_capture.py** - General capture interface with annotations
-- **workflow_selection.py** - Workflow selection screen for Mode 2/3
+- **preferences_dialog.py** - Tabbed user preferences dialog (General, Appearance, Paths, Security)
+- **workflow_selection.py** - Workflow selection screen for Mode 2/3 with search/filter
 - **workflow_execution.py** - Step-by-step workflow execution with split-screen view
 - **workflow_editor.py** - Password-protected workflow editor with unsaved changes protection
 - **annotatable_preview.py** - Camera preview widget with annotation system
@@ -136,8 +137,10 @@ This is a Python-based quality control and maintenance application designed for 
 
 #### Mode Selection Screen (`gui/mode_selection.py`)
 - Required fields: serial number, technician name; optional: description
+- Technician name auto-populated from saved preferences
 - **SerialScanDialog**: Opens camera preview for scanning serial number via barcode/QR code
-- **View Reports button**: Opens `output/reports/` folder in system file explorer
+- **User Preferences button**: Opens `PreferencesDialog` for app settings (accent color, paths, password, etc.)
+- **View Reports button**: Opens reports folder (custom or default) in system file explorer
 - **Check for Updates button**: Runs `git fetch`/`git log` to check for and apply updates
 - **Resume Incomplete Workflow button**: Lists saved progress files with delete option
 - **Camera Settings button**: Opens `CameraSettingsDialog` for camera configuration
@@ -150,7 +153,7 @@ This is a Python-based quality control and maintenance application designed for 
 - Shows step context for Mode 2/3 captures
 
 #### Workflow Editor
-- Password-protected (default: "admin")
+- Password-protected (default: "admin", changeable in User Preferences → Security)
 - Create, edit, delete workflows
 - Add/edit/delete/reorder steps
 - Place inspection checkboxes on reference images
@@ -170,8 +173,27 @@ This is a Python-based quality control and maintenance application designed for 
 #### Theme System (`theme_manager.py`)
 - `ThemeManager` class with light and dark mode stylesheets
 - Toggle via "🌙 Dark Mode" / "☀️ Light Mode" button in top bar of `MainWindow`
-- Uses Emtech brand colors (green #77C25E, hover #5FA84A, pressed #4D8A3C)
+- Accent color loaded from user preferences on startup (default: Emtech green #77C25E)
+- `refresh_accent()` re-reads preferences and regenerates stylesheet
+- Dark mode preference persisted to `settings/user_preferences.json` on toggle
 - Applied globally to all widgets and dialogs
+
+#### User Preferences (`preferences_manager.py`)
+- Singleton `PreferencesManager` with JSON config at `settings/user_preferences.json`
+- Settings: technician_name, default_camera_index, report_format, dark_mode, accent_color, default_marker_color, reports_output_dir, captured_images_dir, editor_password_hash, log_retention_days
+- `get_reports_dir()` / `get_captured_images_dir()` return custom or default paths
+- `check_editor_password()` / `set_editor_password()` use SHA-256 hashing
+- `get_accent_colors()` derives hover/pressed variants from base accent color
+- Preferences dialog (`gui/preferences_dialog.py`) with tabs: General, Appearance, Paths, Security
+- Technician name auto-populated on startup and saved when starting a session
+
+#### Audit Logger (`audit_logger.py`)
+- `AuditLogger` class writes hash-chained JSONL files to `output/audit/`
+- Each entry includes SHA-256 of previous entry for tamper detection (genesis hash: 64 zeros)
+- Events: session_start, session_end, image_capture, recording_start/stop, barcode_scan, step_complete, step_result, checkbox_changed, report_generated, progress_saved
+- One audit file per session: `audit_{serial}_{timestamp}.jsonl`
+- `verify_audit_file(path)` function validates the hash chain
+- Wired into `main.py` (session lifecycle), `mode1_capture.py`, and `workflow_execution.py`
 
 #### Logging (`logger_config.py`)
 - Daily log files in `logs/` directory (auto-created)
@@ -179,6 +201,7 @@ This is a Python-based quality control and maintenance application designed for 
 - Logs to both file and console
 - Third-party loggers (PIL, matplotlib) set to WARNING to reduce noise
 - All modules use `get_logger(name)` for module-specific loggers
+- Log retention period configurable via user preferences (default: 30 days)
 
 #### Global Exception Hook
 - `main.py` installs `sys.excepthook` to catch unhandled exceptions
@@ -210,9 +233,10 @@ This is a Python-based quality control and maintenance application designed for 
 ```
 output/
 ├── captured_images/
-│   └── {serial_number}/     # Images organized by serial number
-├── reports/                  # Generated PDF/DOCX reports
-└── progress/                 # Workflow progress files (auto-cleanup 30+ days)
+│   └── {serial_number}/     # Images organized by serial number (path customizable in preferences)
+├── reports/                  # Generated PDF/DOCX reports (path customizable in preferences)
+├── audit/                    # Session audit trail files (.jsonl, hash-chained)
+└── progress/                 # Workflow progress files (auto-cleanup configurable days)
 ```
 
 ## Serial Number & Technician Handling
@@ -260,6 +284,9 @@ output/
 - Comprehensive logging to daily log files
 - Global exception hook for crash prevention
 - File organization by serial number
+- User preferences system (technician name, accent color, output paths, editor password, log retention)
+- Hash-chained audit trail for session actions
+- Workflow search/filter on selection screen
 
 ## Important Design Decisions
 
@@ -344,7 +371,7 @@ output/
 - ⚠️ Use relative coordinates for annotations (resolution independence)
 - ⚠️ Always validate step requirements before allowing progression
 - ⚠️ Clean up video writers properly to avoid corrupted files
-- ⚠️ Workflow editor password is hardcoded - change in workflow_selection.py
+- ⚠️ Workflow editor password stored as SHA-256 hash in preferences (default: "admin", change via User Preferences → Security)
 
 ## Testing Considerations
 - Test with no cameras connected (graceful degradation)
@@ -360,6 +387,22 @@ output/
 - Test inspection checkbox state preservation in fullsize view
 
 ## Recent Enhancements
+
+### 2026-03-24: User Preferences, Audit Trail & Organization
+- **User Preferences System**: `preferences_manager.py` with JSON config at `settings/user_preferences.json`
+- **Preferences Dialog**: Tabbed dialog (General, Appearance, Paths, Security) accessible from mode selection screen
+- **Technician Name Persistence**: Auto-populated from saved preferences on startup
+- **Custom Accent Color**: User-selectable accent color with live theme refresh
+- **Dark Mode Persistence**: Theme choice saved and restored across sessions
+- **Custom Output Paths**: Configurable reports and captured images directories
+- **Editor Password Management**: SHA-256 hashed password changeable via preferences (replaces hardcoded "admin")
+- **Configurable Log Retention**: Days to keep log files adjustable in preferences
+- **Default Camera/Marker Color**: Saved per-user preferences
+- **Report Format Preference**: Choose PDF only, DOCX only, or both
+- **Hash-Chained Audit Trail**: `audit_logger.py` writes JSONL files with SHA-256 chain to `output/audit/`
+- **Audit Events**: session start/end, image captures, recordings, barcode scans, step completions, pass/fail, checkbox changes, report generation
+- **Workflow Search/Filter**: Text filter box on workflow selection screen for quick lookup
+- **File Organization**: Moved development docs to `docs/`, test files to `tests/`
 
 ### 2026-03-17: Polish, Hardening & Import Improvements
 - **Keyboard Shortcuts**: Space (capture), R (record), B (barcode scan) across all capture views

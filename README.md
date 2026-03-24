@@ -125,13 +125,36 @@ The main screen where you configure each session before starting.
 
 **Bottom Bar Buttons:**
 - **⚙️ Camera Settings**: Open camera configuration dialog (brightness, contrast, resolution, etc.)
-- **📁 View Reports**: Open the `output/reports/` folder in your system file explorer
+- **🔧 User Preferences**: Open preferences dialog (see [User Preferences](#user-preferences) below)
+- **📁 View Reports**: Open the reports folder in your system file explorer
 - **📂 Resume Incomplete Workflow**: Resume a previously saved workflow session
 - **🔄 Check for Updates**: Check for and apply updates via git (requires git-based installation)
 
+### User Preferences
+
+Accessible from the mode selection screen via the "🔧 User Preferences" button. Settings are saved to `settings/user_preferences.json` and persist across sessions.
+
+**General Tab:**
+- **Technician Name**: Remembered between sessions and auto-populated on startup
+- **Default Camera Index**: Pre-select a specific camera on startup
+- **Report Format**: Choose PDF only, DOCX only, or both (default: both)
+- **Log Retention**: Number of days to keep log files (default: 30)
+
+**Appearance Tab:**
+- **Theme**: Toggle dark/light mode (persisted across sessions)
+- **Accent Color**: Customize the application accent color (default: Emtech green #77C25E)
+- **Default Marker Color**: Set the default annotation marker color (default: red)
+
+**Paths Tab:**
+- **Reports Folder**: Custom output directory for generated reports (default: `output/reports/`)
+- **Captured Images Folder**: Custom directory for captured images (default: `output/captured_images/`)
+
+**Security Tab:**
+- **Change Editor Password**: Update the workflow editor password (default: `admin`)
+
 ### Dark/Light Mode
 
-Toggle between light and dark themes using the "🌙 Dark Mode" / "☀️ Light Mode" button in the top-right corner. The theme applies to all screens and dialogs. Uses Emtech brand green (#77C25E) for accent colors.
+Toggle between light and dark themes using the "🌙 Dark Mode" / "☀️ Light Mode" button in the top-right corner. The theme applies to all screens and dialogs. Theme preference is saved in User Preferences and persists across sessions. The accent color can be customized in User Preferences (default: Emtech brand green #77C25E).
 
 ### Camera Settings
 
@@ -214,7 +237,7 @@ Guided quality control workflows with step-by-step instructions.
 **How to use:**
 1. Enter serial number, technician name, and description
 2. Select Mode 2 and click Start
-3. Choose a workflow from the list
+3. Choose a workflow from the list (use the search/filter box to narrow results)
 4. Click "Start Workflow"
 5. Follow instructions for each step
 6. Capture required photos with annotations
@@ -274,7 +297,7 @@ Create and customize workflows for Mode 2 and Mode 3.
 - **Import**: Extract workflow from `.zip` and automatically set up images
 - Reference images are copied from any location and bundled with the workflow
 - Paths are automatically updated on import
-- See [WORKFLOW_IMPORT_EXPORT.md](WORKFLOW_IMPORT_EXPORT.md) for detailed documentation
+- See [WORKFLOW_IMPORT_EXPORT.md](docs/WORKFLOW_IMPORT_EXPORT.md) for detailed documentation
 
 **Creating a Workflow:**
 1. Click "New Workflow"
@@ -580,7 +603,7 @@ Scan barcodes and QR codes during any workflow step or general capture (if pyzba
 
 **Workflow editor password:**
 - Default password: `admin`
-- Can be changed in `gui/workflow_selection.py`
+- Can be changed in User Preferences → Security tab
 
 **Report generation fails:**
 - Check output directory exists and is writable
@@ -595,6 +618,13 @@ Scan barcodes and QR codes during any workflow step or general capture (if pyzba
 - Log files are written to the `logs/` directory (created automatically)
 - Daily log files named `camera_qc_YYYYMMDD.log`
 - Contains detailed error information for troubleshooting
+- Log retention period is configurable in User Preferences (default: 30 days)
+
+**Audit trail:**
+- Each session writes a hash-chained `.jsonl` file to `output/audit/`
+- Every entry includes a SHA-256 hash of the previous entry for tamper detection
+- Events logged: session start/end, image captures, video recordings, barcode scans, step completions, pass/fail results, checkbox changes, report generation
+- Audit files are named `audit_{serial}_{timestamp}.jsonl`
 
 ## System Requirements
 
@@ -622,6 +652,8 @@ Scan barcodes and QR codes during any workflow step or general capture (if pyzba
 camera_qc_app/
 ├── main.py                          # Application entry point
 ├── theme_manager.py                 # Light/dark mode theme system
+├── preferences_manager.py           # User preferences (JSON config)
+├── audit_logger.py                  # Hash-chained session audit trail
 ├── logger_config.py                 # Logging configuration
 ├── qr_scanner.py                    # Camera-based QR/barcode scanner thread
 ├── usb_barcode_scanner.py           # USB HID barcode scanner interceptor
@@ -636,7 +668,8 @@ camera_qc_app/
 ├── gui/                             # GUI modules
 │   ├── mode_selection.py           # Mode selection screen + serial scan dialog
 │   ├── mode1_capture.py            # Mode 1 interface
-│   ├── workflow_selection.py       # Workflow selection for Mode 2/3
+│   ├── preferences_dialog.py       # User preferences dialog
+│   ├── workflow_selection.py       # Workflow selection for Mode 2/3 (with search/filter)
 │   ├── workflow_execution.py       # Step-by-step workflow execution
 │   ├── workflow_editor.py          # Workflow editor with import/export
 │   ├── annotatable_preview.py      # Camera preview with annotation system
@@ -658,16 +691,20 @@ camera_qc_app/
 ├── reports/                         # Report generators
 │   ├── report_generator.py         # Factory for PDF/DOCX generation
 │   ├── pdf_generator.py            # PDF report generation (reportlab)
-│   └── docx_generator.py           # DOCX report generation (python-docx)
+│   ├── docx_generator.py           # DOCX report generation (python-docx)
+│   └── workflow_instructions_generator.py  # Printable workflow instruction PDFs
 ├── resources/                       # Static resources
 │   ├── overlay_masks/              # Saved overlay mask PNGs
 │   ├── qc_reference_images/        # QC workflow reference images
 │   └── maintenance_reference_images/ # Maintenance reference images
-├── settings/                        # Saved camera settings (JSON)
+├── settings/                        # Saved camera settings and user preferences (JSON)
+├── docs/                            # Development documentation
+├── tests/                           # Test scripts
 ├── logs/                            # Application log files (daily)
 └── output/                          # Generated files
     ├── captured_images/             # Images organized by serial number
     ├── reports/                     # Generated PDF/DOCX reports
+    ├── audit/                       # Session audit trail files (.jsonl)
     └── progress/                    # Workflow progress files
 ```
 
@@ -677,6 +714,7 @@ camera_qc_app/
 - **v2.0**: Added annotation system
 - **v3.0**: Added Mode 2 and Mode 3 with workflows
 - **v4.0**: Added workflow editor
+- **v5.0**: User preferences system, audit trail, workflow search/filter, customizable accent color and output paths
 
 ## License
 

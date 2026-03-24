@@ -1001,8 +1001,8 @@ class WorkflowEditorScreen(QWidget):
             QMessageBox.warning(self, "No Workflow", "Select a workflow to export instructions.")
             return
         
-        output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                   "output", "reports")
+        from preferences_manager import preferences as _prefs
+        output_dir = _prefs.get_reports_dir()
         pdf_path = _generate_instructions(self.current_workflow, output_dir)
         if pdf_path and os.path.exists(pdf_path):
             try:

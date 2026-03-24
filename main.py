@@ -14,6 +14,8 @@ from gui.workflow_editor import WorkflowEditorScreen
 from theme_manager import theme_manager
 from logger_config import setup_logging, get_logger
 from usb_barcode_scanner import USBBarcodeScanner
+from audit_logger import AuditLogger
+from preferences_manager import preferences
 
 logger = get_logger(__name__)
 
@@ -133,6 +135,9 @@ class MainWindow(QMainWindow):
         # Cache discovered cameras (shared across all screens)
         self.cached_cameras = None
         
+        # Active audit logger (one per session)
+        self.audit = None
+        
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
@@ -152,6 +157,10 @@ class MainWindow(QMainWindow):
         self.theme_button.setFocusPolicy(Qt.NoFocus)  # Prevent spacebar from triggering
         self.theme_button.clicked.connect(self.toggle_theme)
         theme_layout.addWidget(self.theme_button)
+        
+        # Sync button text with persisted theme
+        if theme_manager.dark_mode:
+            self.theme_button.setText("☀️ Light Mode")
         
         main_layout.addWidget(theme_bar)
         
@@ -186,6 +195,21 @@ class MainWindow(QMainWindow):
         self.current_technician = technician
         self.current_description = ""  # Will be loaded from progress file
         
+        # Close previous audit session
+        if self.audit:
+            self.audit.close()
+        
+        # Derive workflow name from path
+        import json as _json
+        try:
+            with open(workflow_path, 'r', encoding='utf-8') as f:
+                wf_name = _json.load(f).get('name', os.path.basename(workflow_path))
+        except Exception:
+            wf_name = os.path.basename(workflow_path)
+        
+        self.audit = AuditLogger(serial_number, technician, 2,
+                                 workflow_name=wf_name, description="(resumed)")
+        
         # Remove previous mode widget if exists
         if self.current_mode_widget:
             self.stack.removeWidget(self.current_mode_widget)
@@ -198,7 +222,8 @@ class MainWindow(QMainWindow):
             serial_number,
             technician,
             self.current_description,
-            cached_cameras=self.cached_cameras
+            cached_cameras=self.cached_cameras,
+            audit=self.audit
         )
         self.current_mode_widget.back_requested.connect(self.return_to_mode_selection)
         
@@ -212,6 +237,16 @@ class MainWindow(QMainWindow):
         self.current_technician = technician
         self.current_description = description
         
+        # Close previous audit session
+        if self.audit:
+            self.audit.close()
+        
+        # Start audit for Mode 1 immediately; Mode 2/3 audit starts when workflow is chosen
+        if mode == 1:
+            self.audit = AuditLogger(serial_number, technician, mode, description=description)
+        else:
+            self.audit = None
+        
         # Remove previous mode widget if exists
         if self.current_mode_widget:
             self.stack.removeWidget(self.current_mode_widget)
@@ -220,7 +255,8 @@ class MainWindow(QMainWindow):
         
         # Create appropriate mode widget
         if mode == 1:
-            self.current_mode_widget = Mode1CaptureScreen(serial_number, technician, description, cached_cameras=self.cached_cameras)
+            self.current_mode_widget = Mode1CaptureScreen(serial_number, technician, description,
+                                                          cached_cameras=self.cached_cameras, audit=self.audit)
             self.current_mode_widget.back_requested.connect(self.return_to_mode_selection)
         elif mode == 2:
             # Show workflow selection for QC
@@ -247,8 +283,24 @@ class MainWindow(QMainWindow):
         """Handle workflow selection - start workflow execution."""
         # Remove workflow selection screen
         if self.current_mode_widget:
+            mode_number = getattr(self.current_mode_widget, 'mode_number', 2)
             self.stack.removeWidget(self.current_mode_widget)
             self.current_mode_widget.deleteLater()
+        else:
+            mode_number = 2
+        
+        # Create audit logger for this workflow session
+        import json as _json
+        try:
+            with open(workflow_path, 'r', encoding='utf-8') as f:
+                wf_name = _json.load(f).get('name', os.path.basename(workflow_path))
+        except Exception:
+            wf_name = os.path.basename(workflow_path)
+        
+        if self.audit:
+            self.audit.close()
+        self.audit = AuditLogger(self.current_serial, self.current_technician, mode_number,
+                                 workflow_name=wf_name, description=self.current_description)
         
         # Create workflow execution screen
         self.current_mode_widget = WorkflowExecutionScreen(
@@ -256,7 +308,8 @@ class MainWindow(QMainWindow):
             self.current_serial,
             self.current_technician,
             self.current_description,
-            cached_cameras=self.cached_cameras
+            cached_cameras=self.cached_cameras,
+            audit=self.audit
         )
         self.current_mode_widget.back_requested.connect(self.return_to_mode_selection)
         
@@ -299,6 +352,11 @@ class MainWindow(QMainWindow):
     
     def return_to_mode_selection(self):
         """Return to mode selection screen."""
+        # Close audit session
+        if self.audit:
+            self.audit.close()
+            self.audit = None
+        
         # Switch to mode selection screen
         self.stack.setCurrentWidget(self.mode_selection)
         
@@ -325,6 +383,9 @@ def main():
     
     try:
         app = QApplication(sys.argv)
+        
+        # Apply saved preferences (accent color, dark mode)
+        theme_manager.apply_accent_from_preferences()
         app.setStyleSheet(theme_manager.get_stylesheet())
         
         window = MainWindow()

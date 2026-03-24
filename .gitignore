@@ -32,6 +32,9 @@ Thumbs.db
 # Environment variables
 .env
 
+# User-specific preferences (each user gets their own)
+settings/user_preferences.json
+
 # Temporary files
 *.tmp
 *.bak

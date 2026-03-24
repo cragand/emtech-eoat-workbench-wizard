@@ -44,12 +44,13 @@ class WorkflowExecutionScreen(QWidget):
     
     back_requested = pyqtSignal()
     
-    def __init__(self, workflow_path, serial_number, technician, description, cached_cameras=None):
+    def __init__(self, workflow_path, serial_number, technician, description, cached_cameras=None, audit=None):
         super().__init__()
         self.workflow_path = workflow_path
         self.serial_number = serial_number
         self.technician = technician
         self.description = description
+        self.audit = audit
         self.current_step = 0
         self.max_step_reached = 0
         self.workflow = None
@@ -92,9 +93,10 @@ class WorkflowExecutionScreen(QWidget):
         
         # Setup output directory - sanitize serial number for filesystem
         output_serial = self._sanitize_filename(serial_number) if serial_number else "unknown"
-        self.output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
-                                       "output", "captured_images", output_serial)
+        from preferences_manager import preferences as _prefs
+        self.output_dir = os.path.join(_prefs.get_captured_images_dir(), output_serial)
         os.makedirs(self.output_dir, exist_ok=True)
+        self._reports_dir = _prefs.get_reports_dir()
         
         self.load_workflow()
         self.init_ui()
@@ -941,6 +943,12 @@ class WorkflowExecutionScreen(QWidget):
                 """)
                 logger.info(f"Started recording video: {self.current_video_path}")
                 
+                if self.audit:
+                    self.audit.log("recording_start", {
+                        "filename": video_filename,
+                        "step": self.current_step + 1,
+                    })
+                
             else:
                 # Stop recording
                 if self.video_writer:
@@ -971,6 +979,13 @@ class WorkflowExecutionScreen(QWidget):
                 if self.current_video_path and os.path.exists(self.current_video_path):
                     self.recorded_videos.append(self.current_video_path)
                     logger.info(f"Stopped recording. Video saved: {self.current_video_path}")
+                    
+                    if self.audit:
+                        self.audit.log("recording_stop", {
+                            "filename": os.path.basename(self.current_video_path),
+                            "step": self.current_step + 1,
+                        })
+                    
                     QMessageBox.information(self, "Recording Stopped", 
                                           f"Video saved:\n{os.path.basename(self.current_video_path)}")
                 
@@ -1161,6 +1176,15 @@ class WorkflowExecutionScreen(QWidget):
     def on_checkboxes_changed(self, checked, total):
         """Handle checkbox status change."""
         self.update_step_status()
+        
+        if self.audit:
+            step = self.workflow['steps'][self.current_step]
+            self.audit.log("checkbox_changed", {
+                "step": self.current_step + 1,
+                "step_title": step.get('title', ''),
+                "checked": checked,
+                "total": total,
+            })
     
     def update_breadcrumb(self):
         """Update step breadcrumb navigation."""
@@ -1329,6 +1353,14 @@ class WorkflowExecutionScreen(QWidget):
             
             self.update_step_status()  # Update status only, don't reload step
             
+            if self.audit:
+                self.audit.log("image_capture", {
+                    "step": self.current_step + 1,
+                    "step_title": step_name,
+                    "filename": filename,
+                    "markers": [m.get("label", "") for m in markers] if markers else [],
+                })
+            
             QMessageBox.information(self, "Image Captured", 
                                    f"Image saved for step {self.current_step + 1}")
     
@@ -1398,6 +1430,12 @@ class WorkflowExecutionScreen(QWidget):
         
         self.update_step_status()
         logger.info(f"Barcode scanned ({step_scan_count} total for step)")
+        
+        if self.audit:
+            self.audit.log("barcode_scan", {
+                "type": barcode_type, "data": barcode_data, "source": "camera",
+                "step": self.current_step + 1,
+            })
     
     def on_usb_barcode_scanned(self, barcode_data):
         """Handle barcode from USB HID scanner - same data path as camera scan."""
@@ -1444,6 +1482,12 @@ class WorkflowExecutionScreen(QWidget):
         
         self.update_step_status()
         logger.info(f"USB barcode scanned ({step_scan_count} total for step)")
+        
+        if self.audit:
+            self.audit.log("barcode_scan", {
+                "type": "USB-HID", "data": barcode_data, "source": "usb",
+                "step": self.current_step + 1,
+            })
 
     def open_review_dialog(self):
         """Open review captures dialog."""
@@ -1530,6 +1574,15 @@ class WorkflowExecutionScreen(QWidget):
         self.update_step_status()
         
         result_text = "PASS" if passed else "FAIL"
+        
+        if self.audit:
+            step = self.workflow['steps'][self.current_step]
+            self.audit.log("step_result", {
+                "step": self.current_step + 1,
+                "step_title": step.get('title', ''),
+                "result": result_text,
+            })
+        
         QMessageBox.information(self, "Step Marked", 
                                f"Step {self.current_step + 1} marked as {result_text}")
     
@@ -1602,6 +1655,14 @@ class WorkflowExecutionScreen(QWidget):
         self._save_current_step_state()
         
         if self.current_step < len(self.workflow['steps']) - 1:
+            if self.audit:
+                step = self.workflow['steps'][self.current_step]
+                self.audit.log("step_complete", {
+                    "step": self.current_step + 1,
+                    "step_title": step.get('title', ''),
+                    "images_captured": len(self.step_images),
+                    "result": "pass" if self.step_results.get(self.current_step, True) else "fail",
+                })
             self.current_step += 1
             self.max_step_reached = max(self.max_step_reached, self.current_step)
             self._load_step_data(self.current_step)
@@ -1754,6 +1815,8 @@ class WorkflowExecutionScreen(QWidget):
             return
         elif msg.clickedButton() == save_btn:
             self._save_current_step_state()
+            if self.audit:
+                self.audit.log("progress_saved", {"step": self.current_step + 1})
             QMessageBox.information(self, "Progress Saved",
                                    "Your progress has been saved.\n\n"
                                    "You can resume this workflow from the main menu.")
@@ -1773,9 +1836,18 @@ class WorkflowExecutionScreen(QWidget):
                     mode_name=workflow_name,
                     workflow_name=workflow_name,
                     video_paths=self.recorded_videos,
-                    barcode_scans=all_barcode_scans if all_barcode_scans else None
+                    barcode_scans=all_barcode_scans if all_barcode_scans else None,
+                    output_dir=self._reports_dir
                 )
                 self.show_report_dialog(pdf_path, docx_path, len(self.captured_images))
+                
+                if self.audit:
+                    self.audit.log("report_generated", {
+                        "pdf": os.path.basename(pdf_path) if pdf_path else None,
+                        "docx": os.path.basename(docx_path) if docx_path else None,
+                        "partial": True,
+                        "image_count": len(self.captured_images),
+                    })
             except Exception as e:
                 QMessageBox.warning(self, "Report Error",
                                    f"Failed to generate report:\n{str(e)}")
@@ -1796,9 +1868,25 @@ class WorkflowExecutionScreen(QWidget):
         if not self.validate_step():
             return
         
+        if self.audit:
+            step = self.workflow['steps'][self.current_step]
+            self.audit.log("step_complete", {
+                "step": self.current_step + 1,
+                "step_title": step.get('title', ''),
+                "images_captured": len(self.step_images),
+                "result": "pass" if self.step_results.get(self.current_step, True) else "fail",
+            })
+        
         # Auto-generate report
         try:
             pdf_path, docx_path = self.generate_workflow_report()
+            
+            if self.audit:
+                self.audit.log("report_generated", {
+                    "pdf": os.path.basename(pdf_path) if pdf_path else None,
+                    "docx": os.path.basename(docx_path) if docx_path else None,
+                    "image_count": len(self.captured_images),
+                })
             
             # Show enhanced report dialog
             self.show_report_dialog(pdf_path, docx_path, len(self.captured_images))

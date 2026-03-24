@@ -35,12 +35,13 @@ class Mode1CaptureScreen(QWidget):
     
     back_requested = pyqtSignal()  # Signal to request return to menu
     
-    def __init__(self, serial_number: str, technician: str, description: str, cached_cameras=None):
+    def __init__(self, serial_number: str, technician: str, description: str, cached_cameras=None, audit=None):
         super().__init__()
         self.setFocusPolicy(Qt.StrongFocus)
         self.serial_number = serial_number
         self.technician = technician
         self.description = description
+        self.audit = audit
         self.current_camera = None
         self.is_recording = False
         self.video_writer = None
@@ -59,9 +60,10 @@ class Mode1CaptureScreen(QWidget):
         
         # Use "unknown" if no serial number provided - sanitize for filesystem
         output_serial = self._sanitize_filename(serial_number) if serial_number else "unknown"
-        self.output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
-                                       "output", "captured_images", output_serial)
+        from preferences_manager import preferences as _prefs
+        self.output_dir = os.path.join(_prefs.get_captured_images_dir(), output_serial)
         os.makedirs(self.output_dir, exist_ok=True)
+        self._reports_dir = _prefs.get_reports_dir()
         
         logger.info(f"Output directory: {self.output_dir}")
         
@@ -541,6 +543,9 @@ class Mode1CaptureScreen(QWidget):
         msg.exec()
         
         self.status_label.setText(f"Barcode scanned ({scan_count} total)")
+        
+        if self.audit:
+            self.audit.log("barcode_scan", {"type": barcode_type, "data": barcode_data, "source": "camera"})
     
     def on_usb_barcode_scanned(self, barcode_data):
         """Handle barcode from USB HID scanner - same data path as camera scan."""
@@ -575,6 +580,9 @@ class Mode1CaptureScreen(QWidget):
         msg.exec()
         
         self.status_label.setText(f"USB barcode scanned ({scan_count} total)")
+        
+        if self.audit:
+            self.audit.log("barcode_scan", {"type": "USB-HID", "data": barcode_data, "source": "usb"})
 
     def open_review_dialog(self):
         """Open review captures dialog."""
@@ -780,6 +788,14 @@ class Mode1CaptureScreen(QWidget):
             # Save metadata to JSON file alongside image
             self._save_metadata_file(filepath, image_data)
             
+            # Audit trail
+            if self.audit:
+                self.audit.log("image_capture", {
+                    "filename": filename,
+                    "markers": [m.get("label", "") for m in markers] if markers else [],
+                    "has_notes": bool(notes),
+                })
+            
             # Clear notes and markers for next image
             self.notes_input.clear()
             self.preview_label.clear_markers()
@@ -887,6 +903,9 @@ class Mode1CaptureScreen(QWidget):
             self.record_button.setText("⏹ Stop Recording (R)")
             self.capture_button.setEnabled(False)
             self.status_label.setText(f"Recording: {filename}")
+            
+            if self.audit:
+                self.audit.log("recording_start", {"filename": filename})
         else:
             # Stop recording
             self.is_recording = False
@@ -920,6 +939,9 @@ class Mode1CaptureScreen(QWidget):
             self.record_button.setText("🔴 Start Recording (R)")
             self.capture_button.setEnabled(True)
             self.status_label.setText(f"Recording stopped (Total: {len(self.captured_images)})")
+            
+            if self.audit:
+                self.audit.log("recording_stop", {"filename": os.path.basename(self.current_video_path)})
     
     def on_back_clicked(self):
         """Handle back button click."""
@@ -933,10 +955,18 @@ class Mode1CaptureScreen(QWidget):
                     self.technician,
                     self.description,
                     self.captured_images,
-                    barcode_scans=self.barcode_scans if self.barcode_scans else None
+                    barcode_scans=self.barcode_scans if self.barcode_scans else None,
+                    output_dir=self._reports_dir
                 )
                 self.report_generated = True
                 self.status_label.setText(f"✓ Reports saved")
+                
+                if self.audit:
+                    self.audit.log("report_generated", {
+                        "pdf": os.path.basename(pdf_path) if pdf_path else None,
+                        "docx": os.path.basename(docx_path) if docx_path else None,
+                        "image_count": len(self.captured_images),
+                    })
                 
                 # Show enhanced report dialog
                 self.show_report_dialog(pdf_path, docx_path, len(self.captured_images))

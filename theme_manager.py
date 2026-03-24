@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import QApplication
 class ThemeManager:
     """Manages application theme (light/dark mode)."""
     
-    # Emtech brand colors
+    # Default Emtech brand colors (overridden by preferences)
     EMTECH_GREEN = "#77C25E"
     EMTECH_GREEN_HOVER = "#5FA84A"
     EMTECH_GREEN_PRESSED = "#4D8A3C"
@@ -13,6 +13,18 @@ class ThemeManager:
     def __init__(self):
         self.dark_mode = False
     
+    def apply_accent_from_preferences(self):
+        """Load accent color from preferences (call after preferences_manager is ready)."""
+        try:
+            from preferences_manager import preferences
+            self.dark_mode = preferences.get("dark_mode") or False
+            accent, hover, pressed = preferences.get_accent_colors()
+            self.EMTECH_GREEN = accent
+            self.EMTECH_GREEN_HOVER = hover
+            self.EMTECH_GREEN_PRESSED = pressed
+        except Exception:
+            pass
+
     def get_stylesheet(self):
         """Get the current theme stylesheet."""
         if self.dark_mode:
@@ -23,8 +35,20 @@ class ThemeManager:
     def toggle_theme(self):
         """Toggle between light and dark mode."""
         self.dark_mode = not self.dark_mode
+        # Persist choice
+        try:
+            from preferences_manager import preferences
+            preferences.set("dark_mode", self.dark_mode)
+            preferences.save()
+        except Exception:
+            pass
         return self.get_stylesheet()
     
+    def refresh_accent(self):
+        """Re-read accent color from preferences and return new stylesheet."""
+        self.apply_accent_from_preferences()
+        return self.get_stylesheet()
+
     def _get_light_stylesheet(self):
         """Light mode stylesheet."""
         return f"""

@@ -9,7 +9,9 @@ import cv2
 from datetime import datetime
 from camera import CameraManager
 from gui.camera_settings_dialog import CameraSettingsDialog
+from gui.preferences_dialog import PreferencesDialog
 from theme_manager import theme_manager
+from preferences_manager import preferences
 from workflows.workflow_loader import WorkflowLoader
 from reports.workflow_instructions_generator import generate_workflow_instructions
 
@@ -178,6 +180,26 @@ class ModeSelectionScreen(QWidget):
         self.camera_settings_button.clicked.connect(self.open_camera_settings)
         bottom_buttons_layout.addWidget(self.camera_settings_button)
         
+        # User Preferences button
+        self.prefs_button = QPushButton("🔧 User Preferences")
+        self.prefs_button.setMaximumHeight(30)
+        self.prefs_button.setStyleSheet("""
+            QPushButton {
+                background-color: #9C27B0;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 5px 15px;
+                font-size: 10px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #7B1FA2;
+            }
+        """)
+        self.prefs_button.clicked.connect(self.open_preferences)
+        bottom_buttons_layout.addWidget(self.prefs_button)
+        
         bottom_buttons_layout.addStretch()
         
         # View Reports button
@@ -225,6 +247,11 @@ class ModeSelectionScreen(QWidget):
         layout.addLayout(bottom_buttons_layout)
         
         self.setLayout(layout)
+        
+        # Pre-fill technician name from preferences
+        saved_tech = preferences.get("technician_name")
+        if saved_tech:
+            self.tech_input.setText(saved_tech)
     
     def _update_resume_button_style(self):
         """Apply theme-aware style to the resume button."""
@@ -400,12 +427,15 @@ class ModeSelectionScreen(QWidget):
         if selected_mode == -1:
             return
         
+        # Save technician name for next session
+        preferences.set("technician_name", technician)
+        preferences.save()
+        
         self.mode_selected.emit(selected_mode, serial, technician, description)
     
     def on_view_reports_clicked(self):
         """Open the reports folder in file explorer."""
-        reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
-                                   "output", "reports")
+        reports_dir = preferences.get_reports_dir()
         
         # Create directory if it doesn't exist
         os.makedirs(reports_dir, exist_ok=True)
@@ -513,8 +543,7 @@ class ModeSelectionScreen(QWidget):
                 return
             dialog.accept()
             
-            output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                       "output", "reports")
+            output_dir = preferences.get_reports_dir()
             pdf_path = generate_workflow_instructions(wf, output_dir)
             if pdf_path and os.path.exists(pdf_path):
                 import subprocess, platform
@@ -631,6 +660,29 @@ class ModeSelectionScreen(QWidget):
         dialog = CameraSettingsDialog(parent=self)
         dialog.exec_()
     
+    def open_preferences(self):
+        """Open user preferences dialog and apply changes."""
+        dialog = PreferencesDialog(self)
+        if dialog.exec_() == QDialog.Accepted:
+            # Apply theme/accent changes immediately
+            stylesheet = theme_manager.refresh_accent()
+            QApplication.instance().setStyleSheet(stylesheet)
+            # Update theme button text in parent MainWindow
+            main_win = self.window()
+            if hasattr(main_win, 'theme_button'):
+                if theme_manager.dark_mode:
+                    main_win.theme_button.setText("☀️ Light Mode")
+                else:
+                    main_win.theme_button.setText("🌙 Dark Mode")
+            # Refresh inline-styled buttons
+            self._update_resume_button_style()
+            self._update_update_button_style()
+            self._update_instructions_button_style()
+            # Update technician field if changed
+            saved_tech = preferences.get("technician_name")
+            if saved_tech and not self.tech_input.text().strip():
+                self.tech_input.setText(saved_tech)
+    
     def on_usb_barcode_scanned(self, barcode_data):
         """Handle barcode from USB HID scanner - populate serial number field."""
         self.serial_input.setText(barcode_data)
@@ -652,8 +704,7 @@ class ModeSelectionScreen(QWidget):
     def on_resume_clicked(self):
         """Show dialog to select incomplete workflow to resume."""
         # Find all progress files
-        output_base = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
-                                   "output", "captured_images")
+        output_base = preferences.get_captured_images_dir()
         
         progress_files = []
         if os.path.exists(output_base):
