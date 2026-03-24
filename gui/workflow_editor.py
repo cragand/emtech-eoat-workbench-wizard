@@ -1054,12 +1054,16 @@ class WorkflowEditorScreen(QWidget):
             resource_abs_path = os.path.join(app_root, resource_dir)
             os.makedirs(resource_abs_path, exist_ok=True)
             
-            # Collect all reference images
+            # Collect all reference images and videos
             image_files = []
+            video_files = []
             for step in self.current_workflow.get('steps', []):
                 ref_image = step.get('reference_image', '')
                 if ref_image and os.path.exists(ref_image):
                     image_files.append(ref_image)
+                ref_video = step.get('reference_video', '')
+                if ref_video and os.path.exists(ref_video):
+                    video_files.append(ref_video)
             
             # Create zip file
             with zipfile.ZipFile(save_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -1068,9 +1072,13 @@ class WorkflowEditorScreen(QWidget):
                 
                 # Add reference images
                 for img_path in image_files:
-                    # Use just the filename for the archive
                     img_filename = os.path.basename(img_path)
                     zipf.write(img_path, f"images/{img_filename}")
+                
+                # Add reference videos
+                for vid_path in video_files:
+                    vid_filename = os.path.basename(vid_path)
+                    zipf.write(vid_path, f"videos/{vid_filename}")
                 
                 # Create manifest
                 manifest = {
@@ -1078,7 +1086,8 @@ class WorkflowEditorScreen(QWidget):
                     'mode': self.mode_number,
                     'export_date': datetime.now().isoformat(),
                     'image_count': len(image_files),
-                    'version': '1.0'
+                    'video_count': len(video_files),
+                    'version': '1.1'
                 }
                 zipf.writestr('manifest.json', json.dumps(manifest, indent=2))
             
@@ -1087,7 +1096,8 @@ class WorkflowEditorScreen(QWidget):
                 "Export Successful",
                 f"Workflow exported successfully!\n\n"
                 f"File: {os.path.basename(save_path)}\n"
-                f"Images included: {len(image_files)}"
+                f"Images included: {len(image_files)}\n"
+                f"Videos included: {len(video_files)}"
             )
         
         except Exception as e:
@@ -1139,12 +1149,15 @@ class WorkflowEditorScreen(QWidget):
                 workflow['name'] = f"{workflow_name} ({timestamp})"
                 target_path = os.path.join(self.workflow_dir, f"{safe_name}.json")
 
-        # Check for reference images with invalid paths
+        # Check for reference images/videos with invalid paths
         missing_images = []
         for step in workflow.get('steps', []):
             ref = step.get('reference_image', '')
             if ref and not os.path.exists(ref):
                 missing_images.append(f"Step '{step.get('title', '?')}': {ref}")
+            ref_vid = step.get('reference_video', '')
+            if ref_vid and not os.path.exists(ref_vid):
+                missing_images.append(f"Step '{step.get('title', '?')}' (video): {ref_vid}")
 
         with open(target_path, 'w', encoding='utf-8') as f:
             json.dump(workflow, f, indent=2)
@@ -1238,13 +1251,30 @@ class WorkflowEditorScreen(QWidget):
                     # Store mapping for path updates
                     image_mapping[img_filename] = os.path.join(resource_dir, img_filename)
             
-            # Update reference image paths in workflow
+            # Extract videos and update paths
+            video_mapping = {}
+            for item in zipf.namelist():
+                if item.startswith('videos/'):
+                    vid_filename = os.path.basename(item)
+                    target_vid_path = os.path.join(resource_abs_path, vid_filename)
+                    
+                    with zipf.open(item) as source, open(target_vid_path, 'wb') as target:
+                        shutil.copyfileobj(source, target)
+                    
+                    video_mapping[vid_filename] = os.path.join(resource_dir, vid_filename)
+            
+            # Update reference image and video paths in workflow
             for step in workflow.get('steps', []):
                 ref_image = step.get('reference_image', '')
                 if ref_image:
                     img_filename = os.path.basename(ref_image)
                     if img_filename in image_mapping:
                         step['reference_image'] = image_mapping[img_filename]
+                ref_video = step.get('reference_video', '')
+                if ref_video:
+                    vid_filename = os.path.basename(ref_video)
+                    if vid_filename in video_mapping:
+                        step['reference_video'] = video_mapping[vid_filename]
             
             # Save workflow
             with open(target_path, 'w') as f:
@@ -1259,5 +1289,6 @@ class WorkflowEditorScreen(QWidget):
                 f"Workflow imported successfully!\n\n"
                 f"Name: {workflow['name']}\n"
                 f"Images imported: {len(image_mapping)}\n"
+                f"Videos imported: {len(video_mapping)}\n"
                 f"Steps: {len(workflow.get('steps', []))}"
             )
