@@ -21,7 +21,7 @@ class CameraManager:
         """
         from preferences_manager import preferences
 
-        max_index = preferences.get("max_camera_index", 8)
+        max_index = preferences.get("max_camera_index") or 8
         cameras = []
         consecutive_failures = 0
         
