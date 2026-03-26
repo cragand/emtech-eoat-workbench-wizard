@@ -15,14 +15,20 @@ class CameraManager:
     def discover_cameras() -> List[CameraInterface]:
         """Discover all available cameras.
         
-        Optimized for fast discovery - only checks first 3 indices
-        and stops immediately when a camera fails to open.
+        Probes up to max_camera_index indices (from user preferences,
+        default 8). Stops early after 2 consecutive failures to keep
+        startup fast when fewer cameras are connected.
         """
+        from preferences_manager import preferences
+
+        max_index = preferences.get("max_camera_index", 8)
         cameras = []
+        consecutive_failures = 0
         
-        for i in range(3):
+        for i in range(max_index):
             cam = OpenCVCamera(i)
             if cam.open():
+                consecutive_failures = 0
                 # Apply saved settings (no probing)
                 try:
                     CameraConfigManager.initialize_camera_with_optimal_settings(
@@ -33,6 +39,10 @@ class CameraManager:
                 cameras.append(cam)
             else:
                 cam.close()
+                consecutive_failures += 1
+                if consecutive_failures >= 2:
+                    logger.debug(f"Stopping camera discovery after 2 consecutive failures at index {i}")
+                    break
         
         return cameras
     

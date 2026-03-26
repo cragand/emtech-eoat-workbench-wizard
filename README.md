@@ -139,6 +139,7 @@ Accessible from the mode selection screen via the "🔧 User Preferences" button
 - **Default Camera Index**: Pre-select a specific camera on startup
 - **Report Format**: Choose PDF only, DOCX only, or both (default: both)
 - **Log Retention**: Number of days to keep log files (default: 30)
+- **Max Camera Discovery**: Maximum number of camera indices to probe at startup (default: 8). Increase if you have more than 4 cameras connected; decrease to speed up startup if you only use 1-2 cameras.
 
 **Appearance Tab:**
 - **Theme**: Toggle dark/light mode (persisted across sessions)

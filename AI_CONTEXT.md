@@ -38,6 +38,7 @@ This is a Python-based quality control and maintenance application designed for 
 - **camera_manager.py** - Discovers and manages available cameras
 - **camera_config_manager.py** - Camera settings profiles (Logitech, Microsoft, borescope, generic) and per-camera persistence
 - Uses OpenCV VideoCapture for all camera access
+- Camera discovery probes up to `max_camera_index` indices (default 8, configurable in User Preferences) with early exit after 2 consecutive failures for fast startup
 - Discovered cameras are cached in `MainWindow.cached_cameras` and shared across mode switches to avoid re-discovery
 - Async camera discovery with `CameraDiscoveryThread` and `GearSpinnerWidget` loading animation
 
@@ -180,7 +181,7 @@ This is a Python-based quality control and maintenance application designed for 
 
 #### User Preferences (`preferences_manager.py`)
 - Singleton `PreferencesManager` with JSON config at `settings/user_preferences.json`
-- Settings: technician_name, default_camera_index, report_format, dark_mode, accent_color, default_marker_color, reports_output_dir, captured_images_dir, editor_password_hash, log_retention_days
+- Settings: technician_name, default_camera_index, report_format, dark_mode, accent_color, default_marker_color, reports_output_dir, captured_images_dir, editor_password_hash, log_retention_days, max_camera_index
 - `get_reports_dir()` / `get_captured_images_dir()` return custom or default paths
 - `check_editor_password()` / `set_editor_password()` use SHA-256 hashing
 - `get_accent_colors()` derives hover/pressed variants from base accent color
@@ -293,7 +294,7 @@ output/
 ### Camera Support
 - **ONLY OpenCV cameras** - No Basler/pypylon support
 - Supports standard USB webcams and borescope cameras
-- Camera discovery checks indices 0-4 for available devices
+- Camera discovery probes up to `max_camera_index` indices (default 8, configurable in preferences) with early exit after 2 consecutive failures
 - DirectShow backend on Windows for fast initialization
 
 ### QR Scanner Behavior

@@ -114,6 +114,12 @@ class PreferencesDialog(QDialog):
         self.log_days_spin.setSuffix(" days")
         form.addRow("Log Retention:", self.log_days_spin)
 
+        self.max_cam_spin = QSpinBox()
+        self.max_cam_spin.setRange(1, 20)
+        self.max_cam_spin.setToolTip("Maximum number of camera indices to probe at startup.\n"
+                                     "Higher values find more cameras but may slow discovery.")
+        form.addRow("Max Camera Discovery:", self.max_cam_spin)
+
         return w
 
     def _build_appearance_tab(self):
@@ -216,6 +222,8 @@ class PreferencesDialog(QDialog):
 
         self.log_days_spin.setValue(preferences.get("log_retention_days") or 30)
 
+        self.max_cam_spin.setValue(preferences.get("max_camera_index") or 8)
+
         self.dark_mode_check.setChecked(preferences.get("dark_mode") or False)
         self.accent_btn.set_color(preferences.get("accent_color") or "#77C25E")
         self.marker_btn.set_color(preferences.get("default_marker_color") or "#FF0000")
@@ -254,6 +262,7 @@ class PreferencesDialog(QDialog):
         preferences.set("default_camera_index", self.camera_spin.value())
         preferences.set("report_format", ["both", "pdf", "docx"][self.report_combo.currentIndex()])
         preferences.set("log_retention_days", self.log_days_spin.value())
+        preferences.set("max_camera_index", self.max_cam_spin.value())
         preferences.set("dark_mode", self.dark_mode_check.isChecked())
         preferences.set("accent_color", self.accent_btn.color())
         preferences.set("default_marker_color", self.marker_btn.color())

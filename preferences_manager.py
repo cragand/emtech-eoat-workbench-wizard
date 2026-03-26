@@ -20,6 +20,7 @@ _DEFAULTS = {
     "captured_images_dir": "",         # empty = default output/captured_images
     "editor_password_hash": hashlib.sha256("admin".encode()).hexdigest(),
     "log_retention_days": 30,
+    "max_camera_index": 8,             # max camera indices to probe during discovery (supports 4+ cameras)
 }
 
 
