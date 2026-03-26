@@ -14,6 +14,7 @@ from reports import generate_reports
 from gui.annotatable_preview import AnnotatablePreview
 from gui.review_captures_dialog import ReviewCapturesDialog
 from gui.camera_settings_dialog import CameraSettingsDialog
+from gui.capture_review_dialog import CaptureReviewDialog
 from gui.video_decoder import VideoDecoderThread
 from gui.checkbox_widgets import InteractiveReferenceImage, CombinedReferenceImage
 from gui.comparison_dialog import show_reference_fullsize
@@ -1380,8 +1381,24 @@ class WorkflowExecutionScreen(QWidget):
             if has_alpha and not self.hide_overlay_checkbox.isChecked():
                 frame = self._render_overlay_on_frame(frame, self.reference_image_path, has_alpha)
             
-            # Draw markers
-            markers = self.preview_label.get_markers_data()
+            # Carry over any markers already placed on the live preview
+            existing_markers = self.preview_label.get_markers_data()
+            existing_notes = self.notes_input.text().strip()
+
+            # Open review dialog for annotation and notes
+            dlg = CaptureReviewDialog(
+                frame,
+                marker_color=self.preview_label.marker_color,
+                existing_markers=existing_markers,
+                existing_notes=existing_notes,
+                parent=self
+            )
+            if dlg.exec_() != dlg.Accepted:
+                return  # Discarded
+
+            markers, notes = dlg.get_results()
+
+            # Draw markers on the frame
             if markers:
                 frame = self._draw_markers_on_frame(frame, markers, self._get_marker_bgr_color())
             
@@ -1393,7 +1410,6 @@ class WorkflowExecutionScreen(QWidget):
             
             cv2.imwrite(filepath, frame)
             
-            notes = self.notes_input.text().strip()
             camera_name = self.current_camera.name if self.current_camera else "Unknown"
             
             image_data = {
@@ -1422,9 +1438,6 @@ class WorkflowExecutionScreen(QWidget):
                     "filename": filename,
                     "markers": [m.get("label", "") for m in markers] if markers else [],
                 })
-            
-            QMessageBox.information(self, "Image Captured", 
-                                   f"Image saved for step {self.current_step + 1}")
     
     def on_barcode_detected(self, barcode_type: str, barcode_data: str):
         """Handle barcode detection (just update status, don't auto-append)."""

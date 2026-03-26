@@ -20,6 +20,7 @@ from gui.annotatable_preview import AnnotatablePreview
 from gui.review_captures_dialog import ReviewCapturesDialog
 from gui.camera_settings_dialog import CameraSettingsDialog
 from gui.mask_editor import MaskEditorDialog
+from gui.capture_review_dialog import CaptureReviewDialog
 
 # Optional QR scanner support
 try:
@@ -753,12 +754,26 @@ class Mode1CaptureScreen(QWidget):
         
         frame = self.current_camera.capture_frame()
         if frame is not None:
-            # Apply overlay before markers
+            # Apply overlay before review
             frame = self._apply_overlay(frame)
             
-            # Get markers before saving
-            markers = self.preview_label.get_markers_data()
-            
+            # Carry over any markers already placed on the live preview
+            existing_markers = self.preview_label.get_markers_data()
+            existing_notes = self.notes_input.text().strip()
+
+            # Open review dialog for annotation and notes
+            dlg = CaptureReviewDialog(
+                frame,
+                marker_color=self.preview_label.marker_color,
+                existing_markers=existing_markers,
+                existing_notes=existing_notes,
+                parent=self
+            )
+            if dlg.exec_() != dlg.Accepted:
+                return  # Discarded
+
+            markers, notes = dlg.get_results()
+
             # Draw markers on the frame if any exist
             if markers:
                 frame = self._draw_markers_on_frame(frame, markers, self._get_marker_bgr_color())
@@ -770,8 +785,6 @@ class Mode1CaptureScreen(QWidget):
             
             cv2.imwrite(filepath, frame)
             
-            # Get notes and camera info
-            notes = self.notes_input.text().strip()
             camera_name = self.current_camera.name if self.current_camera else "Unknown"
             
             # Store image with metadata including markers
