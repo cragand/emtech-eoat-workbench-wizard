@@ -103,6 +103,15 @@ class WorkflowExecutionScreen(QWidget):
         os.makedirs(self.output_dir, exist_ok=True)
         self._reports_dir = _prefs.get_reports_dir()
         
+        # Collect path fallback warnings
+        self._path_fallback_warnings = []
+        if _prefs.is_captured_images_dir_fallback():
+            self._path_fallback_warnings.append(
+                f"⚠️ Custom images folder is unavailable.\nImages will be saved locally to:\n{self.output_dir}")
+        if _prefs.is_reports_dir_fallback():
+            self._path_fallback_warnings.append(
+                f"⚠️ Custom reports folder is unavailable.\nReports will be saved locally to:\n{self._reports_dir}")
+        
         self.load_workflow()
         self.init_ui()
         
@@ -124,6 +133,16 @@ class WorkflowExecutionScreen(QWidget):
         # Set focus to this widget so keyboard shortcuts work immediately
         self.setFocusPolicy(Qt.StrongFocus)
         self.setFocus()
+        
+        # Show path fallback warnings after UI is visible
+        if self._path_fallback_warnings:
+            QTimer.singleShot(200, self._show_path_fallback_warnings)
+    
+    def _show_path_fallback_warnings(self):
+        """Show warnings about custom output paths that fell back to defaults."""
+        QMessageBox.warning(self, "Output Path Unavailable",
+                            "\n\n".join(self._path_fallback_warnings))
+        self._path_fallback_warnings.clear()
     
     def closeEvent(self, event):
         """Handle window close event."""

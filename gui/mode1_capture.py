@@ -62,11 +62,21 @@ class Mode1CaptureScreen(QWidget):
         # Use "unknown" if no serial number provided - sanitize for filesystem
         output_serial = self._sanitize_filename(serial_number) if serial_number else "unknown"
         from preferences_manager import preferences as _prefs
+        self._prefs = _prefs
         self.output_dir = os.path.join(_prefs.get_captured_images_dir(), output_serial)
         os.makedirs(self.output_dir, exist_ok=True)
         self._reports_dir = _prefs.get_reports_dir()
         
         logger.info(f"Output directory: {self.output_dir}")
+        
+        # Warn if custom paths fell back to defaults (e.g. network share unavailable)
+        self._path_fallback_warnings = []
+        if _prefs.is_captured_images_dir_fallback():
+            self._path_fallback_warnings.append(
+                f"⚠️ Custom images folder is unavailable.\nImages will be saved locally to:\n{self.output_dir}")
+        if _prefs.is_reports_dir_fallback():
+            self._path_fallback_warnings.append(
+                f"⚠️ Custom reports folder is unavailable.\nReports will be saved locally to:\n{self._reports_dir}")
         
         self.init_ui()
         
@@ -81,6 +91,16 @@ class Mode1CaptureScreen(QWidget):
         
         # Set focus to this widget so keyboard shortcuts work immediately
         self.setFocus()
+        
+        # Show path fallback warnings after UI is visible
+        if self._path_fallback_warnings:
+            QTimer.singleShot(200, self._show_path_fallback_warnings)
+    
+    def _show_path_fallback_warnings(self):
+        """Show warnings about custom output paths that fell back to defaults."""
+        QMessageBox.warning(self, "Output Path Unavailable",
+                            "\n\n".join(self._path_fallback_warnings))
+        self._path_fallback_warnings.clear()
     
     def _sanitize_filename(self, filename):
         """Remove invalid characters from filename."""
@@ -1009,6 +1029,16 @@ class Mode1CaptureScreen(QWidget):
         success_label = QLabel("✓ PDF and DOCX reports generated successfully!")
         success_label.setStyleSheet("font-size: 14px; font-weight: bold; color: green;")
         layout.addWidget(success_label)
+        
+        # Warn if reports were saved to fallback location
+        if self._prefs.is_reports_dir_fallback():
+            fallback_label = QLabel(
+                f"⚠️ Custom reports folder is unavailable. "
+                f"Reports saved locally instead."
+            )
+            fallback_label.setWordWrap(True)
+            fallback_label.setStyleSheet("font-size: 11px; font-weight: bold; color: #E65100; padding: 4px;")
+            layout.addWidget(fallback_label)
         
         layout.addSpacing(10)
         

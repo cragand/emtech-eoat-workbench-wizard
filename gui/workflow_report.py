@@ -155,6 +155,16 @@ def show_report_dialog(parent, pdf_path, docx_path, image_count):
     success_label.setStyleSheet("font-size: 14px; font-weight: bold; color: green;")
     layout.addWidget(success_label)
 
+    # Warn if reports were saved to fallback location
+    if preferences.is_reports_dir_fallback():
+        fallback_label = QLabel(
+            f"⚠️ Custom reports folder is unavailable. "
+            f"Reports saved locally instead."
+        )
+        fallback_label.setWordWrap(True)
+        fallback_label.setStyleSheet("font-size: 11px; font-weight: bold; color: #E65100; padding: 4px;")
+        layout.addWidget(fallback_label)
+
     layout.addSpacing(10)
 
     info_label = QLabel(

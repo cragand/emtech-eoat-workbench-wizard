@@ -67,6 +67,8 @@ class PreferencesManager:
         custom = self._prefs.get("reports_output_dir", "")
         if custom and os.path.isdir(custom):
             return custom
+        if custom:
+            logger.warning("Custom reports directory unavailable (%s), using default", custom)
         return os.path.join(os.path.dirname(os.path.abspath(__file__)), "output", "reports")
 
     def get_captured_images_dir(self) -> str:
@@ -74,7 +76,19 @@ class PreferencesManager:
         custom = self._prefs.get("captured_images_dir", "")
         if custom and os.path.isdir(custom):
             return custom
+        if custom:
+            logger.warning("Custom captured images directory unavailable (%s), using default", custom)
         return os.path.join(os.path.dirname(os.path.abspath(__file__)), "output", "captured_images")
+
+    def is_reports_dir_fallback(self) -> bool:
+        """Return True if the reports directory fell back to default due to unavailable custom path."""
+        custom = self._prefs.get("reports_output_dir", "")
+        return bool(custom) and not os.path.isdir(custom)
+
+    def is_captured_images_dir_fallback(self) -> bool:
+        """Return True if the captured images directory fell back to default due to unavailable custom path."""
+        custom = self._prefs.get("captured_images_dir", "")
+        return bool(custom) and not os.path.isdir(custom)
 
     def check_editor_password(self, password: str) -> bool:
         return hashlib.sha256(password.encode()).hexdigest() == self._prefs.get("editor_password_hash", "")
