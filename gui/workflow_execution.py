@@ -91,6 +91,10 @@ class WorkflowExecutionScreen(QWidget):
         self.available_cameras = cached_cameras if cached_cameras is not None else []
         self.recording_start_time = None
         
+        # Instruction text zoom level (persisted across sessions)
+        from preferences_manager import preferences as _prefs_init
+        self._zoom_level = _prefs_init.get("instructions_zoom") or 0
+        
         # Setup output directory - sanitize serial number for filesystem
         output_serial = self._sanitize_filename(serial_number) if serial_number else "unknown"
         from preferences_manager import preferences as _prefs
@@ -254,10 +258,33 @@ class WorkflowExecutionScreen(QWidget):
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
         
+        # Instructions header with zoom controls
+        inst_header = QHBoxLayout()
         inst_label = QLabel("Instructions:")
         inst_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
-        left_layout.addWidget(inst_label)
-        
+        inst_header.addWidget(inst_label)
+        inst_header.addStretch()
+
+        zoom_hint = QLabel("Ctrl +/−")
+        zoom_hint.setStyleSheet("color: #888888; font-size: 10px;")
+        inst_header.addWidget(zoom_hint)
+
+        zoom_out_btn = QPushButton("−")
+        zoom_out_btn.setFixedSize(28, 28)
+        zoom_out_btn.setFocusPolicy(Qt.NoFocus)
+        zoom_out_btn.setStyleSheet("font-size: 16px; font-weight: bold;")
+        zoom_out_btn.clicked.connect(lambda: self._zoom_instructions(-2))
+        inst_header.addWidget(zoom_out_btn)
+
+        zoom_in_btn = QPushButton("+")
+        zoom_in_btn.setFixedSize(28, 28)
+        zoom_in_btn.setFocusPolicy(Qt.NoFocus)
+        zoom_in_btn.setStyleSheet("font-size: 16px; font-weight: bold;")
+        zoom_in_btn.clicked.connect(lambda: self._zoom_instructions(2))
+        inst_header.addWidget(zoom_in_btn)
+
+        left_layout.addLayout(inst_header)
+
         self.instructions_text = QTextEdit()
         self.instructions_text.setReadOnly(True)
         left_layout.addWidget(self.instructions_text, 1)
@@ -1019,6 +1046,7 @@ class WorkflowExecutionScreen(QWidget):
         
         # Update instructions
         self.instructions_text.setText(step.get('instructions', 'No instructions provided.'))
+        self._apply_zoom()
         
         # Update reference image
         ref_image_path = step.get('reference_image', '')
@@ -1275,6 +1303,24 @@ class WorkflowExecutionScreen(QWidget):
         
         self.breadcrumb_layout.addStretch()
     
+    def _zoom_instructions(self, delta):
+        """Zoom instruction text by delta point-size steps. Persists to preferences."""
+        new_level = self._zoom_level + delta
+        if new_level < -10 or new_level > 30:
+            return
+        self._zoom_level = new_level
+        self._apply_zoom()
+        from preferences_manager import preferences as _prefs
+        _prefs.set("instructions_zoom", self._zoom_level)
+        _prefs.save()
+
+    def _apply_zoom(self):
+        """Apply current zoom level to instructions text."""
+        size = max(6, 10 + self._zoom_level)
+        font = self.instructions_text.font()
+        font.setPointSize(size)
+        self.instructions_text.setFont(font)
+
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts."""
         # Space: Capture image
@@ -1300,6 +1346,22 @@ class WorkflowExecutionScreen(QWidget):
         elif event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
             if hasattr(self, 'reference_image') and hasattr(self.reference_image, 'undo_checkbox'):
                 self.reference_image.undo_checkbox()
+            event.accept()
+        # Ctrl+Plus / Ctrl+Equal: Zoom in instructions
+        elif event.key() in (Qt.Key_Plus, Qt.Key_Equal) and event.modifiers() == Qt.ControlModifier:
+            self._zoom_instructions(2)
+            event.accept()
+        # Ctrl+Minus: Zoom out instructions
+        elif event.key() == Qt.Key_Minus and event.modifiers() == Qt.ControlModifier:
+            self._zoom_instructions(-2)
+            event.accept()
+        # Ctrl+0: Reset instructions zoom
+        elif event.key() == Qt.Key_0 and event.modifiers() == Qt.ControlModifier:
+            self._zoom_level = 0
+            self._apply_zoom()
+            from preferences_manager import preferences as _prefs0
+            _prefs0.set("instructions_zoom", 0)
+            _prefs0.save()
             event.accept()
         else:
             super().keyPressEvent(event)
