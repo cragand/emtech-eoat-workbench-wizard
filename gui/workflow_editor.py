@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QListWidget, QMessageBox, QLineEdit, 
                              QTextEdit, QCheckBox, QFileDialog, QDialog, QDialogButtonBox,
                              QScrollArea, QGroupBox, QSpinBox)
-from PyQt5.QtCore import Qt, pyqtSignal, QPoint
+from PyQt5.QtCore import Qt, pyqtSignal, QPoint, QThread
 from PyQt5.QtGui import QFont, QPixmap, QPainter, QColor, QPen
 import os
 import json
@@ -1003,21 +1003,46 @@ class WorkflowEditorScreen(QWidget):
         
         from preferences_manager import preferences as _prefs
         output_dir = _prefs.get_reports_dir()
-        pdf_path = _generate_instructions(self.current_workflow, output_dir)
-        if pdf_path and os.path.exists(pdf_path):
-            try:
-                if platform.system() == "Windows":
-                    os.startfile(pdf_path)
-                elif platform.system() == "Darwin":
-                    subprocess.Popen(["open", pdf_path])
-                else:
-                    subprocess.Popen(["xdg-open", pdf_path])
-            except Exception:
-                pass
-            QMessageBox.information(self, "Instructions Generated",
-                f"Saved to:\n{pdf_path}")
-        else:
-            QMessageBox.warning(self, "Error", "Failed to generate instruction document.")
+        workflow = self.current_workflow
+
+        # Run generation in background thread
+        from PyQt5.QtWidgets import QProgressDialog
+
+        progress = QProgressDialog("Generating instruction document…", None, 0, 0, self)
+        progress.setWindowTitle("Please Wait")
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setCancelButton(None)
+        progress.setMinimumDuration(0)
+        progress.show()
+
+        class _Worker(QThread):
+            finished = pyqtSignal(str)
+            def run(self):
+                path = _generate_instructions(workflow, output_dir) or ""
+                self.finished.emit(path)
+
+        worker = _Worker(self)
+
+        def on_done(pdf_path):
+            progress.close()
+            if pdf_path and os.path.exists(pdf_path):
+                try:
+                    if platform.system() == "Windows":
+                        os.startfile(pdf_path)
+                    elif platform.system() == "Darwin":
+                        subprocess.Popen(["open", pdf_path])
+                    else:
+                        subprocess.Popen(["xdg-open", pdf_path])
+                except Exception:
+                    pass
+                QMessageBox.information(self, "Instructions Generated",
+                    f"Saved to:\n{pdf_path}")
+            else:
+                QMessageBox.warning(self, "Error", "Failed to generate instruction document.")
+
+        worker.finished.connect(on_done)
+        self._instructions_worker = worker  # prevent GC
+        worker.start()
 
     def export_workflow(self):
         """Export workflow as a zip file with all reference images."""

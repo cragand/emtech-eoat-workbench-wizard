@@ -1,7 +1,7 @@
 """Mode selection screen - initial application screen."""
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QLineEdit, QPushButton, QTextEdit, QButtonGroup, QRadioButton, QMessageBox, QDialog, QListWidget, QListWidgetItem, QComboBox, QApplication)
-from PyQt5.QtCore import Qt, pyqtSignal, QTimer
+from PyQt5.QtCore import Qt, pyqtSignal, QTimer, QThread
 from PyQt5.QtGui import QFont, QPalette, QColor, QImage, QPixmap
 import os
 import json
@@ -544,22 +544,46 @@ class ModeSelectionScreen(QWidget):
             dialog.accept()
             
             output_dir = preferences.get_reports_dir()
-            pdf_path = generate_workflow_instructions(wf, output_dir)
-            if pdf_path and os.path.exists(pdf_path):
-                import subprocess, platform
-                try:
-                    if platform.system() == "Windows":
-                        os.startfile(pdf_path)
-                    elif platform.system() == "Darwin":
-                        subprocess.Popen(["open", pdf_path])
-                    else:
-                        subprocess.Popen(["xdg-open", pdf_path])
-                except Exception:
-                    pass
-                QMessageBox.information(self, "Instructions Generated",
-                    f"Saved to:\n{pdf_path}")
-            else:
-                QMessageBox.warning(self, "Error", "Failed to generate instruction document.")
+
+            # Run generation in background thread
+            from PyQt5.QtWidgets import QProgressDialog
+
+            progress = QProgressDialog("Generating instruction document…", None, 0, 0, self)
+            progress.setWindowTitle("Please Wait")
+            progress.setWindowModality(Qt.WindowModal)
+            progress.setCancelButton(None)
+            progress.setMinimumDuration(0)
+            progress.show()
+
+            class _Worker(QThread):
+                finished = pyqtSignal(str)
+                def run(self_w):
+                    path = generate_workflow_instructions(wf, output_dir) or ""
+                    self_w.finished.emit(path)
+
+            worker = _Worker(self)
+
+            def on_done(pdf_path):
+                progress.close()
+                if pdf_path and os.path.exists(pdf_path):
+                    import subprocess, platform
+                    try:
+                        if platform.system() == "Windows":
+                            os.startfile(pdf_path)
+                        elif platform.system() == "Darwin":
+                            subprocess.Popen(["open", pdf_path])
+                        else:
+                            subprocess.Popen(["xdg-open", pdf_path])
+                    except Exception:
+                        pass
+                    QMessageBox.information(self, "Instructions Generated",
+                        f"Saved to:\n{pdf_path}")
+                else:
+                    QMessageBox.warning(self, "Error", "Failed to generate instruction document.")
+
+            worker.finished.connect(on_done)
+            self._instructions_worker = worker  # prevent GC
+            worker.start()
         
         workflow_list.currentRowChanged.connect(on_selection_changed)
         workflow_list.itemDoubleClicked.connect(lambda: on_generate() if workflow_list.currentRow() in workflow_map else None)
