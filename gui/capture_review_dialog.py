@@ -57,7 +57,8 @@ class CaptureReviewDialog(QDialog):
         help_text = QLabel(
             "Click: Add marker  |  Drag: Move  |  Scroll: Rotate  "
             "|  Shift+Scroll: Arrow length  |  Right-click: Remove  "
-            "|  Space: Save & Close  |  Escape: Discard"
+            "|  Space/Enter: Save & Close  |  Escape: Discard  "
+            "|  Click image to deselect notes field"
         )
         help_text.setStyleSheet("color: #888888; font-size: 10px;")
         help_text.setAlignment(Qt.AlignCenter)
@@ -67,6 +68,7 @@ class CaptureReviewDialog(QDialog):
         # Annotatable preview showing the frozen captured image
         self.preview = AnnotatablePreview()
         self.preview.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.preview.setFocusPolicy(Qt.ClickFocus)
         if marker_color:
             self.preview.marker_color = marker_color
         self.preview.set_frame(self._pixmap)
@@ -85,8 +87,9 @@ class CaptureReviewDialog(QDialog):
         notes_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         notes_row.addWidget(notes_label)
         self.notes_input = QLineEdit()
-        self.notes_input.setPlaceholderText("Add notes for this image...")
+        self.notes_input.setPlaceholderText("Add notes for this image... (Enter to save)")
         self.notes_input.setText(existing_notes)
+        self.notes_input.returnPressed.connect(self.accept)
         notes_row.addWidget(self.notes_input)
         layout.addLayout(notes_row)
 
@@ -104,7 +107,7 @@ class CaptureReviewDialog(QDialog):
         discard_btn.clicked.connect(self.reject)
         btn_row.addWidget(discard_btn)
 
-        save_btn = QPushButton("Save (Space)")
+        save_btn = QPushButton("Save (Space / Enter)")
         save_btn.setFocusPolicy(Qt.NoFocus)
         save_btn.setStyleSheet(
             "QPushButton { background-color: #4CAF50; color: white; border: none; "
@@ -130,6 +133,9 @@ class CaptureReviewDialog(QDialog):
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Space and not self.notes_input.hasFocus():
+            self.accept()
+            event.accept()
+        elif event.key() in (Qt.Key_Return, Qt.Key_Enter) and not self.notes_input.hasFocus():
             self.accept()
             event.accept()
         elif event.key() == Qt.Key_Escape:
