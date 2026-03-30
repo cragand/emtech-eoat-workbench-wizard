@@ -350,6 +350,15 @@ class MainWindow(QMainWindow):
             self.stack.addWidget(self.current_mode_widget)
             self.stack.setCurrentWidget(self.current_mode_widget)
     
+    def closeEvent(self, event):
+        """Clean up resources when the main window is closed."""
+        if self.current_mode_widget and hasattr(self.current_mode_widget, 'cleanup_resources'):
+            self.current_mode_widget.cleanup_resources()
+        if self.audit:
+            self.audit.close()
+            self.audit = None
+        super().closeEvent(event)
+
     def return_to_mode_selection(self):
         """Return to mode selection screen."""
         # Close audit session

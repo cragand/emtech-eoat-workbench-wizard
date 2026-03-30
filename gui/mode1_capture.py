@@ -54,6 +54,9 @@ class Mode1CaptureScreen(QWidget):
         self.report_generated = False  # Track if report has been generated
         self.barcode_scans = []  # List of dicts: {type, data, timestamp}
         self.overlay_path = None  # Path to active overlay PNG
+        self._overlay_cache = None  # Cached BGRA overlay image (raw, unscaled)
+        self._overlay_cache_size = None  # (w, h) the cache was scaled to
+        self._overlay_cache_scaled = None  # Pre-scaled alpha and BGR arrays
         self._consecutive_frame_failures = 0
         
         # Use cached cameras if provided, otherwise discover
@@ -664,6 +667,9 @@ class Mode1CaptureScreen(QWidget):
     def _set_overlay(self, path):
         """Set the active overlay image."""
         self.overlay_path = path
+        self._overlay_cache = None
+        self._overlay_cache_size = None
+        self._overlay_cache_scaled = None
         self.overlay_checkbox.setEnabled(True)
         self.overlay_checkbox.setChecked(True)
         self.overlay_label.setText(os.path.basename(path))
@@ -673,6 +679,9 @@ class Mode1CaptureScreen(QWidget):
     def _clear_overlay(self):
         """Remove the active overlay."""
         self.overlay_path = None
+        self._overlay_cache = None
+        self._overlay_cache_size = None
+        self._overlay_cache_scaled = None
         self.overlay_checkbox.setChecked(False)
         self.overlay_checkbox.setEnabled(False)
         self.overlay_label.setText("No overlay loaded")
@@ -683,19 +692,31 @@ class Mode1CaptureScreen(QWidget):
         """Apply the active overlay onto a frame. Returns the blended frame."""
         if not self.overlay_path or not self.overlay_checkbox.isChecked():
             return frame
-        if not os.path.exists(self.overlay_path):
-            return frame
         try:
-            ref_img = cv2.imread(self.overlay_path, cv2.IMREAD_UNCHANGED)
-            if ref_img is None or ref_img.shape[2] != 4:
-                return frame
+            # Load raw overlay once and cache it
+            if self._overlay_cache is None:
+                if not os.path.exists(self.overlay_path):
+                    return frame
+                img = cv2.imread(self.overlay_path, cv2.IMREAD_UNCHANGED)
+                if img is None or img.shape[2] != 4:
+                    return frame
+                self._overlay_cache = img
+                self._overlay_cache_size = None  # force re-scale
+
             h, w = frame.shape[:2]
-            ref_scaled = cv2.resize(ref_img, (w, h), interpolation=cv2.INTER_LINEAR)
-            alpha = ref_scaled[:, :, 3].astype(float) / 255.0
-            alpha_3ch = np.stack([alpha] * 3, axis=2)
-            overlay_bgr = ref_scaled[:, :, :3]
-            blended = (overlay_bgr.astype(float) * alpha_3ch +
-                       frame.astype(float) * (1 - alpha_3ch)).astype(np.uint8)
+            # Re-scale only when frame dimensions change
+            if self._overlay_cache_size != (w, h):
+                ref_scaled = cv2.resize(self._overlay_cache, (w, h), interpolation=cv2.INTER_LINEAR)
+                alpha = ref_scaled[:, :, 3].astype(np.float32) / 255.0
+                self._overlay_cache_scaled = (
+                    ref_scaled[:, :, :3].astype(np.float32),
+                    np.stack([alpha] * 3, axis=2),
+                )
+                self._overlay_cache_size = (w, h)
+
+            overlay_bgr, alpha_3ch = self._overlay_cache_scaled
+            blended = (overlay_bgr * alpha_3ch +
+                       frame.astype(np.float32) * (1 - alpha_3ch)).astype(np.uint8)
             return blended
         except Exception:
             return frame
