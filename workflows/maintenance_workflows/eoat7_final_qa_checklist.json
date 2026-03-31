@@ -7,9 +7,9 @@
       "instructions": "Using the belt tension meter, check the Grasp Belt tension, ensuring the Hz reading is between 76-86Hz.",
       "reference_image": "",
       "reference_video": "",
-      "require_photo": true,
+      "require_photo": false,
       "required_photo_count": 1,
-      "require_annotations": false,
+      "require_annotations": true,
       "require_barcode_scan": false,
       "require_pass_fail": true,
       "transparent_overlay": false
@@ -58,8 +58,8 @@
       "require_photo": true,
       "required_photo_count": 1,
       "require_annotations": false,
-      "require_barcode_scan": false,
-      "require_pass_fail": true,
+      "require_barcode_scan": true,
+      "require_pass_fail": false,
       "transparent_overlay": false
     },
     {
@@ -69,7 +69,7 @@
       "reference_video": "",
       "require_photo": true,
       "required_photo_count": 1,
-      "require_annotations": false,
+      "require_annotations": true,
       "require_barcode_scan": false,
       "require_pass_fail": true,
       "transparent_overlay": false
@@ -81,7 +81,7 @@
       "reference_video": "",
       "require_photo": true,
       "required_photo_count": 1,
-      "require_annotations": false,
+      "require_annotations": true,
       "require_barcode_scan": false,
       "require_pass_fail": true,
       "transparent_overlay": false
@@ -232,8 +232,8 @@
     },
     {
       "title": "Profile photo 1",
-      "instructions": "Take picture from L profile view camera.",
-      "reference_image": "resources/qc_reference_images\\overlay_mask_20260324_124420.png",
+      "instructions": "",
+      "reference_image": "C:/Users/gvanjosh/Downloads/Screenshot 2025-07-10 090716.png",
       "reference_video": "",
       "require_photo": true,
       "required_photo_count": 1,
@@ -245,7 +245,7 @@
     {
       "title": "Profile photo 2",
       "instructions": "",
-      "reference_image": "resources/qc_reference_images\\l profile overlay.png",
+      "reference_image": "C:/Users/gvanjosh/Downloads/Screenshot 2025-07-10 090732.png",
       "reference_video": "",
       "require_photo": true,
       "required_photo_count": 1,
@@ -257,7 +257,7 @@
     {
       "title": "Top photo",
       "instructions": "",
-      "reference_image": "resources/qc_reference_images\\top overlay mask.png",
+      "reference_image": "C:/Users/gvanjosh/Downloads/Screenshot 2025-07-10 090657.png",
       "reference_video": "",
       "require_photo": true,
       "required_photo_count": 1,
@@ -269,7 +269,7 @@
     {
       "title": "Bottom photo",
       "instructions": "",
-      "reference_image": "resources/qc_reference_images\\bottom overlay mask.png",
+      "reference_image": "C:/Users/gvanjosh/Downloads/Screenshot 2025-07-10 090641.png",
       "reference_video": "",
       "require_photo": true,
       "required_photo_count": 1,
@@ -281,7 +281,7 @@
     {
       "title": "Front photo",
       "instructions": "",
-      "reference_image": "",
+      "reference_image": "C:/Users/gvanjosh/Downloads/image.png",
       "reference_video": "",
       "require_photo": true,
       "required_photo_count": 1,
@@ -293,7 +293,7 @@
     {
       "title": "Back photo",
       "instructions": "",
-      "reference_image": "",
+      "reference_image": "C:/Users/gvanjosh/Downloads/Screenshot 2025-07-10 090746.png",
       "reference_video": "",
       "require_photo": true,
       "required_photo_count": 1,

@@ -6,7 +6,7 @@
     {
       "title": "Remove Old Bearing",
       "instructions": "",
-      "reference_image": "C:/Users/cragandb/Downloads/camera-qc-app/resources/overlay_masks/overlay_mask_tool_test1.png",
+      "reference_image": "C:/Users/cragandb/Downloads/camera-qc-app/resources/overlay_masks/overlay_mask_20260310_134417.png",
       "require_photo": false,
       "required_photo_count": 1,
       "require_annotations": false,
@@ -17,9 +17,14 @@
     {
       "title": "Clean Shaft",
       "instructions": "",
-      "reference_image": "maint_clean_shaft.jpg",
+      "reference_image": "",
+      "reference_video": "C:/Users/cragandb/Downloads/camera-qc-app/output/captured_images/EOAT_team_demo/EOAT_team_demo_20260310_131244.mp4",
       "require_photo": true,
-      "require_annotations": true
+      "required_photo_count": 1,
+      "require_annotations": true,
+      "require_barcode_scan": false,
+      "require_pass_fail": false,
+      "transparent_overlay": false
     },
     {
       "step_number": 3,
