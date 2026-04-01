@@ -146,20 +146,7 @@ class WorkflowExecutionScreen(QWidget):
     
     def closeEvent(self, event):
         """Handle window close event."""
-        # Stop recording if active
-        if self.is_recording and self.video_writer:
-            self.video_writer.release()
-            self.video_writer = None
-            logger.info("Video recording stopped due to window close")
-        
-        # Stop timer
-        if self.timer.isActive():
-            self.timer.stop()
-        
-        # Close camera
-        if self.current_camera:
-            self.current_camera.close()
-        
+        self.cleanup_resources()
         event.accept()
     
     def _sanitize_filename(self, filename):
@@ -1457,6 +1444,8 @@ class WorkflowExecutionScreen(QWidget):
                     "filename": filename,
                     "markers": [m.get("label", "") for m in markers] if markers else [],
                 })
+            
+            self.save_progress()
     
     def on_barcode_detected(self, barcode_type: str, barcode_data: str):
         """Handle barcode detection (just update status, don't auto-append)."""
@@ -1530,6 +1519,8 @@ class WorkflowExecutionScreen(QWidget):
                 "type": barcode_type, "data": barcode_data, "source": "camera",
                 "step": self.current_step + 1,
             })
+        
+        self.save_progress()
     
     def on_usb_barcode_scanned(self, barcode_data):
         """Handle barcode from USB HID scanner - same data path as camera scan."""
@@ -1582,6 +1573,8 @@ class WorkflowExecutionScreen(QWidget):
                 "type": "USB-HID", "data": barcode_data, "source": "usb",
                 "step": self.current_step + 1,
             })
+        
+        self.save_progress()
 
     def open_review_dialog(self):
         """Open review captures dialog."""
@@ -2117,6 +2110,13 @@ class WorkflowExecutionScreen(QWidget):
     def cleanup_resources(self):
         """Clean up camera resources."""
         self._close_ref_video()
+        
+        # Stop recording if active
+        if self.is_recording and self.video_writer:
+            self.video_writer.release()
+            self.video_writer = None
+            self.is_recording = False
+            logger.info("Video recording stopped during cleanup")
         
         if self.timer.isActive():
             self.timer.stop()

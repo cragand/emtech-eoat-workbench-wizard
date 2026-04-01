@@ -43,8 +43,11 @@ class PreferencesManager:
     def save(self):
         os.makedirs(os.path.dirname(_PREFS_PATH), exist_ok=True)
         try:
-            with open(_PREFS_PATH, "w", encoding="utf-8") as f:
+            # Atomic write: write to temp file then rename to prevent corruption
+            tmp_path = _PREFS_PATH + ".tmp"
+            with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(self._prefs, f, indent=2)
+            os.replace(tmp_path, _PREFS_PATH)
         except Exception:
             logger.warning("Failed to save preferences", exc_info=True)
 

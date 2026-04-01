@@ -28,8 +28,11 @@ def save_workflow_progress(output_dir, workflow_path, current_step, step_results
             'technician': technician,
             'description': description
         }
-        with open(progress_file, 'w') as f:
+        # Atomic write: write to temp file then rename to prevent corruption
+        tmp_file = progress_file + ".tmp"
+        with open(tmp_file, 'w') as f:
             json.dump(progress_data, f, indent=2)
+        os.replace(tmp_file, progress_file)
         return True
     except Exception as e:
         logger.error(f"Error saving progress: {e}", exc_info=True)
