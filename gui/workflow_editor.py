@@ -332,7 +332,7 @@ class StepEditorDialog(QDialog):
                 self.transparent_overlay_check.setChecked(False)
                 self.transparency_note.setVisible(False)
                 self.no_transparency_note.setVisible(True)
-        except:
+        except Exception:
             # If can't load image, disable overlay option
             self.transparent_overlay_check.setEnabled(False)
             self.transparent_overlay_check.setChecked(False)

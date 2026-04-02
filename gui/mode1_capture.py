@@ -508,6 +508,10 @@ class Mode1CaptureScreen(QWidget):
                     self.capture_button.setEnabled(False)
                     self.record_button.setEnabled(False)
         except Exception as e:
+            # Close camera if it was opened but setup failed
+            if self.current_camera and self.current_camera.is_open:
+                self.current_camera.close()
+                self.current_camera = None
             self.status_label.setText(f"Camera error: {str(e)}")
             self.capture_button.setEnabled(False)
             self.record_button.setEnabled(False)
@@ -940,31 +944,43 @@ class Mode1CaptureScreen(QWidget):
         """Start or stop video recording."""
         if not self.is_recording:
             # Start recording
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            serial_prefix = self.serial_number if self.serial_number else "unknown"
-            filename = f"{serial_prefix}_{timestamp}.mp4"
-            filepath = os.path.join(self.output_dir, filename)
-            
-            width, height = self.current_camera.get_resolution()
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            self.video_writer = cv2.VideoWriter(filepath, fourcc, 20.0, (width, height))
-            
-            # Store video start info
-            self.current_video_path = filepath
-            self.current_video_timestamp = timestamp
-            
-            self.is_recording = True
-            self.record_button.setText("⏹ Stop Recording (R)")
-            self.capture_button.setEnabled(False)
-            self.status_label.setText(f"Recording: {filename}")
-            
-            if self.audit:
-                self.audit.log("recording_start", {"filename": filename})
+            try:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                serial_prefix = self.serial_number if self.serial_number else "unknown"
+                filename = f"{serial_prefix}_{timestamp}.mp4"
+                filepath = os.path.join(self.output_dir, filename)
+                
+                width, height = self.current_camera.get_resolution()
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                self.video_writer = cv2.VideoWriter(filepath, fourcc, 20.0, (width, height))
+                
+                # Store video start info
+                self.current_video_path = filepath
+                self.current_video_timestamp = timestamp
+                
+                self.is_recording = True
+                self.record_button.setText("⏹ Stop Recording (R)")
+                self.capture_button.setEnabled(False)
+                self.status_label.setText(f"Recording: {filename}")
+                
+                if self.audit:
+                    self.audit.log("recording_start", {"filename": filename})
+            except Exception as e:
+                logger.error(f"Failed to start recording: {e}", exc_info=True)
+                if self.video_writer:
+                    self.video_writer.release()
+                    self.video_writer = None
+                self.is_recording = False
+                self.status_label.setText(f"Recording error: {str(e)}")
         else:
             # Stop recording
             self.is_recording = False
-            if self.video_writer:
-                self.video_writer.release()
+            try:
+                if self.video_writer:
+                    self.video_writer.release()
+                    self.video_writer = None
+            except Exception as e:
+                logger.error(f"Error releasing video writer: {e}", exc_info=True)
                 self.video_writer = None
             
             # Get notes, camera info, and markers for video
@@ -1154,26 +1170,45 @@ class Mode1CaptureScreen(QWidget):
     def cleanup_resources(self):
         """Clean up resources before closing."""
         # Stop timer immediately
-        if self.timer.isActive():
-            self.timer.stop()
+        try:
+            if self.timer.isActive():
+                self.timer.stop()
+        except Exception:
+            pass
         
         # Stop barcode check timer
-        if self.barcode_check_timer and self.barcode_check_timer.isActive():
-            self.barcode_check_timer.stop()
+        try:
+            if self.barcode_check_timer and self.barcode_check_timer.isActive():
+                self.barcode_check_timer.stop()
+        except Exception:
+            pass
         
         # Stop recording if active
-        if self.is_recording and self.video_writer:
-            self.video_writer.release()
+        try:
+            if self.is_recording and self.video_writer:
+                self.video_writer.release()
+        except Exception:
+            logger.warning("Error releasing video writer during cleanup", exc_info=True)
+        finally:
             self.video_writer = None
+            self.is_recording = False
         
         # Stop QR scanner without waiting
-        if self.qr_scanner:
-            self.qr_scanner.stop()
+        try:
+            if self.qr_scanner:
+                self.qr_scanner.stop()
+        except Exception:
+            logger.warning("Error stopping QR scanner during cleanup", exc_info=True)
+        finally:
             self.qr_scanner = None
         
         # Close camera
-        if self.current_camera:
-            self.current_camera.close()
+        try:
+            if self.current_camera:
+                self.current_camera.close()
+        except Exception:
+            logger.warning("Error closing camera during cleanup", exc_info=True)
+        finally:
             self.current_camera = None
     
     def closeEvent(self, event):

@@ -852,6 +852,10 @@ class WorkflowExecutionScreen(QWidget):
                 else:
                     raise Exception(f"Failed to open camera: {self.current_camera.name}")
         except Exception as e:
+            # Close camera if it was opened but setup failed
+            if self.current_camera and self.current_camera.is_open:
+                self.current_camera.close()
+                self.current_camera = None
             logger.error(f"Camera error: {e}", exc_info=True)
             QMessageBox.warning(self, "Camera Error",
                               f"Failed to open camera:\n{str(e)}\n\nTry selecting a different camera.")
@@ -985,8 +989,12 @@ class WorkflowExecutionScreen(QWidget):
                 
             else:
                 # Stop recording
-                if self.video_writer:
-                    self.video_writer.release()
+                try:
+                    if self.video_writer:
+                        self.video_writer.release()
+                except Exception as e:
+                    logger.error(f"Error releasing video writer: {e}", exc_info=True)
+                finally:
                     self.video_writer = None
                 
                 self.is_recording = False
@@ -2109,27 +2117,48 @@ class WorkflowExecutionScreen(QWidget):
 
     def cleanup_resources(self):
         """Clean up camera resources."""
-        self._close_ref_video()
+        try:
+            self._close_ref_video()
+        except Exception:
+            logger.warning("Error closing ref video during cleanup", exc_info=True)
         
         # Stop recording if active
-        if self.is_recording and self.video_writer:
-            self.video_writer.release()
+        try:
+            if self.is_recording and self.video_writer:
+                self.video_writer.release()
+                logger.info("Video recording stopped during cleanup")
+        except Exception:
+            logger.warning("Error releasing video writer during cleanup", exc_info=True)
+        finally:
             self.video_writer = None
             self.is_recording = False
-            logger.info("Video recording stopped during cleanup")
         
-        if self.timer.isActive():
-            self.timer.stop()
+        try:
+            if self.timer.isActive():
+                self.timer.stop()
+        except Exception:
+            pass
         
-        if self.barcode_check_timer and self.barcode_check_timer.isActive():
-            self.barcode_check_timer.stop()
+        try:
+            if self.barcode_check_timer and self.barcode_check_timer.isActive():
+                self.barcode_check_timer.stop()
+        except Exception:
+            pass
         
-        if self.qr_scanner:
-            self.qr_scanner.stop()
+        try:
+            if self.qr_scanner:
+                self.qr_scanner.stop()
+        except Exception:
+            logger.warning("Error stopping QR scanner during cleanup", exc_info=True)
+        finally:
             self.qr_scanner = None
         
-        if self.current_camera:
-            self.current_camera.close()
+        try:
+            if self.current_camera:
+                self.current_camera.close()
+        except Exception:
+            logger.warning("Error closing camera during cleanup", exc_info=True)
+        finally:
             self.current_camera = None
     
     def closeEvent(self, event):
