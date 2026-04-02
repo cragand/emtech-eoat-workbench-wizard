@@ -16,8 +16,10 @@ class CameraManager:
         """Discover all available cameras.
         
         Probes up to max_camera_index indices (from user preferences,
-        default 8). Stops early after 2 consecutive failures to keep
-        startup fast when fewer cameras are connected.
+        default 8). Each camera is closed after verification to avoid
+        holding USB resources that block subsequent probes. Stops early
+        after 4 consecutive failures to keep startup fast when fewer
+        cameras are connected.
         """
         from preferences_manager import preferences
 
@@ -29,19 +31,16 @@ class CameraManager:
             cam = OpenCVCamera(i)
             if cam.open():
                 consecutive_failures = 0
-                # Apply saved settings (no probing)
-                try:
-                    CameraConfigManager.initialize_camera_with_optimal_settings(
-                        cam.capture, cam.name)
-                except Exception as e:
-                    logger.warning(f"Could not apply settings to {cam.name}: {e}")
-                
+                logger.info(f"Discovered camera at index {i}: {cam.name}")
+                # Close immediately so we don't hold USB resources
+                # that could block discovery of remaining cameras
+                cam.close()
                 cameras.append(cam)
             else:
                 cam.close()
                 consecutive_failures += 1
-                if consecutive_failures >= 2:
-                    logger.debug(f"Stopping camera discovery after 2 consecutive failures at index {i}")
+                if consecutive_failures >= 4:
+                    logger.debug(f"Stopping camera discovery after 4 consecutive failures at index {i}")
                     break
         
         return cameras
