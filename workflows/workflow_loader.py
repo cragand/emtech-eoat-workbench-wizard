@@ -47,17 +47,33 @@ class WorkflowLoader:
         return image_path if image_path.exists() else None
     
     def _load_workflows_from_directory(self, directory: Path) -> List[Dict]:
-        """Load all JSON workflows from a directory."""
+        """Load all JSON workflows from a directory, including templates."""
         workflows = []
         
         if not directory.exists():
             directory.mkdir(parents=True, exist_ok=True)
             return workflows
         
+        # Load user workflows from top-level directory
         for json_file in directory.glob("*.json"):
             workflow = self.load_workflow(str(json_file))
             if workflow:
                 workflow['_file_path'] = str(json_file)
+                workflow['_is_template'] = False
                 workflows.append(workflow)
+        
+        # Load templates from templates/ subdirectory
+        templates_dir = directory / "templates"
+        if templates_dir.exists():
+            # Collect user workflow filenames to skip duplicates
+            user_filenames = {os.path.basename(w['_file_path']) for w in workflows}
+            for json_file in templates_dir.glob("*.json"):
+                if json_file.name in user_filenames:
+                    continue  # User has a local copy, skip template
+                workflow = self.load_workflow(str(json_file))
+                if workflow:
+                    workflow['_file_path'] = str(json_file)
+                    workflow['_is_template'] = True
+                    workflows.append(workflow)
         
         return workflows

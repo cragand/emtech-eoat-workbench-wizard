@@ -34,6 +34,13 @@ Thumbs.db
 
 # User-specific preferences (each user gets their own)
 settings/user_preferences.json
+settings/template_hashes.json
+
+# User workflow files (templates in templates/ subdirs are tracked)
+workflows/qc_workflows/*.json
+workflows/maintenance_workflows/*.json
+!workflows/qc_workflows/templates/
+!workflows/maintenance_workflows/templates/
 
 # Temporary files
 *.tmp

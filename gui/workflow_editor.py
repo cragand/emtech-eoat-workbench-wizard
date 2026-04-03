@@ -770,24 +770,51 @@ class WorkflowEditorScreen(QWidget):
             self.back_requested.emit()
     
     def load_workflows(self):
-        """Load workflows from directory."""
+        """Load workflows from directory, including templates."""
         self.workflow_list.clear()
         
         if not os.path.exists(self.workflow_dir):
             os.makedirs(self.workflow_dir, exist_ok=True)
             return
         
+        user_filenames = set()
         for filename in os.listdir(self.workflow_dir):
             if filename.endswith('.json'):
                 self.workflow_list.addItem(filename[:-5])  # Remove .json extension
+                user_filenames.add(filename)
+        
+        # Also list templates that don't have a local copy
+        templates_dir = os.path.join(self.workflow_dir, "templates")
+        if os.path.isdir(templates_dir):
+            for filename in os.listdir(templates_dir):
+                if filename.endswith('.json') and filename not in user_filenames:
+                    self.workflow_list.addItem(f"[Template] {filename[:-5]}")
     
     def on_workflow_selected(self, item):
-        """Load selected workflow for editing."""
+        """Load selected workflow for editing. Templates are copied to working dir first."""
         # Check for unsaved changes before switching
         if not self.check_unsaved_changes():
             return
         
         workflow_name = item.text()
+        is_template = workflow_name.startswith("[Template] ")
+        if is_template:
+            workflow_name = workflow_name[len("[Template] "):]
+            # Copy template to working directory for editing
+            template_path = os.path.join(self.workflow_dir, "templates", f"{workflow_name}.json")
+            dest_path = os.path.join(self.workflow_dir, f"{workflow_name}.json")
+            if os.path.exists(template_path):
+                import shutil
+                shutil.copy2(template_path, dest_path)
+                QMessageBox.information(self, "Template Copied",
+                    f"Template \"{workflow_name}\" has been copied to your workflows for editing.")
+                self.load_workflows()
+                # Select the newly copied workflow
+                for i in range(self.workflow_list.count()):
+                    if self.workflow_list.item(i).text() == workflow_name:
+                        self.workflow_list.setCurrentRow(i)
+                        break
+                return
         filepath = os.path.join(self.workflow_dir, f"{workflow_name}.json")
         
         try:

@@ -184,7 +184,7 @@ class WorkflowSelectionScreen(QWidget):
             os.makedirs(self.workflow_dir, exist_ok=True)
             return
         
-        # Load all JSON files
+        # Load user workflows from top-level directory
         for filename in os.listdir(self.workflow_dir):
             if filename.endswith('.json'):
                 filepath = os.path.join(self.workflow_dir, filename)
@@ -192,9 +192,26 @@ class WorkflowSelectionScreen(QWidget):
                     with open(filepath, 'r', encoding='utf-8') as f:
                         workflow = json.load(f)
                         workflow['filepath'] = filepath
+                        workflow['_is_template'] = False
                         self.workflows.append(workflow)
                 except Exception as e:
                     print(f"Error loading workflow {filename}: {e}")
+        
+        # Load templates (skip if user has a local copy with same filename)
+        templates_dir = os.path.join(self.workflow_dir, "templates")
+        if os.path.isdir(templates_dir):
+            user_filenames = {os.path.basename(w['filepath']) for w in self.workflows}
+            for filename in os.listdir(templates_dir):
+                if filename.endswith('.json') and filename not in user_filenames:
+                    filepath = os.path.join(templates_dir, filename)
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            workflow = json.load(f)
+                            workflow['filepath'] = filepath
+                            workflow['_is_template'] = True
+                            self.workflows.append(workflow)
+                    except Exception as e:
+                        print(f"Error loading template {filename}: {e}")
         
         self._populate_list()
     
@@ -209,7 +226,8 @@ class WorkflowSelectionScreen(QWidget):
             description = workflow.get('description', '')
             if ft and ft not in display_name.lower() and ft not in description.lower():
                 continue
-            item_text = f"{display_name}\n  {description}" if description else display_name
+            prefix = "[Template] " if workflow.get('_is_template') else ""
+            item_text = f"{prefix}{display_name}\n  {description}" if description else f"{prefix}{display_name}"
             self.workflow_list.addItem(item_text)
             self._visible_indices.append(idx)
         

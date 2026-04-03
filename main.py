@@ -400,6 +400,13 @@ def main():
         window = MainWindow()
         window.show()
         
+        # Sync workflow templates (check for new/updated templates)
+        try:
+            from workflows.template_manager import sync_templates
+            sync_templates(parent_widget=window)
+        except Exception:
+            logger.warning("Template sync failed", exc_info=True)
+        
         # Discover cameras in background thread with spinner
         discovery_dialog = CameraDiscoveryDialog(window)
         discovery_thread = CameraDiscoveryThread()
