@@ -610,12 +610,20 @@ class ModeSelectionScreen(QWidget):
                 return
             
             # Check if this is a git repo
-            if run_git("rev-parse", "--git-dir").returncode != 0:
-                QMessageBox.information(self, "Not a Git Repository",
-                    "This installation was not set up with Git.\n\n"
-                    "To enable automatic updates, clone the repository:\n"
-                    "  git clone https://github.com/cragand/emtech-eoat-workbench-wizard.git\n\n"
-                    "See the README for full installation instructions.")
+            rev_parse = run_git("rev-parse", "--git-dir")
+            if rev_parse.returncode != 0:
+                if "dubious ownership" in rev_parse.stderr:
+                    QMessageBox.warning(self, "Git Ownership Error",
+                        "Git blocked access due to a folder ownership mismatch.\n\n"
+                        "To fix this, open a terminal and run:\n\n"
+                        f"  git config --global --add safe.directory {app_dir}\n\n"
+                        "Then try Check for Updates again.")
+                else:
+                    QMessageBox.information(self, "Not a Git Repository",
+                        "This installation was not set up with Git.\n\n"
+                        "To enable automatic updates, clone the repository:\n"
+                        "  git clone https://github.com/cragand/emtech-eoat-workbench-wizard.git\n\n"
+                        "See the README for full installation instructions.")
                 return
             
             # Fetch latest
@@ -648,8 +656,8 @@ class ModeSelectionScreen(QWidget):
             if reply != QMessageBox.Yes:
                 return
             
-            # Pull updates
-            pull = run_git("pull", "origin", "main")
+            # Pull updates (autostash preserves local workflow edits)
+            pull = run_git("pull", "--autostash", "origin", "main")
             if pull.returncode != 0:
                 QMessageBox.warning(self, "Update Failed",
                     "Update failed. This can happen if files were manually edited.\n\n"
