@@ -167,6 +167,15 @@ Accessible from the mode selection screen or within any capture view via the ⚙
 - Restart camera to apply changes
 - Settings are saved per camera and persist across sessions
 
+### Post-Capture Review
+
+After each image capture, a review dialog appears allowing you to:
+
+- Add or edit annotations (markers) on the captured image
+- Add or edit notes before the image is saved
+- Press Enter to save from anywhere in the dialog
+- Click the image to dismiss the notes field and use keyboard shortcuts
+
 ### Review Captures
 
 Click "📋 Review Captures" during any session to open a dialog showing all captured images and videos.
@@ -230,6 +239,7 @@ Guided quality control workflows with step-by-step instructions.
 **Features:**
 - Step-by-step workflow execution
 - Split screen: Instructions/Reference | Camera view
+- Resizable instruction text (+/- buttons or Ctrl+/Ctrl- shortcuts)
 - Required photo capture per step
 - Required annotations per step
 - Progress tracking
@@ -291,11 +301,11 @@ Create and customize workflows for Mode 2 and Mode 3.
 - Add/edit/delete steps
 - Reorder steps (up/down arrows)
 - Set step requirements
-- **Import/Export workflows** - Share workflows with all reference images packaged together
+- **Import/Export workflows** - Share workflows with all reference images and videos packaged together
 
 **Import/Export:**
-- **Export**: Package workflow and all reference images into a single `.zip` file
-- **Import**: Extract workflow from `.zip` and automatically set up images
+- **Export**: Package workflow with all reference images and videos into a single `.zip` file
+- **Import**: Extract workflow from `.zip` and automatically set up images and videos
 - Reference images are copied from any location and bundled with the workflow
 - Paths are automatically updated on import
 - See [WORKFLOW_IMPORT_EXPORT.md](docs/WORKFLOW_IMPORT_EXPORT.md) for detailed documentation
@@ -576,6 +586,9 @@ Scan barcodes and QR codes during any workflow step or general capture (if pyzba
 - **R**: Toggle video recording
 - **B**: Scan barcode/QR code
 
+**Workflow execution (Mode 2/3):**
+- **Ctrl++** / **Ctrl+-**: Increase/decrease instruction text size
+
 **General:**
 - **Esc**: Close current dialog
 - **Enter**: Confirm dialog (when focused)
@@ -676,6 +689,7 @@ camera_qc_app/
 │   ├── annotatable_preview.py      # Camera preview with annotation system
 │   ├── mask_editor.py              # Overlay mask creation tool
 │   ├── camera_settings_dialog.py   # Camera settings UI
+│   ├── capture_review_dialog.py    # Post-capture annotation/notes dialog
 │   ├── review_captures_dialog.py   # Review/edit captured images dialog
 │   ├── overlay_comparison_dialog.py # Side-by-side overlay comparison view
 │   ├── video_comparison_dialog.py  # Side-by-side video comparison view

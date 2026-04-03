@@ -38,7 +38,8 @@ This is a Python-based quality control and maintenance application designed for 
 - **camera_manager.py** - Discovers and manages available cameras
 - **camera_config_manager.py** - Camera settings profiles (Logitech, Microsoft, borescope, generic) and per-camera persistence
 - Uses OpenCV VideoCapture for all camera access
-- Camera discovery probes up to `max_camera_index` indices (default 8, configurable in User Preferences) with early exit after 2 consecutive failures for fast startup
+- Camera discovery probes up to `max_camera_index` indices (default 8, configurable in User Preferences) with early exit after 4 consecutive failures for fast startup
+- Each camera is closed immediately after probe to avoid holding USB resources that block discovery of remaining cameras
 - Discovered cameras are cached in `MainWindow.cached_cameras` and shared across mode switches to avoid re-discovery
 - Async camera discovery with `CameraDiscoveryThread` and `GearSpinnerWidget` loading animation
 
@@ -52,6 +53,7 @@ This is a Python-based quality control and maintenance application designed for 
 - **annotatable_preview.py** - Camera preview widget with annotation system
 - **mask_editor.py** - Overlay mask creation tool
 - **camera_settings_dialog.py** - Camera settings UI (brightness, contrast, resolution, etc.)
+- **capture_review_dialog.py** - Post-capture dialog for annotating images and adding notes before saving
 - **review_captures_dialog.py** - Dialog for reviewing/editing captured images and videos
 - **overlay_comparison_dialog.py** - Side-by-side overlay comparison view
 - **video_comparison_dialog.py** - Side-by-side video comparison view
@@ -181,7 +183,7 @@ This is a Python-based quality control and maintenance application designed for 
 
 #### User Preferences (`preferences_manager.py`)
 - Singleton `PreferencesManager` with JSON config at `settings/user_preferences.json`
-- Settings: technician_name, default_camera_index, report_format, dark_mode, accent_color, default_marker_color, reports_output_dir, captured_images_dir, editor_password_hash, log_retention_days, max_camera_index
+- Settings: technician_name, default_camera_index, report_format, dark_mode, accent_color, default_marker_color, reports_output_dir, captured_images_dir, editor_password_hash, log_retention_days, max_camera_index, instructions_zoom
 - `get_reports_dir()` / `get_captured_images_dir()` return custom or default paths
 - `check_editor_password()` / `set_editor_password()` use SHA-256 hashing
 - `get_accent_colors()` derives hover/pressed variants from base accent color
@@ -273,15 +275,17 @@ output/
 - Step requirements validation (photo/annotations/pass-fail)
 - Workflow editor with password protection
 - Unsaved changes protection in editor
-- Workflow import/export (zip packages and direct JSON)
+- Workflow import/export (zip packages with reference images and videos, and direct JSON)
 - Progress save/resume functionality
 - Progress file management (delete selected, auto-cleanup)
 - Review captures dialog (edit notes, delete captures)
+- Post-capture review dialog (annotate and add notes before saving)
 - PDF and DOCX report generation
 - Procedure summary tables with status indicators
 - View Reports button (opens reports folder in file explorer)
-- Check for Updates button (git-based)
+- Check for Updates button (git-based, with dubious ownership detection and autostash)
 - Keyboard shortcuts (Space/R/B) across all capture views
+- Resizable instruction text in workflow execution (Ctrl+/-, persisted)
 - Comprehensive logging to daily log files
 - Global exception hook for crash prevention
 - File organization by serial number
@@ -294,7 +298,7 @@ output/
 ### Camera Support
 - **ONLY OpenCV cameras** - No Basler/pypylon support
 - Supports standard USB webcams and borescope cameras
-- Camera discovery probes up to `max_camera_index` indices (default 8, configurable in preferences) with early exit after 2 consecutive failures
+- Camera discovery probes up to `max_camera_index` indices (default 8, configurable in preferences) with early exit after 4 consecutive failures
 - DirectShow backend on Windows for fast initialization
 
 ### QR Scanner Behavior
@@ -321,7 +325,7 @@ output/
 - Split-screen layout: instructions/reference on left, live camera on right
 - Step validation before allowing progression
 - Automatic step failure if inspection checkboxes incomplete
-- Progress auto-saved after each step completion
+- Progress auto-saved after each step completion, image capture, and barcode scan
 - Comparison window allows capture/record on live camera side
 
 ### File Naming Convention
@@ -388,6 +392,25 @@ output/
 - Test inspection checkbox state preservation in fullsize view
 
 ## Recent Enhancements
+
+### 2026-04-03: Update Button Fixes
+- **Dubious Ownership Handling**: Detect git "dubious ownership" error and show user the exact `safe.directory` command to fix it, instead of misleading "not a git repo" message
+- **Autostash on Pull**: Use `git pull --autostash` so local changes (e.g. edited workflows) are automatically preserved during updates
+
+### 2026-04-01 – 2026-04-02: Stability & Hardening
+- **Atomic File Writes**: Progress files and preferences written to `.tmp` then `os.replace()` to prevent corruption from crashes or power loss
+- **Auto-Save on Capture**: Workflow progress saved after every image capture and barcode scan, not just step transitions
+- **Resilient Cleanup**: Each resource (timer, video writer, QR scanner, camera) cleaned up independently with its own try/except/finally
+- **Camera Discovery Fix**: Close each camera immediately after probe to avoid USB bandwidth contention; increase consecutive failure threshold from 2 to 4 for non-sequential indices
+- **Orphaned Camera Cleanup**: If camera.open() succeeds but subsequent setup fails, camera is properly closed
+
+### 2026-03-26: UX Polish & Post-Capture Review
+- **Post-Capture Review Dialog**: `capture_review_dialog.py` — dialog appears after each capture for annotating and adding notes before saving
+- **Resizable Instruction Text**: +/- buttons and Ctrl+/Ctrl- shortcuts to adjust instruction text size during workflow execution; zoom level persisted in preferences (`instructions_zoom`)
+- **Background PDF Generation**: Instruction PDF generation runs in background thread to prevent UI freeze
+- **Configurable Camera Discovery**: `max_camera_index` preference supports 4+ cameras with early exit on consecutive failures
+- **Output Path Fallback Warning**: User warned when custom output paths (e.g. network share) are unavailable and defaults are used
+- **Reference Videos in Export/Import**: Workflow export bundles reference videos alongside images; import warns on missing videos in JSON imports
 
 ### 2026-03-24: User Preferences, Audit Trail & Organization
 - **User Preferences System**: `preferences_manager.py` with JSON config at `settings/user_preferences.json`
