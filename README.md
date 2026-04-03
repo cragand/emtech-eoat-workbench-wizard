@@ -310,6 +310,14 @@ Create and customize workflows for Mode 2 and Mode 3.
 - Paths are automatically updated on import
 - See [WORKFLOW_IMPORT_EXPORT.md](docs/WORKFLOW_IMPORT_EXPORT.md) for detailed documentation
 
+**Workflow Templates:**
+- Template workflows are shipped in `templates/` subdirectories and tracked by git
+- On first run, templates are automatically copied to your working workflow directory
+- When a template is updated via an app update, you'll be prompted to update your local copy (your version is backed up automatically)
+- Templates appear with a "[Template]" prefix in the workflow selection list if you haven't created a local copy yet
+- You can run a template directly without copying it first
+- Editing a template automatically creates a local copy for you to modify
+
 **Creating a Workflow:**
 1. Click "New Workflow"
 2. Enter workflow name and description
@@ -454,8 +462,9 @@ Professional PDF and DOCX reports are generated with all captured data.
 - **✗ Fail** (red) - Step failed inspection (incomplete checkboxes or explicitly marked fail)
 
 **Report Location:**
-- Saved to `output/reports/`
+- Saved to `output/reports/` (or custom path set in User Preferences)
 - Filename: `{serial_number}_{timestamp}.pdf`
+- Network paths (UNC shares, mounted drives): reports are generated locally first, then copied to the network location to prevent hangs on slow or unavailable shares
 
 **Generating Reports:**
 - **Mode 1**: Click "Generate Report" button
@@ -495,10 +504,14 @@ output/
     └── {serial_number}_{timestamp}.pdf
 
 workflows/
-├── qc_workflows/                  # Mode 2 workflows
-│   └── *.json
-└── maintenance_workflows/         # Mode 3 workflows
-    └── *.json
+├── qc_workflows/                  # Mode 2 workflows (user copies)
+│   ├── *.json
+│   └── templates/                 # Git-tracked template workflows
+│       └── *.json
+└── maintenance_workflows/         # Mode 3 workflows (user copies)
+    ├── *.json
+    └── templates/                 # Git-tracked template workflows
+        └── *.json
 ```
 
 ## Workflow JSON Format
@@ -701,8 +714,11 @@ camera_qc_app/
 │   └── workflow_report.py          # Report generation and display
 ├── workflows/                       # Workflow definitions
 │   ├── workflow_loader.py          # Workflow JSON loader
-│   ├── qc_workflows/               # QC workflows (JSON)
-│   └── maintenance_workflows/      # Maintenance workflows (JSON)
+│   ├── template_manager.py         # Template sync (hash-based change detection)
+│   ├── qc_workflows/               # User QC workflows (gitignored)
+│   │   └── templates/              # Git-tracked QC templates
+│   └── maintenance_workflows/      # User maintenance workflows (gitignored)
+│       └── templates/              # Git-tracked maintenance templates
 ├── reports/                         # Report generators
 │   ├── report_generator.py         # Factory for PDF/DOCX generation
 │   ├── pdf_generator.py            # PDF report generation (reportlab)

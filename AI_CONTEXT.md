@@ -87,8 +87,11 @@ This is a Python-based quality control and maintenance application designed for 
 
 #### Workflow System (`workflows/`)
 - JSON-based workflow definitions
-- `qc_workflows/` - Quality control process definitions
-- `maintenance_workflows/` - Maintenance procedure definitions
+- `qc_workflows/` - Quality control process definitions (user working copies, gitignored)
+- `maintenance_workflows/` - Maintenance procedure definitions (user working copies, gitignored)
+- `qc_workflows/templates/` - Git-tracked template workflows for QC
+- `maintenance_workflows/templates/` - Git-tracked template workflows for maintenance
+- `template_manager.py` - Hash-based template sync: auto-copies new templates on startup, prompts user on updates with backup
 - Each step can specify:
   - Instructions and reference images
   - Reference video (mp4, avi, mov, mkv, wmv, webm) with playback controls
@@ -165,13 +168,14 @@ This is a Python-based quality control and maintenance application designed for 
 - Tracks changes via JSON state comparison
 
 #### Reports (`reports/`)
-- **report_generator.py** - Factory for PDF/DOCX generation
+- **report_generator.py** - Factory for PDF/DOCX generation with network-aware staging
 - **pdf_generator.py** - PDF report generation with reportlab
 - **docx_generator.py** - DOCX report generation with python-docx
 - Supports session info, images, videos, checklists, and workflow data
 - Professional layout with tables, styling, and automatic pagination
 - Procedure summary table with step status (Complete/Pass/Fail)
 - Reference images with inspection checkboxes in reports
+- Network paths (UNC/mounted shares): reports generated locally first, then copied to network to prevent UI hangs
 
 #### Theme System (`theme_manager.py`)
 - `ThemeManager` class with light and dark mode stylesheets
@@ -276,6 +280,7 @@ output/
 - Workflow editor with password protection
 - Unsaved changes protection in editor
 - Workflow import/export (zip packages with reference images and videos, and direct JSON)
+- Workflow template system (git-tracked templates with hash-based sync and auto-copy)
 - Progress save/resume functionality
 - Progress file management (delete selected, auto-cleanup)
 - Review captures dialog (edit notes, delete captures)
@@ -393,9 +398,12 @@ output/
 
 ## Recent Enhancements
 
-### 2026-04-03: Update Button Fixes
+### 2026-04-03: Update Button Fixes & Template System
 - **Dubious Ownership Handling**: Detect git "dubious ownership" error and show user the exact `safe.directory` command to fix it, instead of misleading "not a git repo" message
 - **Autostash on Pull**: Use `git pull --autostash` so local changes (e.g. edited workflows) are automatically preserved during updates
+- **Workflow Template System**: Git-tracked templates in `templates/` subdirectories with hash-based change detection (`settings/template_hashes.json`); new templates auto-copied on startup; updated templates prompt user with backup option; templates shown with `[Template]` prefix in selection screen; editing a template auto-copies to working directory
+- **Network-Aware Reports**: Reports generated to local staging directory first when output path is a network/UNC share, then copied to network; prevents UI hangs on slow or unavailable shares; local copies preserved if network copy fails
+- **Gitignored User Workflows**: User workflow files in working directories are now gitignored to prevent update conflicts; only templates are tracked
 
 ### 2026-04-01 – 2026-04-02: Stability & Hardening
 - **Atomic File Writes**: Progress files and preferences written to `.tmp` then `os.replace()` to prevent corruption from crashes or power loss
